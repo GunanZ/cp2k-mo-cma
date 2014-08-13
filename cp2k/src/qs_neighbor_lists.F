@@ -268,7 +268,7 @@ CONTAINS
        ELSE IF (dftb) THEN
           ! Set the interaction radius for the neighbor lists (DFTB case)
           ! This includes all interactions (orbitals and short range pair potential) except vdW
-          CALL get_atomic_kind(atomic_kind_set(ikind),dftb_parameter=dftb_atom)
+          CALL get_qs_kind(qs_kind_set(ikind),dftb_parameter=dftb_atom)
           CALL get_dftb_atom_param(dftb_parameter=dftb_atom,&
                                    cutoff=orb_radius(ikind),&
                                    defined=orb_present(ikind),error=error)
@@ -763,7 +763,7 @@ CONTAINS
        ! Build the neighbor lists for the DFTB vdW pair potential
        IF ( qs_env%dft_control%qs_control%dftb_control%dispersion ) THEN
           DO ikind = 1, nkind
-             CALL get_atomic_kind(atomic_kind_set(ikind),dftb_parameter=dftb_atom)
+             CALL get_qs_kind(qs_kind_set(ikind),dftb_parameter=dftb_atom)
              CALL get_dftb_atom_param(dftb_parameter=dftb_atom,&
                                       rcdisp=c_radius(ikind),error=error)
           END DO
