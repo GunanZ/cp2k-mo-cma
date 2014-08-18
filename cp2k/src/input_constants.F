@@ -880,6 +880,7 @@ MODULE input_constants
 
   ! swarm parameters
   INTEGER, PARAMETER, PUBLIC               :: swarm_do_glbopt=1
+  INTEGER, PARAMETER, PUBLIC               :: swarm_do_paramopt=2
 
 ! global opt parameters
   INTEGER, PARAMETER, PUBLIC               :: glbopt_do_minhop  =1,&
