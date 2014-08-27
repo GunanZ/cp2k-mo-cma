@@ -20,8 +20,13 @@ MODULE swarm_master
                                              glbopt_master_init,&
                                              glbopt_master_steer,&
                                              glbopt_master_type
+  USE paramopt_master,                 ONLY: paramopt_master_finalize,&
+                                             paramopt_master_init,&
+                                             paramopt_master_steer,&
+                                             paramopt_master_type
   USE global_types,                    ONLY: global_environment_type
-  USE input_constants,                 ONLY: swarm_do_glbopt
+  USE input_constants,                 ONLY: swarm_do_glbopt,&
+                                             swarm_do_paramopt
   USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                              section_vals_type,&
                                              section_vals_val_get
@@ -57,6 +62,7 @@ MODULE swarm_master
    PRIVATE
    INTEGER                                             :: behavior = -1
    TYPE(glbopt_master_type), POINTER                   :: glbopt => Null()
+   TYPE(paramopt_master_type), POINTER                 :: paramopt => Null()
    !possibly more behaviors ...
    INTEGER                                             :: iw = 0
    INTEGER                                             :: i_iteration = 0
@@ -124,6 +130,9 @@ MODULE swarm_master
       CASE(swarm_do_glbopt)
          ALLOCATE(master%glbopt)
          CALL glbopt_master_init(master%glbopt, para_env, root_section, input_path, n_workers, master%iw, error)
+      CASE(swarm_do_paramopt)
+         ALLOCATE(master%paramopt)
+         CALL paramopt_master_init(master%paramopt, para_env, root_section, input_path, n_workers, master%iw, error)
       CASE DEFAULT
          STOP "swarm_master_init: got unkown behavior"
     END SELECT
@@ -290,6 +299,8 @@ MODULE swarm_master
        SELECT CASE(master%behavior)
          CASE(swarm_do_glbopt)
             CALL glbopt_master_steer(master%glbopt, report, cmd, should_stop)
+         CASE(swarm_do_paramopt)
+            CALL paramopt_master_steer(master%paramopt, report, cmd, should_stop)
          CASE DEFAULT
             STOP "swarm_master_steer: got unkown behavior"
        END SELECT
@@ -343,6 +354,8 @@ MODULE swarm_master
       CASE(swarm_do_glbopt)
          CALL glbopt_master_finalize(master%glbopt)
          DEALLOCATE(master%glbopt)
+      CASE(swarm_do_paramopt)
+         CALL paramopt_master_finalize(master%paramopt)
       CASE DEFAULT
          STOP "swarm_master_finalize: got unkown behavior"
     END SELECT

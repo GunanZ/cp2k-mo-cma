@@ -886,6 +886,9 @@ MODULE input_constants
   INTEGER, PARAMETER, PUBLIC               :: glbopt_do_minhop  =1,&
                                               glbopt_do_mincrawl=2
 
+! global opt parameters
+  INTEGER, PARAMETER, PUBLIC               :: paramopt_do_cma  =1,&
+                                              paramopt_do_powell=2
 ! fm matrix multiplication
   INTEGER, PARAMETER, PUBLIC               :: do_pdgemm  =1,&
                                               do_dbcsr   =2
