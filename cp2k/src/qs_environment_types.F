@@ -120,6 +120,8 @@ MODULE qs_environment_types
                                              qs_energy_type
   USE qs_force_types,                  ONLY: deallocate_qs_force,&
                                              qs_force_type
+  USE qs_kind_types,                   ONLY: deallocate_qs_kind_set,&
+                                             qs_kind_type
   USE qs_ks_qmmm_types,                ONLY: qs_ks_qmmm_env_type,&
                                              qs_ks_qmmm_release,&
                                              qs_ks_qmmm_retain
@@ -442,6 +444,7 @@ MODULE qs_environment_types
     TYPE(wannier_centres_type), POINTER,DIMENSION(:)      :: WannierCentres=>NULL()
     ! atomic properties
     TYPE(atprop_type),POINTER                             :: atprop
+    TYPE(qs_kind_type), DIMENSION(:), POINTER             :: qs_kind_set => Null()
   END TYPE qs_environment_type
 
 ! *****************************************************************************
@@ -599,7 +602,7 @@ CONTAINS
 !> \author  MK
 !> \version 1.0
 ! *****************************************************************************
-  SUBROUTINE get_qs_env(qs_env,atomic_kind_set,cell,super_cell,cell_ref,use_ref_cell,kpoints,&
+  SUBROUTINE get_qs_env(qs_env,atomic_kind_set,qs_kind_set,cell,super_cell,cell_ref,use_ref_cell,kpoints,&
        dft_control,mos,mos_aux_fit,sab_orb,sab_aux_fit,sab_aux_fit_asymm, sab_aux_fit_vs_orb,&
        sab_all,qmmm,qmmm_periodic,sac_ae,sac_ppl,sap_ppnl,sab_vdw,sab_scp,sap_oce,sab_lrc,&
        sab_se,sab_tbe,sab_core,sab_almo,particle_set,energy,force,harris_env,&
@@ -620,6 +623,8 @@ CONTAINS
     TYPE(qs_environment_type), POINTER       :: qs_env
     TYPE(atomic_kind_type), DIMENSION(:), &
       OPTIONAL, POINTER                      :: atomic_kind_set
+    TYPE(qs_kind_type), DIMENSION(:), &
+      OPTIONAL, POINTER                      :: qs_kind_set
     TYPE(cell_type), OPTIONAL, POINTER       :: cell, super_cell, cell_ref
     LOGICAL, OPTIONAL                        :: use_ref_cell
     TYPE(kpoint_type), OPTIONAL, POINTER     :: kpoints
@@ -926,6 +931,7 @@ CONTAINS
                       molecules_new=molecules_new,&
                       error=error)
 
+    IF (PRESENT(qs_kind_set)) qs_kind_set => qs_env%qs_kind_set
     IF (PRESENT(natom)) natom=SIZE(particles%els)
     IF (PRESENT(nkind)) nkind=SIZE(atomic_kinds%els)
     IF (PRESENT(atomic_kind_set)) atomic_kind_set => atomic_kinds%els
@@ -2146,6 +2152,9 @@ CONTAINS
           END IF
           IF (ASSOCIATED(qs_env%kg_env)) THEN
             CALL kg_env_release(qs_env%kg_env, error)
+          END IF
+          IF (ASSOCIATED(qs_env%qs_kind_set)) THEN
+            CALL deallocate_qs_kind_set(qs_env%qs_kind_set, error)
           END IF
 
           ! dispersion
