@@ -27,6 +27,7 @@ MODULE constraint_util
   USE molecule_types_new,              ONLY: get_molecule,&
                                              global_constraint_type,&
                                              local_colvar_constraint_type,&
+                                             local_constraint_type,&
                                              local_g3x3_constraint_type,&
                                              local_g4x6_constraint_type,&
                                              molecule_type
@@ -86,6 +87,7 @@ CONTAINS
     TYPE(g4x6_constraint_type), POINTER      :: g4x6_list( : )
     TYPE(local_colvar_constraint_type), &
       POINTER                                :: lcolv( : )
+    TYPE(local_constraint_type), POINTER     :: lci
     TYPE(local_g3x3_constraint_type), &
       POINTER                                :: lg3x3( : )
     TYPE(local_g4x6_constraint_type), &
@@ -105,6 +107,8 @@ CONTAINS
           CALL get_molecule_kind ( molecule_kind, ng3x3=n3x3con, ng4x6=n4x6con, &
                colv_list=colv_list, g3x3_list=g3x3_list, g4x6_list=g4x6_list,&
                fixd_list=fixd_list )
+          CALL get_molecule ( molecule, lci=lci )
+          IF (.NOT.ASSOCIATED(lci)) CYCLE
           CALL get_molecule ( molecule, first_atom=first_atom, &
                lcolv=lcolv, lg3x3=lg3x3, lg4x6=lg4x6 )
           CALL getold_low(n3x3con, n4x6con, colv_list, g3x3_list, g4x6_list, fixd_list,&
@@ -235,6 +239,7 @@ CONTAINS
     TYPE(g4x6_constraint_type), POINTER      :: g4x6_list( : )
     TYPE(local_colvar_constraint_type), &
       POINTER                                :: lcolv( : )
+    TYPE(local_constraint_type), POINTER     :: lci
     TYPE(local_g3x3_constraint_type), &
       POINTER                                :: lg3x3( : )
     TYPE(local_g4x6_constraint_type), &
@@ -254,6 +259,8 @@ CONTAINS
           CALL get_molecule_kind ( molecule_kind, ng3x3 = ng3x3, &
                ng4x6 = ng4x6, g3x3_list=g3x3_list, g4x6_list=g4x6_list, &
                colv_list = colv_list )
+          CALL get_molecule ( molecule, lci=lci )
+          IF (.NOT.ASSOCIATED(lci)) CYCLE
           CALL get_molecule ( molecule, first_atom = first_atom, lg3x3=lg3x3, &
                lg4x6 = lg4x6, lcolv = lcolv )
           CALL pv_constraint_low ( ng3x3, ng4x6, g3x3_list, g4x6_list, colv_list,&
