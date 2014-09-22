@@ -4,15 +4,13 @@
 !-----------------------------------------------------------------------------!
 
 ! *****************************************************************************
+!> \brief Subroutines to handle submatrices 
 !> \par History
 !>       2013.01 created [Rustam Z Khaliullin]
 !> \author Rustam Z Khaliullin
 ! *****************************************************************************
-MODULE almo_scf_aux2_methods 
+MODULE domain_submatrix_methods
 
-  USE almo_scf_aux2_types,             ONLY: object01_type,&
-                                             object02_type,&
-                                             select_row_col
   USE cp_dbcsr_interface,              ONLY: &
        array_data, cp_dbcsr_col_block_sizes, cp_dbcsr_distribution, &
        cp_dbcsr_filter, cp_dbcsr_finalize, cp_dbcsr_get_block_p, &
@@ -25,6 +23,10 @@ MODULE almo_scf_aux2_methods
        dbcsr_distribution_mp, dbcsr_mp_group, dbcsr_mp_mynode, &
        dbcsr_mp_numnodes, dbcsr_type_antisymmetric, dbcsr_type_no_symmetry, &
        dbcsr_type_symmetric
+  USE domain_submatrix_types,          ONLY: domain_map_type,&
+                                             domain_submatrix_type,&
+                                             select_row,&
+                                             select_row_col
   USE kinds,                           ONLY: dp
   USE message_passing,                 ONLY: mp_allgather,&
                                              mp_alltoall,&
@@ -37,44 +39,45 @@ MODULE almo_scf_aux2_methods
 
   PRIVATE
 
-  CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'almo_scf_aux2_methods'
+  CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'domain_submatrix_methods'
 
-  PUBLIC :: copy_object01_gen, copy_object01_data,&
-            release_object01_gen, op1_object01_gen, op2_object01_gen,&
-            construct_object01, init_object01_gen,&
-            construct_original_form_object01,&
-            set_object01_gen,&
-            ij_exists, op3_object01
+  PUBLIC :: copy_submatrices, copy_submatrix_data,&
+            release_submatrices, multiply_submatrices, add_submatrices,&
+            construct_submatrices, init_submatrices,&
+            construct_dbcsr_from_submatrices,&
+            trace_submatrices,&
+            set_submatrices,&
+            print_submatrices, qblk_exists, maxnorm_submatrices
 
-  INTERFACE init_object01_gen
-     MODULE PROCEDURE init_object01_0d 
-     MODULE PROCEDURE init_object01_1d
-     MODULE PROCEDURE init_object01_2d
+  INTERFACE init_submatrices
+     MODULE PROCEDURE init_submatrices_0d 
+     MODULE PROCEDURE init_submatrices_1d
+     MODULE PROCEDURE init_submatrices_2d
   END INTERFACE
   
-  INTERFACE set_object01_gen
-     MODULE PROCEDURE set_object01_array
-     MODULE PROCEDURE set_object01
+  INTERFACE set_submatrices
+     MODULE PROCEDURE set_submatrix_array
+     MODULE PROCEDURE set_submatrix
   END INTERFACE
   
-  INTERFACE copy_object01_gen
-     MODULE PROCEDURE copy_object01_array
-     MODULE PROCEDURE copy_object01
+  INTERFACE copy_submatrices
+     MODULE PROCEDURE copy_submatrix_array
+     MODULE PROCEDURE copy_submatrix
   END INTERFACE
   
-  INTERFACE release_object01_gen
-     MODULE PROCEDURE release_object01_array
-     MODULE PROCEDURE release_object01
+  INTERFACE release_submatrices
+     MODULE PROCEDURE release_submatrix_array
+     MODULE PROCEDURE release_submatrix
   END INTERFACE
 
-  INTERFACE op1_object01_gen
-     MODULE PROCEDURE op1_object01_once
-     MODULE PROCEDURE op1_object01_array
+  INTERFACE multiply_submatrices
+     MODULE PROCEDURE multiply_submatrices_once
+     MODULE PROCEDURE multiply_submatrices_array
   END INTERFACE
 
-  INTERFACE op2_object01_gen
-     MODULE PROCEDURE op2_object01_once
-     MODULE PROCEDURE op2_object01_array
+  INTERFACE add_submatrices
+     MODULE PROCEDURE add_submatrices_once
+     MODULE PROCEDURE add_submatrices_array
   END INTERFACE
   
 CONTAINS 
@@ -84,9 +87,10 @@ CONTAINS
 !> \param subm ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE init_object01_0d(subm,error)
+  SUBROUTINE init_submatrices_0d(subm,error)
 
-    TYPE(object01_type), INTENT(INOUT)       :: subm
+    TYPE(domain_submatrix_type), &
+      INTENT(INOUT)                          :: subm
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
     subm%domain=-1
@@ -97,17 +101,17 @@ CONTAINS
     subm%nnodes=-1
     subm%groupid=-1
 
-  END SUBROUTINE init_object01_0d
+  END SUBROUTINE init_submatrices_0d
   
 ! *****************************************************************************
 !> \brief ...
 !> \param subm ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE init_object01_1d(subm,error)
+  SUBROUTINE init_submatrices_1d(subm,error)
 
-    TYPE(object01_type), DIMENSION(:), &
-      INTENT(INOUT)                          :: subm
+    TYPE(domain_submatrix_type), &
+      DIMENSION(:), INTENT(INOUT)            :: subm
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
     subm(:)%domain=-1
@@ -118,17 +122,17 @@ CONTAINS
     subm(:)%nnodes=-1
     subm(:)%groupid=-1
 
-  END SUBROUTINE init_object01_1d
+  END SUBROUTINE init_submatrices_1d
   
 ! *****************************************************************************
 !> \brief ...
 !> \param subm ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE init_object01_2d(subm,error)
+  SUBROUTINE init_submatrices_2d(subm,error)
 
-    TYPE(object01_type), DIMENSION(:, :), &
-      INTENT(INOUT)                          :: subm
+    TYPE(domain_submatrix_type), &
+      DIMENSION(:, :), INTENT(INOUT)         :: subm
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
     subm(:,:)%domain=-1
@@ -139,7 +143,7 @@ CONTAINS
     subm(:,:)%nnodes=-1
     subm(:,:)%groupid=-1
 
-  END SUBROUTINE init_object01_2d
+  END SUBROUTINE init_submatrices_2d
   
 ! *****************************************************************************
 !> \brief ...
@@ -148,16 +152,16 @@ CONTAINS
 !> \param copy_data ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE copy_object01_array(original,copy,copy_data,error)
+  SUBROUTINE copy_submatrix_array(original,copy,copy_data,error)
 
-    TYPE(object01_type), DIMENSION(:), &
-      INTENT(IN)                             :: original
-    TYPE(object01_type), DIMENSION(:), &
-      INTENT(INOUT)                          :: copy
+    TYPE(domain_submatrix_type), &
+      DIMENSION(:), INTENT(IN)               :: original
+    TYPE(domain_submatrix_type), &
+      DIMENSION(:), INTENT(INOUT)            :: copy
     LOGICAL, INTENT(IN)                      :: copy_data
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
-    CHARACTER(len=*), PARAMETER :: routineN = 'copy_object01_array', &
+    CHARACTER(len=*), PARAMETER :: routineN = 'copy_submatrix_array', &
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: handle, idomain, ndomains, &
@@ -173,13 +177,13 @@ CONTAINS
     copy(:)%groupid=original(:)%groupid
     DO idomain = 1, ndomains
        IF (original(idomain)%domain.gt.0) THEN
-          CALL copy_object01(original(idomain),copy(idomain),copy_data,error)
+          CALL copy_submatrix(original(idomain),copy(idomain),copy_data,error)
        ENDIF
-    ENDDO 
+    ENDDO ! loop over domains
 
     CALL timestop(handle)
 
-  END SUBROUTINE copy_object01_array
+  END SUBROUTINE copy_submatrix_array
   
 ! *****************************************************************************
 !> \brief ...
@@ -188,14 +192,15 @@ CONTAINS
 !> \param copy_data ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE copy_object01(original,copy,copy_data,error)
+  SUBROUTINE copy_submatrix(original,copy,copy_data,error)
 
-    TYPE(object01_type), INTENT(IN)          :: original
-    TYPE(object01_type), INTENT(INOUT)       :: copy
+    TYPE(domain_submatrix_type), INTENT(IN)  :: original
+    TYPE(domain_submatrix_type), &
+      INTENT(INOUT)                          :: copy
     LOGICAL, INTENT(IN)                      :: copy_data
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
-    CHARACTER(len=*), PARAMETER :: routineN = 'copy_object01', &
+    CHARACTER(len=*), PARAMETER :: routineN = 'copy_submatrix', &
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: handle, icol, irow
@@ -257,14 +262,14 @@ CONTAINS
        ENDDO
    
        IF (copy_data) THEN
-          CALL copy_object01_data(original%mdata,copy,error)
+          CALL copy_submatrix_data(original%mdata,copy,error)
        ENDIF
 
-    ENDIF 
+    ENDIF ! do not copy empty submatrix
 
     CALL timestop(handle)
 
-  END SUBROUTINE copy_object01
+  END SUBROUTINE copy_submatrix
 
 ! *****************************************************************************
 !> \brief ...
@@ -272,14 +277,15 @@ CONTAINS
 !> \param copy ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE copy_object01_data(array,copy,error)
+  SUBROUTINE copy_submatrix_data(array,copy,error)
 
     REAL(KIND=dp), DIMENSION(:, :), &
       INTENT(IN)                             :: array
-    TYPE(object01_type), INTENT(INOUT)       :: copy
+    TYPE(domain_submatrix_type), &
+      INTENT(INOUT)                          :: copy
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
-    CHARACTER(len=*), PARAMETER :: routineN = 'copy_object01_data', &
+    CHARACTER(len=*), PARAMETER :: routineN = 'copy_submatrix_data', &
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: ds1, ds2, handle, ms1, ms2
@@ -307,52 +313,53 @@ CONTAINS
 
     CALL timestop(handle)
 
-  END SUBROUTINE copy_object01_data
+  END SUBROUTINE copy_submatrix_data
        
 ! *****************************************************************************
 !> \brief ...
-!> \param objects01 ...
+!> \param submatrices ...
 !> \param scalar ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE set_object01_array(objects01,scalar,error)
+  SUBROUTINE set_submatrix_array(submatrices,scalar,error)
 
-    TYPE(object01_type), DIMENSION(:), &
-      INTENT(INOUT)                          :: objects01
+    TYPE(domain_submatrix_type), &
+      DIMENSION(:), INTENT(INOUT)            :: submatrices
     REAL(KIND=dp), INTENT(IN)                :: scalar
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
-    CHARACTER(len=*), PARAMETER :: routineN = 'set_object01_array', &
+    CHARACTER(len=*), PARAMETER :: routineN = 'set_submatrix_array', &
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: handle, idomain, ndomains
 
     CALL timeset(routineN,handle)
 
-    ndomains=SIZE(objects01)
+    ndomains=SIZE(submatrices)
     DO idomain = 1, ndomains
-       IF (objects01(idomain)%domain.gt.0) THEN
-          CALL set_object01(objects01(idomain),scalar,error)
+       IF (submatrices(idomain)%domain.gt.0) THEN
+          CALL set_submatrix(submatrices(idomain),scalar,error)
        ENDIF
-    ENDDO 
+    ENDDO ! loop over domains
 
     CALL timestop(handle)
 
-  END SUBROUTINE set_object01_array
+  END SUBROUTINE set_submatrix_array
   
 ! *****************************************************************************
 !> \brief ...
-!> \param object01 ...
+!> \param submatrix ...
 !> \param scalar ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE set_object01(object01,scalar,error)
+  SUBROUTINE set_submatrix(submatrix,scalar,error)
 
-    TYPE(object01_type), INTENT(INOUT)       :: object01
+    TYPE(domain_submatrix_type), &
+      INTENT(INOUT)                          :: submatrix
     REAL(KIND=dp), INTENT(IN)                :: scalar
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
-    CHARACTER(len=*), PARAMETER :: routineN = 'set_object01', &
+    CHARACTER(len=*), PARAMETER :: routineN = 'set_submatrix', &
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: ds1, ds2, handle, ms1, ms2
@@ -360,42 +367,42 @@ CONTAINS
 
     CALL timeset(routineN,handle)
 
-    CPPrecondition(object01%domain.gt.0,cp_failure_level,routineP,error,failure)
-    CPPrecondition(object01%nrows.gt.0,cp_failure_level,routineP,error,failure)
-    CPPrecondition(object01%ncols.gt.0,cp_failure_level,routineP,error,failure)
+    CPPrecondition(submatrix%domain.gt.0,cp_failure_level,routineP,error,failure)
+    CPPrecondition(submatrix%nrows.gt.0,cp_failure_level,routineP,error,failure)
+    CPPrecondition(submatrix%ncols.gt.0,cp_failure_level,routineP,error,failure)
 
-    ds1=object01%nrows
-    ds2=object01%ncols
+    ds1=submatrix%nrows
+    ds2=submatrix%ncols
 
-    IF (.NOT.ALLOCATED(object01%mdata)) THEN
-       ALLOCATE(object01%mdata(ds1,ds2))
+    IF (.NOT.ALLOCATED(submatrix%mdata)) THEN
+       ALLOCATE(submatrix%mdata(ds1,ds2))
     ELSE
-       ms1=SIZE(object01%mdata,1)
-       ms2=SIZE(object01%mdata,2)
+       ms1=SIZE(submatrix%mdata,1)
+       ms2=SIZE(submatrix%mdata,2)
        IF ((ds1.ne.ms1).OR.(ds2.ne.ms2)) THEN
-          DEALLOCATE(object01%mdata)
-          ALLOCATE(object01%mdata(ds1,ds2))
+          DEALLOCATE(submatrix%mdata)
+          ALLOCATE(submatrix%mdata(ds1,ds2))
        ENDIF
     ENDIF
 
-    object01%mdata(:,:)=scalar
+    submatrix%mdata(:,:)=scalar
 
     CALL timestop(handle)
 
-  END SUBROUTINE set_object01
+  END SUBROUTINE set_submatrix
 
 ! *****************************************************************************
 !> \brief ...
 !> \param subm ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE release_object01_array(subm,error)
+  SUBROUTINE release_submatrix_array(subm,error)
 
-    TYPE(object01_type), DIMENSION(:), &
-      INTENT(INOUT)                          :: subm
+    TYPE(domain_submatrix_type), &
+      DIMENSION(:), INTENT(INOUT)            :: subm
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
-    CHARACTER(len=*), PARAMETER :: routineN = 'release_object01_array', &
+    CHARACTER(len=*), PARAMETER :: routineN = 'release_submatrix_array', &
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: handle, idomain, ndomains
@@ -404,24 +411,25 @@ CONTAINS
 
     ndomains=SIZE(subm)
     DO idomain = 1, ndomains
-       CALL release_object01(subm(idomain),error)
-    ENDDO 
+       CALL release_submatrix(subm(idomain),error)
+    ENDDO ! loop over domains
 
     CALL timestop(handle)
 
-  END SUBROUTINE release_object01_array
+  END SUBROUTINE release_submatrix_array
 
 ! *****************************************************************************
 !> \brief ...
 !> \param subm ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE release_object01(subm,error)
+  SUBROUTINE release_submatrix(subm,error)
 
-    TYPE(object01_type), INTENT(INOUT)       :: subm
+    TYPE(domain_submatrix_type), &
+      INTENT(INOUT)                          :: subm
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
-    CHARACTER(len=*), PARAMETER :: routineN = 'release_object01', &
+    CHARACTER(len=*), PARAMETER :: routineN = 'release_submatrix', &
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: handle
@@ -454,8 +462,9 @@ CONTAINS
 
     CALL timestop(handle)
 
-  END SUBROUTINE release_object01
+  END SUBROUTINE release_submatrix
 
+  ! more complex routine might be necessary if submatrices are distributed
 ! *****************************************************************************
 !> \brief ...
 !> \param transA ...
@@ -467,16 +476,17 @@ CONTAINS
 !> \param C ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE op1_object01_once(transA,transB,alpha,A,B,beta,C,error)
+  SUBROUTINE multiply_submatrices_once(transA,transB,alpha,A,B,beta,C,error)
 
     CHARACTER, INTENT(IN)                    :: transA, transB
     REAL(KIND=dp), INTENT(IN)                :: alpha
-    TYPE(object01_type), INTENT(IN)          :: A, B
+    TYPE(domain_submatrix_type), INTENT(IN)  :: A, B
     REAL(KIND=dp), INTENT(IN)                :: beta
-    TYPE(object01_type), INTENT(INOUT)       :: C
+    TYPE(domain_submatrix_type), &
+      INTENT(INOUT)                          :: C
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
-    CHARACTER(len=*), PARAMETER :: routineN = 'op1_object01_once', &
+    CHARACTER(len=*), PARAMETER :: routineN = 'multiply_submatrices_once', &
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: cs1, cs2, handle, icol, irow, &
@@ -516,8 +526,10 @@ CONTAINS
        Nblocks = B%nbrows
     ENDIF
 
+    ! these checks are for debugging only
     CPPrecondition(K.eq.K1,cp_failure_level,routineP,error,failure)
    
+    ! conform C matrix 
     C%nrows=M
     C%ncols=N
     C%nbrows=Mblocks
@@ -560,12 +572,14 @@ CONTAINS
     ENDDO
 
     IF (.NOT.ALLOCATED(C%mdata)) THEN
+       !!! cannot use non-zero beta if C is not allocated
        CPPrecondition(beta.eq.0.0_dp,cp_failure_level,routineP,error,failure)
        ALLOCATE(C%mdata(C%nrows,C%ncols))
     ELSE
        cs1=SIZE(C%mdata,1)
        cs2=SIZE(C%mdata,2)
        IF ((C%nrows.ne.cs1).OR.(C%ncols.ne.cs2)) THEN
+          !!! cannot deallocate data if beta is non-zero
           CPPrecondition(beta.eq.0.0_dp,cp_failure_level,routineP,error,failure)
           DEALLOCATE(C%mdata)
           ALLOCATE(C%mdata(C%nrows,C%ncols))
@@ -581,7 +595,7 @@ CONTAINS
 
     CALL timestop(handle)
 
-  END SUBROUTINE op1_object01_once
+  END SUBROUTINE multiply_submatrices_once
 
 ! *****************************************************************************
 !> \brief ...
@@ -594,18 +608,18 @@ CONTAINS
 !> \param C ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE op1_object01_array(transA,transB,alpha,A,B,beta,C,error)
+  SUBROUTINE multiply_submatrices_array(transA,transB,alpha,A,B,beta,C,error)
 
     CHARACTER, INTENT(IN)                    :: transA, transB
     REAL(KIND=dp), INTENT(IN)                :: alpha
-    TYPE(object01_type), DIMENSION(:), &
-      INTENT(IN)                             :: A, B
+    TYPE(domain_submatrix_type), &
+      DIMENSION(:), INTENT(IN)               :: A, B
     REAL(KIND=dp), INTENT(IN)                :: beta
-    TYPE(object01_type), DIMENSION(:), &
-      INTENT(INOUT)                          :: C
+    TYPE(domain_submatrix_type), &
+      DIMENSION(:), INTENT(INOUT)            :: C
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
-    CHARACTER(len=*), PARAMETER :: routineN = 'op1_object01_array', &
+    CHARACTER(len=*), PARAMETER :: routineN = 'multiply_submatrices_array', &
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: handle, idomain, idomainA, &
@@ -631,16 +645,18 @@ CONTAINS
        
        C(idomain)%domain = idomainA
 
+       ! check if the submatrix exists
        IF (idomainA.gt.0) THEN
-          CALL op1_object01_once(transA,transB,alpha,A(idomain),B(idomain),beta,C(idomain),error)
-       ENDIF 
+          CALL multiply_submatrices_once(transA,transB,alpha,A(idomain),B(idomain),beta,C(idomain),error)
+       ENDIF ! submatrix for the domain exists
 
-    ENDDO 
+    ENDDO ! loop over domains
 
     CALL timestop(handle)
 
-  END SUBROUTINE op1_object01_array
+  END SUBROUTINE multiply_submatrices_array
 
+  ! more complex routine might be necessary if submatrices are distributed
 ! *****************************************************************************
 !> \brief ...
 !> \param alpha ...
@@ -650,16 +666,17 @@ CONTAINS
 !> \param transB ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE op2_object01_once(alpha,A,beta,B,transB,error)
+  SUBROUTINE add_submatrices_once(alpha,A,beta,B,transB,error)
 
     REAL(KIND=dp), INTENT(IN)                :: alpha
-    TYPE(object01_type), INTENT(INOUT)       :: A
+    TYPE(domain_submatrix_type), &
+      INTENT(INOUT)                          :: A
     REAL(KIND=dp), INTENT(IN)                :: beta
-    TYPE(object01_type), INTENT(IN)          :: B
+    TYPE(domain_submatrix_type), INTENT(IN)  :: B
     CHARACTER, INTENT(IN)                    :: transB
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
-    CHARACTER(len=*), PARAMETER :: routineN = 'op2_object01_once', &
+    CHARACTER(len=*), PARAMETER :: routineN = 'add_submatrices_once', &
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: C1, C2, handle, icol, R1, R2
@@ -683,6 +700,7 @@ CONTAINS
        C2 = B%nrows
     ENDIF
 
+    ! these checks are for debugging only
     CPPrecondition(C1.eq.C2,cp_failure_level,routineP,error,failure)
     CPPrecondition(R1.eq.R2,cp_failure_level,routineP,error,failure)
    
@@ -698,7 +716,7 @@ CONTAINS
 
     CALL timestop(handle)
 
-  END SUBROUTINE op2_object01_once
+  END SUBROUTINE add_submatrices_once
 
 ! *****************************************************************************
 !> \brief ...
@@ -709,18 +727,18 @@ CONTAINS
 !> \param transB ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE op2_object01_array(alpha,A,beta,B,transB,error)
+  SUBROUTINE add_submatrices_array(alpha,A,beta,B,transB,error)
 
     REAL(KIND=dp), INTENT(IN)                :: alpha
-    TYPE(object01_type), DIMENSION(:), &
-      INTENT(INOUT)                          :: A
+    TYPE(domain_submatrix_type), &
+      DIMENSION(:), INTENT(INOUT)            :: A
     REAL(KIND=dp), INTENT(IN)                :: beta
-    TYPE(object01_type), DIMENSION(:), &
-      INTENT(IN)                             :: B
+    TYPE(domain_submatrix_type), &
+      DIMENSION(:), INTENT(IN)               :: B
     CHARACTER, INTENT(IN)                    :: transB
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
-    CHARACTER(len=*), PARAMETER :: routineN = 'op2_object01_array', &
+    CHARACTER(len=*), PARAMETER :: routineN = 'add_submatrices_array', &
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: handle, idomain, idomainA, &
@@ -741,56 +759,61 @@ CONTAINS
        
        CPPrecondition(idomainA.eq.idomainB,cp_failure_level,routineP,error,failure)
        
+       ! check if the submatrix exists
        IF (idomainA.gt.0) THEN
-          CALL op2_object01_once(alpha,A(idomain),beta,B(idomain),transB,error)
-       ENDIF 
+          CALL add_submatrices_once(alpha,A(idomain),beta,B(idomain),transB,error)
+       ENDIF ! submatrix for the domain exists
 
-    ENDDO 
+    ENDDO ! loop over domains
 
     CALL timestop(handle)
 
-  END SUBROUTINE op2_object01_array
+  END SUBROUTINE add_submatrices_array
 
 ! *****************************************************************************
-!> \brief ...
-!> \param objects01 ...
+!> \brief Computes the max norm of the collection of submatrices
+!> \param submatrices ...
 !> \param norm ...
 !> \param error ...
 !> \par History
 !>       2013.03 created [Rustam Z. Khaliullin]
 !> \author Rustam Z. Khaliullin
 ! *****************************************************************************
-  SUBROUTINE op3_object01(objects01,norm,error)
+  SUBROUTINE maxnorm_submatrices(submatrices,norm,error)
     
-    TYPE(object01_type), DIMENSION(:), &
-      INTENT(IN)                             :: objects01
+    TYPE(domain_submatrix_type), &
+      DIMENSION(:), INTENT(IN)               :: submatrices
     REAL(KIND=dp), INTENT(OUT)               :: norm
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
-    CHARACTER(len=*), PARAMETER :: routineN = 'op3_object01', &
+    CHARACTER(len=*), PARAMETER :: routineN = 'maxnorm_submatrices', &
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: handle, idomain, ndomains
     REAL(KIND=dp)                            :: curr_norm, send_norm
     REAL(KIND=dp), ALLOCATABLE, DIMENSION(:) :: recv_norm
 
+!TYPE(cp_dbcsr_type), INTENT(IN)                        :: distr_pattern
+
     CALL timeset(routineN,handle)
 
     send_norm=0.0_dp
     
-    ndomains=SIZE(objects01)
+    ndomains=SIZE(submatrices)
 
     DO idomain = 1, ndomains
 
-       IF (objects01(idomain)%domain.gt.0) THEN
-          curr_norm=MAXVAL(ABS(objects01(idomain)%mdata))
+       ! check if the submatrix is local
+       IF (submatrices(idomain)%domain.gt.0) THEN
+          curr_norm=MAXVAL(ABS(submatrices(idomain)%mdata))
           IF (curr_norm.gt.send_norm) send_norm=curr_norm
        ENDIF
 
-    ENDDO 
+    ENDDO ! loop over domains
     
-    ALLOCATE(recv_norm(objects01(1)%nnodes))
-    CALL mp_allgather(send_norm,recv_norm,objects01(1)%groupid)
+    ! communicate local norm to the other nodes
+    ALLOCATE(recv_norm(submatrices(1)%nnodes))
+    CALL mp_allgather(send_norm,recv_norm,submatrices(1)%groupid)
    
     norm=MAXVAL(recv_norm)
 
@@ -798,10 +821,10 @@ CONTAINS
 
     CALL timestop(handle)
   
-  END SUBROUTINE op3_object01 
+  END SUBROUTINE maxnorm_submatrices 
 
 ! *****************************************************************************
-!> \brief ...
+!> \brief Computes the sum of traces of the submatrix A.tr(B)
 !> \param A ...
 !> \param B ...
 !> \param trace ...
@@ -810,14 +833,14 @@ CONTAINS
 !>       2013.03 created [Rustam Z. Khaliullin]
 !> \author Rustam Z. Khaliullin
 ! *****************************************************************************
-  SUBROUTINE op4_object01(A,B,trace,error)
+  SUBROUTINE trace_submatrices(A,B,trace,error)
     
-    TYPE(object01_type), DIMENSION(:), &
-      INTENT(IN)                             :: A, B
+    TYPE(domain_submatrix_type), &
+      DIMENSION(:), INTENT(IN)               :: A, B
     REAL(KIND=dp), INTENT(OUT)               :: trace
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
-    CHARACTER(len=*), PARAMETER :: routineN = 'op4_object01', &
+    CHARACTER(len=*), PARAMETER :: routineN = 'trace_submatrices', &
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: domainA, domainB, handle, &
@@ -825,6 +848,8 @@ CONTAINS
     LOGICAL                                  :: failure
     REAL(KIND=dp)                            :: curr_trace, send_trace
     REAL(KIND=dp), ALLOCATABLE, DIMENSION(:) :: recv_trace
+
+!TYPE(cp_dbcsr_type), INTENT(IN)                        :: distr_pattern
 
     CALL timeset(routineN,handle)
 
@@ -842,6 +867,7 @@ CONTAINS
        
        CPPrecondition(domainA.eq.domainB,cp_failure_level,routineP,error,failure)
 
+       ! check if the submatrix is local
        IF (domainA.gt.0) THEN
 
           CPPrecondition(A(idomain)%nrows.eq.B(idomain)%nrows,cp_failure_level,routineP,error,failure)
@@ -852,8 +878,9 @@ CONTAINS
 
        ENDIF
 
-    ENDDO 
+    ENDDO ! loop over domains
     
+    ! communicate local norm to the other nodes
     ALLOCATE(recv_trace(A(1)%nnodes))
     CALL mp_allgather(send_trace,recv_trace,A(1)%groupID)
    
@@ -863,12 +890,13 @@ CONTAINS
 
     CALL timestop(handle)
   
-  END SUBROUTINE op4_object01 
+  END SUBROUTINE trace_submatrices 
 
 ! *****************************************************************************
-!> \brief ...
+!> \brief Constructs submatrices for each ALMO domain by collecting distributed
+!>        DBCSR blocks to local arrays
 !> \param matrix ...
-!> \param object01 ...
+!> \param submatrix ...
 !> \param distr_pattern ...
 !> \param domain_map ...
 !> \param node_of_domain ...
@@ -878,19 +906,19 @@ CONTAINS
 !>       2013.01 created [Rustam Z. Khaliullin]
 !> \author Rustam Z. Khaliullin
 ! *****************************************************************************
-  SUBROUTINE construct_object01(matrix,object01,distr_pattern,domain_map,&
+  SUBROUTINE construct_submatrices(matrix,submatrix,distr_pattern,domain_map,&
      node_of_domain,job_type,error)
     
     TYPE(cp_dbcsr_type), INTENT(IN)          :: matrix
-    TYPE(object01_type), DIMENSION(:), &
-      INTENT(INOUT)                          :: object01
+    TYPE(domain_submatrix_type), &
+      DIMENSION(:), INTENT(INOUT)            :: submatrix
     TYPE(cp_dbcsr_type), INTENT(IN)          :: distr_pattern
-    TYPE(object02_type), INTENT(IN)          :: domain_map
+    TYPE(domain_map_type), INTENT(IN)        :: domain_map
     INTEGER, DIMENSION(:), INTENT(IN)        :: node_of_domain
     INTEGER, INTENT(IN)                      :: job_type
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
-    CHARACTER(len=*), PARAMETER :: routineN = 'construct_object01', &
+    CHARACTER(len=*), PARAMETER :: routineN = 'construct_submatrices', &
       routineP = moduleN//':'//routineN
 
     CHARACTER                                :: matrix_type
@@ -912,12 +940,17 @@ CONTAINS
     REAL(KIND=dp), ALLOCATABLE, DIMENSION(:) :: recv_data, send_data
     REAL(KIND=dp), DIMENSION(:), POINTER     :: block_p
 
+!INTEGER, PARAMETER                         :: select_row_col = 1
+!INTEGER, PARAMETER                         :: select_row = 2
+!                                                  subm_row_size,&
+!                                                  subm_col_size,&
+
     CALL timeset(routineN,handle)
     
     nblkrows_tot = cp_dbcsr_nblkrows_total(matrix)
     nblkcols_tot = cp_dbcsr_nblkcols_total(matrix)
 
-    ndomains = nblkcols_tot 
+    ndomains = nblkcols_tot ! RZK-warning not true for atomic distributions
 
     nNodes = dbcsr_mp_numnodes(dbcsr_distribution_mp(&
        cp_dbcsr_distribution(distr_pattern)))
@@ -933,25 +966,30 @@ CONTAINS
     ALLOCATE(recv_descriptor(ldesc,nNodes))
     send_descriptor(:,:)=0
     
+    ! find: the number of blocks and their sizes that must be sent to each cpu
+    ! loop over all domains
     DO idomain = 1, ndomains
              
        dest_node=node_of_domain(idomain)
 
-       index_sr=1 
+       ! loop over those rows that have non-zero quencher
+       index_sr=1 ! index start row
        IF (idomain.gt.1) index_sr=domain_map%index1(idomain-1)
-       index_er=domain_map%index1(idomain)-1 
+       index_er=domain_map%index1(idomain)-1 ! index end row
 
        DO index_row=index_sr, index_er
 
           row = domain_map%pairs(index_row,1)
 
           IF (job_type==select_row_col) THEN
-             index_sc=1 
+             ! loop over those columns that have non-zero quencher
+             index_sc=1 ! index start col
              IF (idomain.gt.1) index_sc=domain_map%index1(idomain-1)
-             index_ec=domain_map%index1(idomain)-1 
+             index_ec=domain_map%index1(idomain)-1 ! index end col
           ELSE
-             index_sc=1 
-             index_ec=1 
+             ! fake loop
+             index_sc=1 ! index start col
+             index_ec=1 ! index end col
           ENDIF
 
           DO index_col=index_sc, index_ec
@@ -974,12 +1012,40 @@ CONTAINS
                 ENDIF
              ENDIF
 
-          ENDDO 
+          ENDDO ! loop over columns
 
-       ENDDO 
+       ENDDO ! loop over rows
 
     ENDDO
 
+    ! simple but quadratically scaling procedure
+    ! loop over local blocks
+    !CALL cp_dbcsr_iterator_start(iter,matrix)
+    !DO WHILE (cp_dbcsr_iterator_blocks_left(iter))
+    !   CALL cp_dbcsr_iterator_next_block(iter,row,col,data_p,&
+    !           row_size=row_size,col_size=col_size)
+    !   DO idomain = 1, ndomains
+    !      IF (job_type==select_row_col) THEN
+    !         domain_needs_block=(qblk_exists(domain_map,col,idomain,error)&
+    !            .AND.qblk_exists(domain_map,row,idomain,error))
+    !      ELSE
+    !         domain_needs_block=(idomain==col&
+    !            .AND.qblk_exists(domain_map,row,idomain,error))
+    !      ENDIF
+    !      IF (domain_needs_block) THEN
+    !         transp=.FALSE.
+    !         dest_node=node_of_domain(idomain)
+    !         !CALL cp_dbcsr_get_stored_coordinates(distr_pattern,&
+    !         !        idomain, idomain, transp, dest_node)
+    !         send_descriptor(1,dest_node+1)=send_descriptor(1,dest_node+1)+1
+    !         send_descriptor(2,dest_node+1)=send_descriptor(2,dest_node+1)+&
+    !            row_size*col_size
+    !      ENDIF
+    !   ENDDO
+    !ENDDO
+    !CALL cp_dbcsr_iterator_stop(iter)
+       
+    ! communicate number of blocks and their sizes to the other nodes
     CALL mp_alltoall(send_descriptor,recv_descriptor,ldesc,GroupID)
     
     ALLOCATE(send_size_cpu(nNodes),send_offset_cpu(nNodes))
@@ -1025,6 +1091,7 @@ CONTAINS
     DEALLOCATE(send_descriptor)
     DEALLOCATE(recv_descriptor)
     
+    ! collect data from the matrix into send_data
     ALLOCATE(send_data(send_size_total))
     ALLOCATE(recv_data(recv_size_total))
     ALLOCATE(send_data2(send_size2_total))
@@ -1033,25 +1100,29 @@ CONTAINS
     ALLOCATE(offset2_block(nNodes))
     offset_block(:)=0
     offset2_block(:)=0
+    ! loop over all domains
     DO idomain = 1, ndomains
              
        dest_node=node_of_domain(idomain)
 
-       index_sr=1 
+       ! loop over those rows that have non-zero quencher
+       index_sr=1 ! index start row
        IF (idomain.gt.1) index_sr=domain_map%index1(idomain-1)
-       index_er=domain_map%index1(idomain)-1 
+       index_er=domain_map%index1(idomain)-1 ! index end row
 
        DO index_row=index_sr, index_er
 
           row = domain_map%pairs(index_row,1)
 
           IF (job_type==select_row_col) THEN
-             index_sc=1 
+             ! loop over those columns that have non-zero quencher
+             index_sc=1 ! index start col
              IF (idomain.gt.1) index_sc=domain_map%index1(idomain-1)
-             index_ec=domain_map%index1(idomain)-1 
+             index_ec=domain_map%index1(idomain)-1 ! index end col
           ELSE
-             index_sc=1 
-             index_ec=1 
+             ! fake loop
+             index_sc=1 ! index start col
+             index_ec=1 ! index end col
           ENDIF
 
           DO index_col=index_sc, index_ec
@@ -1068,12 +1139,22 @@ CONTAINS
              IF (block_node.eq.myNode) THEN
                 CALL cp_dbcsr_get_block_p(matrix,row,col,block_p,found,row_size,col_size)
                 IF (found) THEN
+                   !col_offset=0
+                   !DO icol=1,col_size
+                   !   start_data=send_offset_cpu(dest_node+1)+&
+                   !              offset_block(dest_node+1)+&
+                   !              col_offset
+                   !   send_data(start_data+1:start_data+row_size)=&
+                   !      data_p(1:row_size,icol)
+                   !   col_offset=col_offset+row_size
+                   !ENDDO
                    col_offset=row_size*col_size
                    start_data=send_offset_cpu(dest_node+1)+&
                                  offset_block(dest_node+1)
                    send_data(start_data+1:start_data+col_offset)=&
                          block_p(1:col_offset)
                    offset_block(dest_node+1)=offset_block(dest_node+1)+col_offset
+                   ! fill out row,col information
                    send_data2(send_offset2_cpu(dest_node+1)+&
                          offset2_block(dest_node+1)+1)=row
                    send_data2(send_offset2_cpu(dest_node+1)+&
@@ -1082,14 +1163,55 @@ CONTAINS
                 ENDIF
              ENDIF
 
-          ENDDO 
+          ENDDO ! loop over columns
 
-       ENDDO 
+       ENDDO ! loop over rows
 
     ENDDO
-    
+    ! more simple but quadratically scaling version
+    !CALL cp_dbcsr_iterator_start(iter,matrix)
+    !DO WHILE (cp_dbcsr_iterator_blocks_left(iter))
+    !   CALL cp_dbcsr_iterator_next_block(iter,row,col,data_p,&
+    !           row_size=row_size,col_size=col_size)
+    !   DO idomain = 1, ndomains
+    !      IF (job_type==select_row_col) THEN
+    !         domain_needs_block=(qblk_exists(domain_map,col,idomain,error)&
+    !            .AND.qblk_exists(domain_map,row,idomain,error))
+    !      ELSE
+    !         domain_needs_block=(idomain==col&
+    !            .AND.qblk_exists(domain_map,row,idomain,error))
+    !      ENDIF
+    !      IF (domain_needs_block) THEN
+    !         transp=.FALSE.
+    !         dest_node=node_of_domain(idomain)
+    !         !CALL cp_dbcsr_get_stored_coordinates(distr_pattern,&
+    !         !        idomain, idomain, transp, dest_node)
+    !         ! place the data appropriately
+    !         col_offset=0
+    !         DO icol=1,col_size
+    !            start_data=send_offset_cpu(dest_node+1)+&
+    !                       offset_block(dest_node+1)+&
+    !                       col_offset
+    !            send_data(start_data+1:start_data+row_size)=&
+    !               data_p(1:row_size,icol)
+    !            col_offset=col_offset+row_size
+    !         ENDDO
+    !         offset_block(dest_node+1)=offset_block(dest_node+1)+col_size*row_size
+    !         ! fill out row,col information
+    !         send_data2(send_offset2_cpu(dest_node+1)+&
+    !               offset2_block(dest_node+1)+1)=row
+    !         send_data2(send_offset2_cpu(dest_node+1)+&
+    !               offset2_block(dest_node+1)+2)=col
+    !         offset2_block(dest_node+1)=offset2_block(dest_node+1)+2
+    !      ENDIF
+    !   ENDDO
+    !ENDDO
+    !CALL cp_dbcsr_iterator_stop(iter)
+       
+    ! send-receive all blocks
     CALL mp_alltoall(send_data,send_size_cpu,send_offset_cpu,&
             recv_data,recv_size_cpu,recv_offset_cpu,GroupID)
+    ! send-receive rows and cols of the blocks
     CALL mp_alltoall(send_data2,send_size2_cpu,send_offset2_cpu,&
             recv_data2,recv_size2_cpu,recv_offset2_cpu,GroupID)
     
@@ -1100,59 +1222,77 @@ CONTAINS
     DEALLOCATE(offset_block)
     DEALLOCATE(offset2_block)
     
+    ! copy blocks into submatrices
     col_blk_size => array_data(cp_dbcsr_col_block_sizes(matrix))
     row_blk_size => array_data(cp_dbcsr_row_block_sizes(matrix))
-    ndomains2=SIZE(object01)
+!    ALLOCATE(subm_row_size(ndomains),subm_col_size(ndomains))
+!    subm_row_size(:)=0
+!    subm_col_size(:)=0
+    ndomains2=SIZE(submatrix)
     IF (ndomains2.ne.ndomains) THEN
-       CPErrorMessage(cp_failure_level,routineP,"wrong matrix size",error)
+       CPErrorMessage(cp_failure_level,routineP,"wrong submatrix size",error)
        CPPrecondition(.FALSE.,cp_failure_level,routineP,error,failure)
     ENDIF
-    CALL release_object01_gen(object01,error)
-    object01(:)%nnodes=nNodes
-    object01(:)%groupID=GroupID
-    object01(:)%nrows=0
-    object01(:)%ncols=0
+    CALL release_submatrices(submatrix,error)
+    submatrix(:)%nnodes=nNodes
+    submatrix(:)%groupID=GroupID
+    submatrix(:)%nrows=0
+    submatrix(:)%ncols=0
     
     ALLOCATE(first_row(nblkrows_tot),first_col(nblkcols_tot))
-    object01(:)%domain=-1
+    submatrix(:)%domain=-1
     DO idomain=1, ndomains 
        dest_node=node_of_domain(idomain)
+       !transp=.FALSE.
+       !CALL cp_dbcsr_get_stored_coordinates(distr_pattern,&
+       !        idomain, idomain, transp, dest_node)
        IF (dest_node.eq.mynode) THEN
-          object01(idomain)%domain=idomain
-          object01(idomain)%nbrows=0
-          object01(idomain)%nbcols=0
+          submatrix(idomain)%domain=idomain
+          submatrix(idomain)%nbrows=0
+          submatrix(idomain)%nbcols=0
           
+          ! loop over those rows that have non-zero quencher
           first_row(:)=-1
-          index_sr=1 
+          index_sr=1 ! index start row
           IF (idomain.gt.1) index_sr=domain_map%index1(idomain-1)
-          index_er=domain_map%index1(idomain)-1 
+          index_er=domain_map%index1(idomain)-1 ! index end row
           DO index_row=index_sr, index_er
              row = domain_map%pairs(index_row,1)
-             first_row(row)=object01(idomain)%nrows+1
-             object01(idomain)%nrows=object01(idomain)%nrows+row_blk_size(row)
-             object01(idomain)%nbrows=object01(idomain)%nbrows+1
+          !DO row = 1, nblkrows_tot
+          !   IF (qblk_exists(domain_map,row,idomain,error)) THEN
+             first_row(row)=submatrix(idomain)%nrows+1
+             submatrix(idomain)%nrows=submatrix(idomain)%nrows+row_blk_size(row)
+             submatrix(idomain)%nbrows=submatrix(idomain)%nbrows+1
+          !   ENDIF
           ENDDO
-          ALLOCATE(object01(idomain)%dbcsr_row(object01(idomain)%nbrows))
-          ALLOCATE(object01(idomain)%size_brow(object01(idomain)%nbrows))
+          ALLOCATE(submatrix(idomain)%dbcsr_row(submatrix(idomain)%nbrows))
+          ALLOCATE(submatrix(idomain)%size_brow(submatrix(idomain)%nbrows))
           smrow=1
-          index_sr=1 
+          ! again loop over those rows that have non-zero quencher
+          index_sr=1 ! index start row
           IF (idomain.gt.1) index_sr=domain_map%index1(idomain-1)
-          index_er=domain_map%index1(idomain)-1 
+          index_er=domain_map%index1(idomain)-1 ! index end row
           DO index_row=index_sr, index_er
              row = domain_map%pairs(index_row,1)
-                object01(idomain)%dbcsr_row(smrow)=row
-                object01(idomain)%size_brow(smrow)=row_blk_size(row)
+          !DO row = 1, nblkrows_tot
+          !   IF (first_row(row).ne.-1) THEN
+                submatrix(idomain)%dbcsr_row(smrow)=row
+                submatrix(idomain)%size_brow(smrow)=row_blk_size(row)
                 smrow=smrow+1
+          !   ENDIF
           ENDDO
 
+          ! loop over the necessary columns
           first_col(:)=-1
           IF (job_type==select_row_col) THEN
-             index_sc=1 
+             ! loop over those columns that have non-zero quencher
+             index_sc=1 ! index start col
              IF (idomain.gt.1) index_sc=domain_map%index1(idomain-1)
-             index_ec=domain_map%index1(idomain)-1 
+             index_ec=domain_map%index1(idomain)-1 ! index end col
           ELSE
-             index_sc=1 
-             index_ec=1
+             ! fake loop
+             index_sc=1 ! index start col
+             index_ec=1 ! index end col
           ENDIF
           DO index_col=index_sc, index_ec
              IF (job_type==select_row_col) THEN
@@ -1160,22 +1300,33 @@ CONTAINS
              ELSE
                 col = idomain 
              ENDIF
-                first_col(col)=object01(idomain)%ncols+1
-                object01(idomain)%ncols=object01(idomain)%ncols+col_blk_size(col)
-                object01(idomain)%nbcols=object01(idomain)%nbcols+1
+          !DO col = 1, nblkcols_tot
+          !   IF (job_type==select_row_col) THEN
+          !      domain_needs_block=(qblk_exists(domain_map,col,idomain,error))
+          !   ELSE
+          !      domain_needs_block=(col==idomain) ! RZK-warning col belongs to the domain
+          !   ENDIF
+          !   IF (domain_needs_block) THEN
+                first_col(col)=submatrix(idomain)%ncols+1
+                submatrix(idomain)%ncols=submatrix(idomain)%ncols+col_blk_size(col)
+                submatrix(idomain)%nbcols=submatrix(idomain)%nbcols+1
+          !   ENDIF
           ENDDO
           
-          ALLOCATE(object01(idomain)%dbcsr_col(object01(idomain)%nbcols))
-          ALLOCATE(object01(idomain)%size_bcol(object01(idomain)%nbcols))
+          ALLOCATE(submatrix(idomain)%dbcsr_col(submatrix(idomain)%nbcols))
+          ALLOCATE(submatrix(idomain)%size_bcol(submatrix(idomain)%nbcols))
           
+          ! loop over the necessary columns again
           smcol=1
           IF (job_type==select_row_col) THEN
-             index_sc=1 
+             ! loop over those columns that have non-zero quencher
+             index_sc=1 ! index start col
              IF (idomain.gt.1) index_sc=domain_map%index1(idomain-1)
-             index_ec=domain_map%index1(idomain)-1 
+             index_ec=domain_map%index1(idomain)-1 ! index end col
           ELSE
-             index_sc=1 
-             index_ec=1 
+             ! fake loop
+             index_sc=1 ! index start col
+             index_ec=1 ! index end col
           ENDIF
           DO index_col=index_sc, index_ec
              IF (job_type==select_row_col) THEN
@@ -1183,24 +1334,30 @@ CONTAINS
              ELSE
                 col = idomain 
              ENDIF
-                object01(idomain)%dbcsr_col(smcol)=col
-                object01(idomain)%size_bcol(smcol)=col_blk_size(col)
+          !DO col = 1, nblkcols_tot
+          !   IF (first_col(col).ne.-1) THEN
+                submatrix(idomain)%dbcsr_col(smcol)=col
+                submatrix(idomain)%size_bcol(smcol)=col_blk_size(col)
                 smcol=smcol+1
+          !   ENDIF
           ENDDO
 
-          ALLOCATE(object01(idomain)%mdata(&
-             object01(idomain)%nrows,&
-             object01(idomain)%ncols))
-          object01(idomain)%mdata(:,:)=0.0_dp
+          ALLOCATE(submatrix(idomain)%mdata(&
+             submatrix(idomain)%nrows,&
+             submatrix(idomain)%ncols))
+          submatrix(idomain)%mdata(:,:)=0.0_dp
           DO iNode=1, nNodes
              block_offset=0
              DO iBlock=1, recv_size2_cpu(iNode)/2
+                ! read the (row,col) of the block
                 row = recv_data2(recv_offset2_cpu(iNode)+(iBlock-1)*2+1)
                 col = recv_data2(recv_offset2_cpu(iNode)+(iBlock-1)*2+2)
+                ! check if this block should be in the submatrix of this domain
                 IF ((first_col(col).NE.-1).AND.(first_row(row).NE.-1)) THEN
+                   ! copy data from the received array into submatrix
                    start_data=recv_offset_cpu(iNode)+block_offset+1
                    DO icol=0, col_blk_size(col)-1
-                      object01(idomain)%mdata(first_row(row):&
+                      submatrix(idomain)%mdata(first_row(row):&
                                 first_row(row)+row_blk_size(row)-1,&
                                 first_col(col)+icol)=&
                                 recv_data(start_data:start_data+row_blk_size(row)-1)
@@ -1209,13 +1366,14 @@ CONTAINS
                    IF (job_type==select_row_col) THEN
                       IF (matrix_type==dbcsr_type_symmetric.OR.&
                           matrix_type==dbcsr_type_antisymmetric) THEN
+                         ! copy data into the transposed block as well
                          antifactor=1.0_dp
                          IF (matrix_type==dbcsr_type_antisymmetric) THEN
                             antifactor=-1.0_dp
                          ENDIF
                          start_data=recv_offset_cpu(iNode)+block_offset+1
                          DO icol=0, col_blk_size(col)-1
-                            object01(idomain)%mdata(first_row(col)+icol,&
+                            submatrix(idomain)%mdata(first_row(col)+icol,&
                                       first_col(row):&
                                       first_col(row)+row_blk_size(row)-1)=&
                                       antifactor*recv_data(start_data:&
@@ -1232,48 +1390,49 @@ CONTAINS
                 block_offset=block_offset+col_blk_size(col)*row_blk_size(row)
              ENDDO
           ENDDO
-       ENDIF 
-    ENDDO 
+       ENDIF ! mynode.eq.dest_node
+    ENDDO ! loop over domains
 
     DEALLOCATE(recv_size_cpu,recv_offset_cpu)
     DEALLOCATE(recv_size2_cpu,recv_offset2_cpu)
     DEALLOCATE(recv_data)
     DEALLOCATE(recv_data2)
+!    DEALLOCATE(subm_row_size,subm_col_size)
     DEALLOCATE(first_row,first_col)
        
     CALL timestop(handle)
   
-  END SUBROUTINE construct_object01 
+  END SUBROUTINE construct_submatrices 
 
 ! *****************************************************************************
-!> \brief ...
+!> \brief Constructs a DBCSR matrix from submatrices
 !> \param matrix ...
-!> \param object01 ...
+!> \param submatrix ...
 !> \param distr_pattern ...
 !> \param error ...
 !> \par History
 !>       2013.01 created [Rustam Z. Khaliullin]
 !> \author Rustam Z. Khaliullin
 ! *****************************************************************************
-  SUBROUTINE construct_original_form_object01(matrix,object01,distr_pattern,&
+  SUBROUTINE construct_dbcsr_from_submatrices(matrix,submatrix,distr_pattern,&
      error)
     
     TYPE(cp_dbcsr_type), INTENT(INOUT)       :: matrix
-    TYPE(object01_type), DIMENSION(:), &
-      INTENT(IN)                             :: object01
+    TYPE(domain_submatrix_type), &
+      DIMENSION(:), INTENT(IN)               :: submatrix
     TYPE(cp_dbcsr_type), INTENT(IN)          :: distr_pattern
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
     CHARACTER(len=*), PARAMETER :: &
-      routineN = 'construct_original_form_object01', &
+      routineN = 'construct_dbcsr_from_submatrices', &
       routineP = moduleN//':'//routineN
 
     CHARACTER                                :: matrix_type
-    INTEGER :: block_offset, col, col_offset, col_s, colsize, dest_node, &
-      GroupID, handle, iBlock, icol, idomain, iNode, irow_subm, ldesc, &
-      myNode, nblkcols_tot, nblkrows_tot, ndomains, ndomains2, nNodes, &
-      recv_size2_total, recv_size_total, row, row_s, rowsize, &
-      send_size2_total, send_size_total, smroff, start_data, unit_nr
+    INTEGER :: block_offset, col, col_offset, colsize, dest_node, GroupID, &
+      handle, iBlock, icol, idomain, iNode, irow_subm, ldesc, myNode, &
+      nblkcols_tot, nblkrows_tot, ndomains, ndomains2, nNodes, &
+      recv_size2_total, recv_size_total, row, rowsize, send_size2_total, &
+      send_size_total, smroff, start_data, unit_nr
     INTEGER, ALLOCATABLE, DIMENSION(:) :: offset2_block, offset_block, &
       recv_data2, recv_offset2_cpu, recv_offset_cpu, recv_size2_cpu, &
       recv_size_cpu, send_data2, send_offset2_cpu, send_offset_cpu, &
@@ -1289,6 +1448,7 @@ CONTAINS
 
     CALL timeset(routineN,handle)
     
+    ! get a useful output_unit
     logger => cp_error_get_logger(error)
     IF (logger%para_env%mepos==logger%para_env%source) THEN
        unit_nr=cp_logger_get_default_unit_nr(logger,local=.TRUE.)
@@ -1299,8 +1459,8 @@ CONTAINS
     nblkrows_tot = cp_dbcsr_nblkrows_total(matrix)
     nblkcols_tot = cp_dbcsr_nblkcols_total(matrix)
 
-    ndomains = nblkcols_tot 
-    ndomains2 = SIZE(object01)
+    ndomains = nblkcols_tot ! RZK-warning not true for atomic distributions
+    ndomains2 = SIZE(submatrix)
 
     IF (ndomains.ne.ndomains2) THEN
        CPErrorMessage(cp_failure_level,routineP,"domain mismatch",error)
@@ -1320,6 +1480,7 @@ CONTAINS
        CPPrecondition(.FALSE.,cp_failure_level,routineP,error,failure)
     ENDIF
    
+    ! remove all blocks from the dbcsr matrix   
     CALL cp_dbcsr_iterator_start(iter,matrix)
     DO WHILE (cp_dbcsr_iterator_blocks_left(iter))
        CALL cp_dbcsr_iterator_next_block(iter,row,col,block_p)
@@ -1336,44 +1497,42 @@ CONTAINS
     ALLOCATE(recv_descriptor(ldesc,nNodes))
     send_descriptor(:,:)=0
     
+    ! loop over domains - find how much data to send 
     DO idomain = 1, ndomains
 
-       IF (object01(idomain)%domain.gt.0) THEN
+       IF (submatrix(idomain)%domain.gt.0) THEN
 
-          DO irow_subm = 1, object01(idomain)%nbrows
+          DO irow_subm = 1, submatrix(idomain)%nbrows
           
-             IF (object01(idomain)%nbcols.ne.1) THEN
-                CPErrorMessage(cp_failure_level,routineP,"corrupt object01 structure",error)
+             IF (submatrix(idomain)%nbcols.ne.1) THEN
+                CPErrorMessage(cp_failure_level,routineP,"corrupt submatrix structure",error)
                 CPPrecondition(.FALSE.,cp_failure_level,routineP,error,failure)
              ENDIF
 
-             row = object01(idomain)%dbcsr_row(irow_subm)
-             col = object01(idomain)%dbcsr_col(1)
+             row = submatrix(idomain)%dbcsr_row(irow_subm)
+             col = submatrix(idomain)%dbcsr_col(1)
 
              IF (col.ne.idomain) THEN
-                CPErrorMessage(cp_failure_level,routineP,"corrupt object01 structure",error)
+                CPErrorMessage(cp_failure_level,routineP,"corrupt submatrix structure",error)
                 CPPrecondition(.FALSE.,cp_failure_level,routineP,error,failure)
              ENDIF
 
              transp=.FALSE.
-             row_s = row
-             col_s = idomain
              CALL cp_dbcsr_get_stored_coordinates(distr_pattern,&
-                     row_s, col_s, transp, dest_node)
-             CPPrecondition(row_s==row,cp_failure_level,routineP,error,failure)
-             CPPrecondition(col_s==idomain,cp_failure_level,routineP,error,failure)
+                     row, idomain, transp, dest_node)
              
              send_descriptor(1,dest_node+1)=send_descriptor(1,dest_node+1)+1
              send_descriptor(2,dest_node+1)=send_descriptor(2,dest_node+1)+&
-                object01(idomain)%size_brow(irow_subm)*&
-                object01(idomain)%size_bcol(1)
+                submatrix(idomain)%size_brow(irow_subm)*&
+                submatrix(idomain)%size_bcol(1)
 
-          ENDDO 
+          ENDDO ! loop over submatrix blocks
 
        ENDIF       
 
-    ENDDO 
+    ENDDO ! loop over domains
 
+    ! communicate number of blocks and their sizes to the other nodes
     CALL mp_alltoall(send_descriptor,recv_descriptor,ldesc,GroupID)
     
     ALLOCATE(send_size_cpu(nNodes),send_offset_cpu(nNodes))
@@ -1419,6 +1578,7 @@ CONTAINS
     DEALLOCATE(send_descriptor)
     DEALLOCATE(recv_descriptor)
     
+    ! collect data from the matrix into send_data
     ALLOCATE(send_data(send_size_total))
     ALLOCATE(recv_data(recv_size_total))
     ALLOCATE(send_data2(send_size2_total))
@@ -1427,38 +1587,37 @@ CONTAINS
     ALLOCATE(offset2_block(nNodes))
     offset_block(:)=0
     offset2_block(:)=0
+    ! loop over domains - collect data to send 
     DO idomain = 1, ndomains
 
-       IF (object01(idomain)%domain.gt.0) THEN
+       IF (submatrix(idomain)%domain.gt.0) THEN
 
           smroff=0
-          DO irow_subm = 1, object01(idomain)%nbrows
+          DO irow_subm = 1, submatrix(idomain)%nbrows
           
-             row = object01(idomain)%dbcsr_row(irow_subm)
-             col = object01(idomain)%dbcsr_col(1)
+             row = submatrix(idomain)%dbcsr_row(irow_subm)
+             col = submatrix(idomain)%dbcsr_col(1)
 
-             rowsize = object01(idomain)%size_brow(irow_subm)
-             colsize = object01(idomain)%size_bcol(1)
+             rowsize = submatrix(idomain)%size_brow(irow_subm)
+             colsize = submatrix(idomain)%size_bcol(1)
 
              transp=.FALSE.
-             row_s = row
-             col_s = idomain
              CALL cp_dbcsr_get_stored_coordinates(distr_pattern,&
-                     row_s, col_s, transp, dest_node)
-             CPPrecondition(row_s==row,cp_failure_level,routineP,error,failure)
-             CPPrecondition(col_s==idomain,cp_failure_level,routineP,error,failure)
+                     row, idomain, transp, dest_node)
             
+             ! place the data appropriately
              col_offset=0
              DO icol=1,colsize
                 start_data=send_offset_cpu(dest_node+1)+&
                            offset_block(dest_node+1)+&
                            col_offset
                 send_data(start_data+1:start_data+rowsize)=&
-                   object01(idomain)%mdata(smroff+1:smroff+rowsize,icol)
+                   submatrix(idomain)%mdata(smroff+1:smroff+rowsize,icol)
                 col_offset=col_offset+rowsize
              ENDDO
              offset_block(dest_node+1)=offset_block(dest_node+1)+&
                 colsize*rowsize
+             ! fill out row,col information
              send_data2(send_offset2_cpu(dest_node+1)+&
                    offset2_block(dest_node+1)+1)=row
              send_data2(send_offset2_cpu(dest_node+1)+&
@@ -1471,10 +1630,12 @@ CONTAINS
 
        ENDIF       
 
-    ENDDO 
+    ENDDO ! loop over domains
     
+    ! send-receive all blocks
     CALL mp_alltoall(send_data,send_size_cpu,send_offset_cpu,&
             recv_data,recv_size_cpu,recv_offset_cpu,GroupID)
+    ! send-receive rows and cols of the blocks
     CALL mp_alltoall(send_data2,send_size2_cpu,send_offset2_cpu,&
             recv_data2,recv_size2_cpu,recv_offset2_cpu,GroupID)
     
@@ -1485,16 +1646,22 @@ CONTAINS
     DEALLOCATE(offset_block)
     DEALLOCATE(offset2_block)
     
+    ! copy recieved data into dbcsr matrix
     col_blk_size => array_data(cp_dbcsr_col_block_sizes(matrix))
     row_blk_size => array_data(cp_dbcsr_row_block_sizes(matrix))
     DO iNode=1, nNodes
        block_offset=0
        DO iBlock=1, recv_size2_cpu(iNode)/2
+          ! read the (row,col) of the block
           row = recv_data2(recv_offset2_cpu(iNode)+(iBlock-1)*2+1)
           col = recv_data2(recv_offset2_cpu(iNode)+(iBlock-1)*2+2)
+          !CALL cp_dbcsr_get_block_p(matrix,row,col,block_p,found)
+          !IF (.NOT.found) THEN
           NULLIFY (block_p)
           CALL cp_dbcsr_reserve_block2d(matrix,row,col,block_p)
           CPPostcondition(ASSOCIATED(block_p),cp_failure_level,routineP,error,failure)
+          !ENDIF
+          ! copy data from the received array into the matrix block
           start_data=recv_offset_cpu(iNode)+block_offset+1
           DO icol=1, col_blk_size(col)
              block_p(:,icol)=&
@@ -1514,22 +1681,22 @@ CONTAINS
     
     CALL timestop(handle)
   
-  END SUBROUTINE construct_original_form_object01 
+  END SUBROUTINE construct_dbcsr_from_submatrices 
 
 ! *****************************************************************************
 !> \brief ...
-!> \param objects01 ...
+!> \param submatrices ...
 !> \param mpgroup ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE op5_object01(objects01,mpgroup,error)
+  SUBROUTINE print_submatrices(submatrices,mpgroup,error)
     
-    TYPE(object01_type), DIMENSION(:), &
-      INTENT(IN)                             :: objects01
+    TYPE(domain_submatrix_type), &
+      DIMENSION(:), INTENT(IN)               :: submatrices
     INTEGER, INTENT(IN)                      :: mpgroup
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
-    CHARACTER(len=*), PARAMETER :: routineN = 'op5_object01', &
+    CHARACTER(len=*), PARAMETER :: routineN = 'print_submatrices', &
       routineP = moduleN//':'//routineN
 
     CHARACTER(len=30)                        :: colstr, formatstr
@@ -1538,18 +1705,18 @@ CONTAINS
 
     CALL timeset(routineN,handle)
    
-    n=SIZE(objects01)
+    n=SIZE(submatrices)
 
     DO i=1, n
-       nrows=SIZE(objects01(i)%mdata,1)
-       ncols=SIZE(objects01(i)%mdata,2)
+       nrows=SIZE(submatrices(i)%mdata,1)
+       ncols=SIZE(submatrices(i)%mdata,2)
        WRITE (colstr,*) ncols
        formatstr='('//TRIM(ADJUSTL(colstr))//'F16.9)'
-       IF (objects01(i)%domain.gt.0) THEN
-          WRITE (*,*) "object01: ", i, nrows, 'x', ncols
-          nrows=SIZE(objects01(i)%mdata,1)
+       IF (submatrices(i)%domain.gt.0) THEN
+          WRITE (*,*) "SUBMATRIX: ", i, nrows, 'x', ncols
+          nrows=SIZE(submatrices(i)%mdata,1)
           DO irow=1, nrows
-             WRITE (*,formatstr) objects01(i)%mdata(irow,:)
+             WRITE (*,formatstr) submatrices(i)%mdata(irow,:)
           ENDDO
        ENDIF
        CALL mp_sync(mpgroup)
@@ -1557,10 +1724,10 @@ CONTAINS
 
     CALL timestop(handle)
   
-  END SUBROUTINE op5_object01 
+  END SUBROUTINE print_submatrices 
 
 ! *****************************************************************************
-!> \brief ...
+!> \brief Reports whether the DBCSR block (row,col) exists in the quencher
 !> \param map ...
 !> \param row ...
 !> \param col ...
@@ -1569,26 +1736,29 @@ CONTAINS
 !>       2013.01 created [Rustam Z. Khaliullin]
 !> \author Rustam Z. Khaliullin
 ! *****************************************************************************
-  FUNCTION ij_exists(map,row,col,error)
+  FUNCTION qblk_exists(map,row,col,error)
   
-    TYPE(object02_type), INTENT(IN)          :: map
+    TYPE(domain_map_type), INTENT(IN)        :: map
     INTEGER, INTENT(IN)                      :: row, col
     TYPE(cp_error_type), INTENT(INOUT)       :: error
-    LOGICAL                                  :: ij_exists
+    LOGICAL                                  :: qblk_exists
 
-    CHARACTER(len=*), PARAMETER :: routineN = 'ij_exists', &
+    CHARACTER(len=*), PARAMETER :: routineN = 'qblk_exists', &
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: first, last, mid, ndomains
 
+!CALL timeset(routineN,handle)
+
     ndomains=SIZE(map%index1)
 
-    ij_exists=.FALSE.
+    qblk_exists=.FALSE.
     IF (col.lt.1.OR.col.gt.ndomains) RETURN
     first=1
     IF (col.gt.1) first=map%index1(col-1)
     last=map%index1(col)-1
 
+    ! perform binary search within first-last
     DO WHILE (last.ge.first)
         mid = first+(last-first)/2
         IF (map%pairs(mid,1).gt.row) THEN
@@ -1596,15 +1766,17 @@ CONTAINS
         ELSE IF (map%pairs(mid,1).lt.row) THEN
            first = mid+1
         ELSE
-            ij_exists=.TRUE.   
+            qblk_exists=.TRUE.   ! SUCCESS!!
             EXIT
         END IF
     END DO
+
+    !CALL timestop(handle)
   
     RETURN
 
-  END FUNCTION ij_exists
+  END FUNCTION qblk_exists
 
-END MODULE almo_scf_aux2_methods 
+END MODULE domain_submatrix_methods
 
 

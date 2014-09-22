@@ -4933,7 +4933,7 @@ CONTAINS
        CALL keyword_create(keyword, name="LIST",&
             description="Specifies a list of atoms.",&
             usage="LIST {integer} {integer} .. {integer}", required=.FALSE.,&
-            n_var=-1, type_of_var=integer_t, error=error)
+            repeats=.TRUE., n_var=-1, type_of_var=integer_t, error=error)
        CALL section_add_keyword(subsection,keyword,error=error)
        CALL keyword_release(keyword,error=error)
 
@@ -7450,7 +7450,7 @@ CONTAINS
             "uses scaling and squaring together with the pade approximation",&
             "uses arnoldi subspace algorithm to compute exp(H)*MO directly, can't be used in "//&
             "combination with Crank Nicholson or density propagation",&
-            "Uses a Baker–Campbell–Hausdorff expansion to propagate the density matrix,"//&
+            "Uses a Baker-Campbell-Hausdorff expansion to propagate the density matrix,"//&
             " only works for density propagation"),&
             error=error)
        CALL section_add_keyword(section,keyword,error=error)

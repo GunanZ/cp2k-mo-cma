@@ -4,11 +4,12 @@
 !-----------------------------------------------------------------------------!
 
 ! *****************************************************************************
+!> \brief Types to handle submatrices
 !> \par History
 !>       2013.01 created [Rustam Z Khaliullin]
 !> \author Rustam Z Khaliullin
 ! *****************************************************************************
-MODULE almo_scf_aux2_types
+MODULE domain_submatrix_types
   USE kinds,                           ONLY: dp
 #include "./common/cp_common_uses.f90"
 
@@ -16,14 +17,16 @@ MODULE almo_scf_aux2_types
 
   PRIVATE
 
-  CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'almo_scf_aux2_types'
+  CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'domain_submatrix_types'
 
   INTEGER, PARAMETER, PUBLIC           :: select_row_col = 1
   INTEGER, PARAMETER, PUBLIC           :: select_row = 2
 
-  PUBLIC :: object01_type, object02_type
+  PUBLIC :: domain_submatrix_type, domain_map_type
 
-  TYPE object01_type
+  ! submatrix storage with the meta-data necessary to convert 
+  ! the submatrix into the DBCSR format
+  TYPE domain_submatrix_type
     INTEGER                                       :: domain
     REAL(KIND=dp), DIMENSION(:,:), ALLOCATABLE    :: mdata
     INTEGER                                       :: nbrows
@@ -36,13 +39,13 @@ MODULE almo_scf_aux2_types
     INTEGER, DIMENSION(:), ALLOCATABLE            :: size_bcol
     INTEGER                                       :: nnodes
     INTEGER                                       :: groupid
-  END TYPE object01_type
+  END TYPE domain_submatrix_type
 
-  TYPE object02_type
+  TYPE domain_map_type
     INTEGER, DIMENSION(:), ALLOCATABLE     :: index1
     INTEGER, DIMENSION(:,:), ALLOCATABLE   :: pairs
-  END TYPE object02_type
+  END TYPE domain_map_type
 
-END MODULE almo_scf_aux2_types 
+END MODULE domain_submatrix_types
 
 

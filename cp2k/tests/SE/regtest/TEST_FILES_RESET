@@ -845,3 +845,12 @@ b2h6_pm6.inp
 hcn_pm6.inp
 # Numerics 
 dimer2.inp
+#change in numerics
+h2o_gks_e.inp.out
+ice-scp-ewald.inp.out
+#  
+geom.inp
+#  
+h2o_gks_e.inp
+#  
+ice-scp-ewald.inp

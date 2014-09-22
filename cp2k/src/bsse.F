@@ -244,6 +244,7 @@ CONTAINS
 !>        see module cp_error_handling
 !> \par History
 !>      07.2005 created [tlaino]
+!>      2014/09/17 made atom list to be read from repeated occurance of LIST [LTong]
 !> \author Teodoro Laino
 ! *****************************************************************************
   SUBROUTINE eval_bsse_energy_low(force_env, force_env_loc, conf, conf_loc, n_frags, &
@@ -261,8 +262,8 @@ CONTAINS
     CHARACTER(LEN=default_string_length)     :: name
     CHARACTER(len=default_string_length), &
       DIMENSION(:), POINTER                  :: atom_type
-    INTEGER :: i, isize, j, k, method_name_id, my_targ, n_rep, num_of_frag, &
-      old_size, present_charge, present_multpl, stat
+    INTEGER :: i, ir, isize, j, k, method_name_id, my_targ, n_rep, &
+      num_of_frag, old_size, present_charge, present_multpl, stat
     INTEGER, DIMENSION(:), POINTER           :: atom_index, atom_list, &
                                                 my_conf, tmplist
     LOGICAL                                  :: failure
@@ -300,12 +301,14 @@ CONTAINS
              ! Get the list of atoms creating the present fragment
              !
              old_size=isize
-             CALL section_vals_val_get(n_frags,"LIST", i_rep_section=i, n_rep_val=n_rep, error=error)
+             CALL section_vals_val_get(n_frags, "LIST", i_rep_section=i, n_rep_val=n_rep, error=error)
              IF (n_rep /= 0) THEN
-                CALL section_vals_val_get(n_frags,"LIST", i_rep_section=i, i_vals=tmplist, error=error)
-                CALL reallocate(atom_index,1,isize+SIZE(tmplist))
-                atom_index(isize+1:isize+SIZE(tmplist)) = tmplist
-                isize = SIZE(atom_index)
+                DO ir = 1, n_rep
+                   CALL section_vals_val_get(n_frags, "LIST", i_rep_section=i, i_rep_val=ir, i_vals=tmplist, error=error)
+                   CALL reallocate(atom_index,1,isize+SIZE(tmplist))
+                   atom_index(isize+1:isize+SIZE(tmplist)) = tmplist
+                   isize = SIZE(atom_index)
+                END DO
              END IF
              my_conf(i) = isize - old_size
              CPPostcondition(conf(i)/=0,cp_failure_level,routineP,error,failure)
@@ -397,8 +400,8 @@ CONTAINS
     CHARACTER(LEN=*), PARAMETER :: routineN = 'dump_bsse_info', &
       routineP = moduleN//':'//routineN
 
-    CHARACTER(len=default_string_length)     :: conf_loc_s, conf_s
-    INTEGER                                  :: i, iw
+    INTEGER                                  :: i, istat, iw
+    CHARACTER(len=20*SIZE(conf))             :: conf_loc_s, conf_s
     LOGICAL                                  :: failure
     TYPE(cp_logger_type), POINTER            :: logger
 
@@ -409,8 +412,12 @@ CONTAINS
         iw=cp_print_key_unit_nr(logger,bsse_section,"PRINT%PROGRAM_RUN_INFO",&
                                          extension=".log",error=error)
         IF (iw>0) THEN
-          WRITE (conf_s,*)conf ;         CALL compress(conf_s,full=.TRUE.)
-          WRITE (conf_loc_s,*)conf_loc ; CALL compress(conf_loc_s,full=.TRUE.)
+          WRITE (conf_s,fmt="(1000I0)",iostat=istat)conf ;
+          IF(istat.NE.0) conf_s="exceeded"
+          CALL compress(conf_s,full=.TRUE.)
+          WRITE (conf_loc_s,fmt="(1000I0)",iostat=istat)conf_loc ;
+          IF(istat.NE.0) conf_loc_s="exceeded"
+          CALL compress(conf_loc_s,full=.TRUE.)
 
           WRITE (UNIT=iw,FMT="(/,T2,A)") REPEAT("-",79)
           WRITE (UNIT=iw,FMT="(T2,A,T80,A)") "-","-"
@@ -457,8 +464,6 @@ CONTAINS
     CHARACTER(LEN=*), PARAMETER :: routineN = 'conf_info_setup', &
       routineP = moduleN//':'//routineN
 
-    CHARACTER(len=default_string_length)     :: conf_loc_s, conf_s, &
-                                                glb_conf_s, sub_conf_s
     INTEGER                                  :: i, nconf
     INTEGER, DIMENSION(:), POINTER           :: glb_conf, sub_conf
     LOGICAL                                  :: explicit, failure
@@ -469,8 +474,6 @@ CONTAINS
     failure = .FALSE.
     NULLIFY(configurations, glb_conf, sub_conf)
     IF (.NOT.failure) THEN
-       WRITE (conf_s,*)conf ;         CALL compress(conf_s,full=.TRUE.)
-       WRITE (conf_loc_s,*)conf_loc ; CALL compress(conf_loc_s,full=.TRUE.)
        ! Loop over all configurations to pick up the right one
        configurations => section_vals_get_subs_vals(bsse_section,"CONFIGURATION",error=error)
        CALL section_vals_get(configurations,explicit=explicit,n_repetition=nconf,error=error)
@@ -488,9 +491,7 @@ CPSourceFileRef,&
                   "different from the number of fragments defined!"//&
 CPSourceFileRef,&
                   only_ionode=.TRUE.)
-             WRITE (glb_conf_s,*)glb_conf ; CALL compress(glb_conf_s,full=.TRUE.)
-             WRITE (sub_conf_s,*)sub_conf ; CALL compress(sub_conf_s,full=.TRUE.)
-             IF ((conf_s==glb_conf_s).AND.(conf_loc_s==sub_conf_s)) THEN
+             IF (ALL(conf==glb_conf).AND.ALL(conf_loc==sub_conf)) THEN
                 CALL section_vals_val_get(configurations,"CHARGE", i_rep_section=i,&
                                           i_val=present_charge, error=error)
                 CALL section_vals_val_get(configurations,"MULTIPLICITY", i_rep_section=i,&
