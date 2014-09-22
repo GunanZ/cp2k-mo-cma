@@ -31,7 +31,8 @@ MODULE paramopt_worker
   USE input_constants,                 ONLY: dump_xmol,&
                                              paramopt_do_cma,&
                                              paramopt_do_powell,&
-                                             paramopt_do_grid
+                                             paramopt_do_grid,&
+                                             paramopt_do_mocma
   USE input_section_types,             ONLY: section_type,&
                                              section_vals_get_subs_vals,&
                                              section_vals_type,&
@@ -69,13 +70,16 @@ MODULE paramopt_worker
    INTEGER                                  :: iw
    INTEGER                                  :: group
    REAL(KIND=dp),DIMENSION(:),POINTER       :: x
+   REAL(KIND=dp),DIMENSION(:),POINTER       :: func
    INTEGER                                  :: n
+   INTEGER                                  :: m
    TYPE(cp_error_type)                      :: error
    TYPE(cp_para_env_type), POINTER          :: para_env
    INTEGER                                  :: f_env_id
    INTEGER                                  :: method
    INTEGER                                  :: inp_num
    INTEGER                                  :: charge 
+   INTEGER                                  :: pop_id 
    TYPE(f_env_type), POINTER                :: f_env
    TYPE(force_env_type), POINTER            :: force_env
    TYPE(qs_environment_type), POINTER       :: qs_env
@@ -124,6 +128,7 @@ MODULE paramopt_worker
 
         failure = .FALSE.
 
+        worker%m = 2
         worker%error = error
         worker%root_section => root_section
         worker%input_path = input_path
@@ -139,6 +144,7 @@ MODULE paramopt_worker
         IF (worker%iw>0) WRITE(worker%iw,*) "paramopt_worker_init called."
         IF (worker%iw>0) WRITE(worker%iw,*) "paramopt_worker_init done."
         allocate(worker%D3(3))
+        allocate(worker%func(worker%m))
   END SUBROUTINE paramopt_worker_init
 
 
@@ -157,6 +163,8 @@ MODULE paramopt_worker
     CHARACTER(len=default_string_length)     :: command
     REAL(kind=dp)                            :: test
    REAL(kind=dp)                            :: y
+   REAL(kind=dp),DIMENSION(:),POINTER       :: func
+   INTEGER                                  :: Id
 
 
     SELECT CASE (worker%method)
@@ -174,21 +182,35 @@ MODULE paramopt_worker
                 CALL swarm_message_add(report, "result", y)
             ELSE IF (TRIM(command) == "energy") THEN
                nullify(worker%x)
+               CALL swarm_message_get(cmd, "pop_id", worker%pop_id)
                CALL swarm_message_get(cmd, "inp_num", worker%inp_num)
                CALL swarm_message_get(cmd, "inp_file", worker%inp_file)
                CALL swarm_message_get(cmd, "charge", worker%charge)
                CALL swarm_message_get(cmd, "x", worker%x)
-               CALL swarm_message_get(cmd, "ref_func", worker%ref_func)
                !-----------------------------------------------
                CALL paramopt_energy(worker,cmd,command,report,y)
                !-----------------------------------------------
                CALL swarm_message_add(report, "status", "done")
+               CALL swarm_message_add(report, "pop_id", worker%pop_id)
                CALL swarm_message_add(report, "inp_num", worker%inp_num) 
                CALL swarm_message_add(report, "result", y)
             ELSE
                print *,"Worker: received unkown command:"
                STOP 
             END IF
+       CASE (paramopt_do_mocma)
+            CALL swarm_message_get(cmd, "command", command)
+            IF(TRIM(command) == "function") THEN
+            nullify(worker%x)
+            CALL swarm_message_get(cmd, "x", worker%x)
+            CALL swarm_message_get(cmd, "ref_func", worker%ref_func)
+            !------------do calc here------------
+            !CALL myfun(worker%x,y,worker%ref_func)
+            !------------------------------------ 
+            CALL swarm_message_add(report, "status", "done") 
+            CALL swarm_message_add(report, "pop_id", id)
+            CALL swarm_message_add(report, "result", worker%func)
+            endif
        CASE DEFAULT
         STOP "Unkown glbopt_method"
     END SELECT
@@ -224,15 +246,19 @@ MODULE paramopt_worker
     !CALL swarm_message_get(cmd,"iter",iter)
     !CALL swarm_message_get(cmd,"x",this%x)
 
+    !print *,'this is x',this%x
+    !print *,'this is charge', this%charge
+    !print *,'this is inp',this%inp_file
     !----for D3 optimization---------------------------
-    !allocate(d3_ptr(3)) !gets deallocated automatically ??? at least it seems
-    !this%D3 = (/1._dp,this%x(1:2)/)
-    !!this%D3 = this%x(1:3)
-    !d3_ptr = this%D3
-    allocate(dftb3_param(2)) 
-    dftb3_param = this%x(2:size(this%x))
+    allocate(d3_ptr(3)) !gets deallocated automatically ??? at least it seems
+    this%D3 = (/1._dp,this%x(2:3)/)
+    d3_ptr = this%D3
+    !----for dftb3 param optimization-----------------
+    allocate(dftb3_param(2))
+    dftb3_param = this%x(4:5)
+    !---for hb param optimization---------------------
     hb_para = this%x(1) 
-    !d3_ptr = this%x()
+    !-------------------------------------------------
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%SUBSYS%TOPOLOGY%COORD_FILE_NAME", &
                               c_val=this%inp_file, error = this%error)
@@ -242,9 +268,9 @@ MODULE paramopt_worker
                                   keyword_name="FORCE_EVAL%SUBSYS%KIND%DFTB3_PARAM", &
                                   r_val=dftb3_param(i), error = this%error)
     enddo
-    !CALL section_vals_val_set(this%root_section, &
-    !                          "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%D3_SCALING", &
-    !                          r_vals_ptr=d3_ptr, error = this%error)
+    CALL section_vals_val_set(this%root_section, &
+                              "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%D3_SCALING", &
+                              r_vals_ptr=d3_ptr, error = this%error)
     
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%HB_SR_PARAM", &

@@ -11,7 +11,11 @@ MODULE paramopt_master
   USE cmaes,                           ONLY: cmaes_input,&
                                              cmaes_type,&
                                              cmaes_run,&
-                                             pop_init
+                                             cmaes_init
+  USE mocmaes,                         ONLY: mo_cmaes_type,&
+                                             mo_cmaes_type_p,&
+                                             mo_cmaes_init,&
+                                             mo_cmaes_run   
   USE cp_files,                        ONLY: open_file,&
                                              close_file
   USE cp_output_handling,              ONLY: cp_print_key_finished_output,&
@@ -21,7 +25,8 @@ MODULE paramopt_master
   USE input_constants,                 ONLY: dump_xmol,&
                                              paramopt_do_cma,&
                                              paramopt_do_powell,&
-                                             paramopt_do_grid
+                                             paramopt_do_grid,&
+                                             paramopt_do_mocma
   USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                              section_vals_release,&
                                              section_vals_retain,&
@@ -37,14 +42,18 @@ MODULE paramopt_master
                                              swarm_message_add
   USE powell,                          ONLY: powell_optimize, &
                                              opt_state_type
-                                             
+  USE parallel_rng_types,              ONLY: rng_stream_type, &
+                                             create_rng_stream, &
+                                             delete_rng_stream,&
+                                             next_random_number, &
+                                             GAUSSIAN, &
+                                             UNIFORM    
 #include "../common/cp_common_uses.f90"
 
  IMPLICIT NONE
  PRIVATE
 
   CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'paramopt_master'
-
 
  PUBLIC :: paramopt_master_type
  PUBLIC :: paramopt_master_init, paramopt_master_finalize
@@ -56,28 +65,30 @@ MODULE paramopt_master
    INTEGER                                             :: iw = 0
    INTEGER(int_8)                                      :: count_reports = 0
    INTEGER                                             :: method
-   INTEGER                                             :: num_ref_mol
+   INTEGER                                             :: num_ref_mol = 1
    INTEGER                                             :: num_input_rcvd
    INTEGER                                             :: i_iteration = 0
    TYPE(section_vals_type), POINTER                    :: paramopt_section => Null()
    TYPE(cp_error_type)                                 :: error
    !--------------------------
-   REAL(KIND=dp),ALLOCATABLE,DIMENSION(:,:)            :: energies
+   REAL(KIND=dp),ALLOCATABLE,DIMENSION(:,:,:)          :: energies
    REAL(KIND=dp),ALLOCATABLE,DIMENSION(:,:)            :: ref_matrix
    INTEGER                                             :: database=1
-   REAL(KIND=dp),DIMENSION(:),POINTER                  :: x
-   REAL(KIND=dp),DIMENSION(:),POINTER                  :: f
+   REAL(KIND=dp),DIMENSION(:,:),POINTER                :: x
+   REAL(KIND=dp),DIMENSION(:,:),POINTER                :: f
    REAL(KIND=dp),DIMENSION(:),POINTER                  :: u_bound
    REAL(KIND=dp),DIMENSION(:),POINTER                  :: l_bound
    INTEGER                                             :: n,m
    REAL(KIND=dp)                                       :: step_size
+   REAL(KIND=dp)                                       :: penalty=0._dp
    LOGICAL                                             :: randinput
    !--------------------------
    TYPE(cmaes_input)                                   :: cmaes_inp
-   TYPE(cmaes_type),ALLOCATABLE,DIMENSION(:)           :: population
+   CLASS(cmaes_type),ALLOCATABLE,DIMENSION(:)          :: population
    !--------------------------
    TYPE(opt_state_type)                                :: powell_param
    !-------------------------
+   LOGICAL                                             :: benchmark
    INTEGER                                             :: bench_func
    INTEGER                                             :: current_inp
  END TYPE paramopt_master_type
@@ -100,7 +111,8 @@ MODULE paramopt_master
     TYPE(paramopt_master_type), INTENT(INOUT)  :: this
     TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(section_vals_type), POINTER         :: root_section
-    TYPE(section_vals_type), POINTER                    :: powell_section
+    TYPE(section_vals_type), POINTER         :: powell_section
+    TYPE(section_vals_type), POINTER         :: global_section
     CHARACTER(LEN=*), INTENT(IN)             :: input_path
     INTEGER, INTENT(IN)                      :: n_walkers, iw
     TYPE(cp_error_type), INTENT(inout)       :: error
@@ -110,81 +122,148 @@ MODULE paramopt_master
     INTEGER                                  :: n,m
     INTEGER                                  :: i
     INTEGER                                  :: j
+    INTEGER                                  :: popsize
     LOGICAL                                  :: explicit_key
     REAL(KIND=dp),DIMENSION(:),POINTER       :: init_x
+    !------------------
+    TYPE(rng_stream_type),POINTER            :: rng_uniform_stream => Null()
+    INTEGER                                  :: global_seed
+    TYPE(mo_cmaes_type),DIMENSION(:),POINTER   :: bla
+    TYPE(mo_cmaes_type_p),DIMENSION(:),ALLOCATABLE   :: foo
+    TYPE(mo_cmaes_type_p),DIMENSION(:),ALLOCATABLE   :: moo
+    REAL(kind=dp)                                    :: x,y
+
     NULLIFY(logger)
 
     this%iw = iw
     this%error = error
     !------------------------------------
     this%paramopt_section => section_vals_get_subs_vals(root_section, "SWARM%PARAM_OPT", error=error)
+    global_section => section_vals_get_subs_vals(root_section, "GLOBAL", error=error)
+    CALL section_vals_val_get(global_section,"SEED", i_val=global_seed, error=error)
     powell_section => section_vals_get_subs_vals(root_section, "ATOM%POWELL", error=error)
     CALL section_vals_retain(this%paramopt_section,error=error)
     CALL section_vals_val_get(this%paramopt_section,"NUM_VAR", i_val=this%n, error=error)
     !------------------------------------
     n = this%n
-    this%bench_func = 1
-    allocate(this%x(n))
+    popsize = 10
+    allocate(this%x(2*popsize,n))
+    !------------------------------------
+    CALL section_vals_val_get(this%paramopt_section,"UPPER_BOUNDS", r_vals=this%u_bound, error=error)
+    CALL section_vals_val_get(this%paramopt_section,"LOWER_BOUNDS", r_vals=this%l_bound, error=error)
+    CALL section_vals_val_get(this%paramopt_section,"METHOD", i_val=this%method, error=error)
+    CALL section_vals_val_get(this%paramopt_section,"STEP_SIZE", r_val=this%step_size, error=error)
+    CALL section_vals_val_get(this%paramopt_section,"BENCHMARK", l_val=this%benchmark, error=error)
+    this%bench_func = 2
     !------------------------------------
     CALL section_vals_val_get(this%paramopt_section,"INITIAL_X", explicit=explicit_key, error=error)
     IF(explicit_key)THEN
         CALL section_vals_val_get(this%paramopt_section,"INITIAL_X", r_vals=init_x, error=error)
-        this%x = init_x
+        this%x(1,:) = init_x
         this%randinput = .FALSE.
         CALL cp_assert( size(init_x) .eq. n ,cp_failure_level,cp_assertion_failed,&
                        routineP, "init_x does not match num_var",error)
     ELSE
         this%randinput = .TRUE.
+        print *,'generating random x'
+        CALL create_rng(rng_uniform_stream,global_seed)
+        do j=1,2*popsize
+            do i=1,n; this%x(j,i) = next_random_number(rng_uniform_stream,error=error); enddo  
+            this%x(j,:) = var_trans(this%x(j,:),this%u_bound,this%l_bound)
+         enddo
+         print *,'done random x'
+         CALL delete_rng_stream(rng_uniform_stream,error=error)
     ENDIF
-    CALL section_vals_val_get(this%paramopt_section,"UPPER_BOUNDS", r_vals=this%u_bound, error=error)
-    CALL section_vals_val_get(this%paramopt_section,"LOWER_BOUNDS", r_vals=this%l_bound, error=error)
-    CALL section_vals_val_get(this%paramopt_section,"METHOD", i_val=this%method, error=error)
-    CALL section_vals_val_get(this%paramopt_section,"STEP_SIZE", r_val=this%step_size, error=error)
     !------------------------------------
-    this%m = 1
+    this%m = 2
     m = this%m
-    this%database = 3 ! 1 for the s22 and 2 for water_cluster
-    if (this%database == 1) then
-        this%num_ref_mol = 3*22
-        CALL read_ref_data(this%database,"s22/reference_data",this%ref_matrix) 
-        allocate(this%energies(this%num_ref_mol/3,3))
-    else if (this%database == 2) then
-        this%num_ref_mol = 39
-        CALL read_ref_data(this%database,"water_clusters/reference_data",this%ref_matrix) 
-        allocate(this%energies(this%num_ref_mol,1))
-    else if (this%database == 3) then
-        this%num_ref_mol = 30 
-        CALL read_ref_data(this%database,"WATER27structures/reference_data",this%ref_matrix) 
-        allocate(this%energies(this%num_ref_mol,1))
+    this%database = 3 ! 1 for the s22 and 2 for water_cluster and 3 for water27
+    if (.not. this%benchmark) then 
+        if (this%database == 1) then
+            this%num_ref_mol = 3*22
+            CALL read_ref_data(this%database,"s22/reference_data",this%ref_matrix) 
+            allocate(this%energies(popsize,this%num_ref_mol/3,3))
+        else if (this%database == 2) then
+            this%num_ref_mol = 39
+            CALL read_ref_data(this%database,"water_clusters/reference_data",this%ref_matrix) 
+            allocate(this%energies(popsize,this%num_ref_mol,1))
+        else if (this%database == 3) then
+            this%num_ref_mol = 30 
+            CALL read_ref_data(this%database,"WATER27structures/reference_data",this%ref_matrix) 
+            allocate(this%energies(popsize,this%num_ref_mol,1))
+        endif
+    else 
+        allocate(this%energies(popsize,this%num_ref_mol,1))
     endif
     this%num_input_rcvd = 0
-    this%current_inp = 0
-    allocate(this%f(m))
+    this%current_inp = 1
+    allocate(this%f(2*popsize,m))
     logger => cp_error_get_logger(error)
     ! ref matrix 
     ! Nr.  Dimer monomer1 monomer2 ref_energy
     !do, i=1,size(ref_matrix,dim=1)
     !     print *, ( ref_matrix(i,j), j=1,size(ref_matrix,dim=2) )
-    !enddo  
-    
-    !this%method = paramopt_do_cma
-    !this%method = paramopt_do_powell
+    !enddo 
     SELECT CASE (this%method)
        CASE(paramopt_do_cma)
             this%cmaes_inp%step_size = this%step_size
             this%cmaes_inp%n = n
             this%cmaes_inp%randinput = this%randinput
-            this%cmaes_inp%input_seed = 0
+            this%cmaes_inp%input_seed = global_seed
             this%cmaes_inp%m = m
-            this%cmaes_inp%x => this%x
-            print *,'check if ok',this%cmaes_inp%x
-            this%cmaes_inp%f => this%f
+            this%cmaes_inp%x => this%x(1,:)
+            this%cmaes_inp%f => this%f(1,:)
             this%cmaes_inp%l_bound => this%l_bound
             this%cmaes_inp%u_bound => this%u_bound
-            CALL pop_init(this%population,this%cmaes_inp)
-       CASE(paramopt_do_powell)
+            ALLOCATE(cmaes_type::this%population(1))
+            call this%population(1)%cmaes_init(this%cmaes_inp)
+        CASE(paramopt_do_powell)
+            this%powell_param%f => this%f(1,1)
+            this%powell_param%xopt => this%x(1,:)
             CALL init_powell_var(this,this%powell_param,powell_section,error)
-            CALL powell_optimize (this%n, this%x , this%powell_param)
+            this%x(1,:) = var_back_trans(this%x(1,:),this%u_bound,this%l_bound)
+            CALL powell_optimize (this%n, this%x(1,:) , this%powell_param)
+            this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound)
+        CASE(paramopt_do_mocma)
+            this%cmaes_inp%step_size = this%step_size
+            this%cmaes_inp%n = n
+            this%cmaes_inp%randinput = this%randinput
+            this%cmaes_inp%input_seed = global_seed
+            this%cmaes_inp%m = m
+            this%cmaes_inp%x => this%x(1,:)
+            this%cmaes_inp%f => this%f(1,:)
+            this%cmaes_inp%l_bound => this%l_bound
+            this%cmaes_inp%u_bound => this%u_bound
+            ALLOCATE(mo_cmaes_type::this%population(2*popsize))
+            select type (pop => this%population)
+            type is (mo_cmaes_type)
+            CALL create_rng(rng_uniform_stream,0)
+            CALL mo_cmaes_init(pop,this%cmaes_inp)
+            do i=1,size(pop)
+                pop(i)%x => this%x(i,:)
+                pop(i)%f => this%f(i,:)
+                x = pop(i)%x(1) 
+                y = pop(i)%x(2)
+                pop(i)%f(1) = 4_dp*x**2+4._dp*y**2
+                pop(i)%f(2) = (x- 5._dp)**2 + (y-5._dp)**2
+            enddo
+            do i=1,100  
+                CALL mo_cmaes_run(pop)
+                do j=1,size(pop)
+                    if (pop(j)%offspring) then
+                        x = pop(j)%x(1) 
+                        y = pop(j)%x(2)
+                        pop(j)%f(1) = 4_dp*x**2+4._dp*y**2
+                        pop(j)%f(2) = (x- 5._dp)**2 + (y-5._dp)**2
+                    endif
+                enddo
+             enddo
+             do i=1,size(pop)
+                write(99,*),pop(i)%Id,pop(i)%f
+             enddo 
+             CALL delete_rng_stream(rng_uniform_stream,error=error)
+             end select
+             print *,'ole ole ole'
        CASE(paramopt_do_grid)
        CASE DEFAULT
         STOP "Unkown glbopt_method"
@@ -207,15 +286,13 @@ MODULE paramopt_master
     LOGICAL, INTENT(INOUT)                     :: should_stop
 
 
-    !CALL progress_report(this, report)
-    
     SELECT CASE (this%method)
-        CASE(paramopt_do_cma)
-            CALL do_cma(this,report,cmd,should_stop)
-        CASE(paramopt_do_powell)
-            CALL do_powell(this,report,cmd,should_stop)
+        CASE(paramopt_do_cma,paramopt_do_powell)
+            CALL do_optim(this,report,cmd,this%method,should_stop)
         CASE(paramopt_do_grid)
             CALL do_grid_search(this,report,cmd,should_stop)
+        CASE(paramopt_do_mocma)
+            CALL do_mocma(this,report,cmd,should_stop)
         CASE DEFAULT
             STOP "Unkown paramopt_method"
     END SELECT
@@ -245,16 +322,19 @@ SUBROUTINE do_grid_search(this,report,cmd,should_stop)
     INTEGER                                    :: charge=0
     INTEGER                                    :: i,j 
     INTEGER                                    :: iounit 
-
+    INTEGER                                    :: id,k,l
+    INTEGER,DIMENSION(2)                       :: test
+    k=size(this%energies,dim=2)
+    l=size(this%energies,dim=3)
           CALL swarm_message_get(report, "worker_id", wid)
           CALL swarm_message_get(report, "status", report_status)
           if (trim(report_status) .eq. "done") then
             this%num_input_rcvd = this%num_input_rcvd + 1
             CALL swarm_message_get(report, "inp_num",input)
-            CALL index2colrow(input,size(this%energies,dim=2),i,j) 
-            CALL swarm_message_get(report, "result", this%energies(i,j))
+            CALL index2grid(input,(/k,l/),test)
+            CALL swarm_message_get(report, "result", this%energies(id,i,j))
             if (this%num_input_rcvd .eq. this%num_ref_mol) then
-                CALL energy2function(this%energies,this%ref_matrix,this%database,myresult)
+                CALL energy2function(this%energies(1,:,:),this%ref_matrix,this%database,myresult)
                 this%f = myresult
                 CALL open_file(file_name="output", file_status="UNKNOWN",&
                     file_action="WRITE", file_position="APPEND",unit_number=iounit)
@@ -271,7 +351,7 @@ SUBROUTINE do_grid_search(this,report,cmd,should_stop)
             (report_status .eq. "wait_done" .or. report_status .eq. "initial_hello")) then
             CALL swarm_message_add(cmd, "command", "energy")
             CALL swarm_message_add(cmd, "inp_num", this%current_inp )
-            CALL index2colrow(this%current_inp,size(this%energies,dim=2),i,j)
+            CALL index2grid(input,(/k,l/),test)
             CALL gen_input_file(i,j,this%database,input_file)
             CALL swarm_message_add(cmd, "inp_file", input_file)
             ! change charge if necessary
@@ -287,8 +367,7 @@ SUBROUTINE do_grid_search(this,report,cmd,should_stop)
                 end select
             endif
             CALL swarm_message_add(cmd, "charge", charge)
-            CALL swarm_message_add(cmd, "x", this%x)
-            CALL swarm_message_add(cmd, "ref_func", this%bench_func)
+            CALL swarm_message_add(cmd, "x", this%x(1,:))
             this%current_inp = this%current_inp + 1
           else
             CALL swarm_message_add(cmd, "command", "wait")     
@@ -302,7 +381,7 @@ END SUBROUTINE do_grid_search
 !> \param report ...
 !> \author Ole Schuett
 ! *****************************************************************************
-SUBROUTINE do_powell(this,report,cmd,should_stop)
+SUBROUTINE do_mocma(this,report,cmd,should_stop)
     TYPE(paramopt_master_type), INTENT(INOUT)  :: this
     TYPE(swarm_message_type)                   :: report, cmd
     CHARACTER(len=default_string_length)       :: report_status
@@ -315,32 +394,200 @@ SUBROUTINE do_powell(this,report,cmd,should_stop)
     REAL(kind=dp)                              :: penalty
     INTEGER                                    :: i,j 
     INTEGER                                    :: iounit 
-
+    INTEGER                                    :: id=1 
+    INTEGER                                    :: popsize 
+    REAL(kind=dp),DIMENSION(:),POINTER         :: func
+    INTEGER                                    :: r,s,t
+    INTEGER                                    :: k,l  
+    INTEGER,DIMENSION(3)                       :: ind
+    r=size(this%energies,dim=1)
+    s=size(this%energies,dim=2)
+    t=size(this%energies,dim=3)
+    popsize = size(this%population)
+    
+    if (this%benchmark) then
+          CALL swarm_message_get(report, "worker_id", wid)
+          CALL swarm_message_get(report, "status", report_status)
+        if (trim(report_status) .eq. "done") then
+            this%num_input_rcvd = this%num_input_rcvd + 1
+            CALL swarm_message_get(report, "pop_id",id)
+            CALL swarm_message_get(report, "result", func)
+            if (this%num_input_rcvd .eq. this%num_ref_mol*popsize) then
+                select type(mocmaes => this%population)
+                 type is (mo_cmaes_type)
+                    CALL mo_cmaes_run(mocmaes)
+                end select
+                !---reset----------
+                this%current_inp = 0
+                this%num_input_rcvd = 0
+                this%i_iteration = this%i_iteration + 1
+            endif
+        endif
+        if (this%current_inp .lt.popsize*this%num_ref_mol .and. &
+            (report_status .eq. "wait_done" .or. report_status .eq. "initial_hello")) then
+            CALL index2grid(this%current_inp,(/r,s,t/),ind)
+            print *,'index',ind
+            CALL send_all(cmd,this%x,this%bench_func,ind(3))
+            this%current_inp = this%current_inp + 1
+        endif
+    else
           CALL swarm_message_get(report, "worker_id", wid)
           CALL swarm_message_get(report, "status", report_status)
           if (trim(report_status) .eq. "done") then
             this%num_input_rcvd = this%num_input_rcvd + 1
+            CALL swarm_message_get(report, "pop_id",id)
             CALL swarm_message_get(report, "inp_num",input)
-            CALL index2colrow(input,size(this%energies,dim=2),i,j) 
-            CALL swarm_message_get(report, "result", this%energies(i,j))
-            if (this%num_input_rcvd .eq. this%num_ref_mol) then
-                CALL energy2function(this%energies,this%ref_matrix,this%database,myresult)
-                penalty = 1e3*penalty_fct(this%x,this%l_bound,this%u_bound)**2
-                this%powell_param%f = myresult + penalty
+!            CALL index2grid(input,(/k,l/),(/i,j/))
+            if (this%num_input_rcvd .eq. this%num_ref_mol*popsize) then
+                CALL energy2function(this%energies(id,:,:),this%ref_matrix,this%database,myresult)
+                penalty = 1e3*this%penalty**2
+                this%f = myresult + penalty
                 CALL open_file(file_name="output", file_status="UNKNOWN",&
                     file_action="WRITE", file_position="APPEND",unit_number=iounit)
-                    write(iounit,*) this%x,this%powell_param%f,penalty
+                    write(iounit,*) this%x,this%f,penalty
                 CALL close_file(iounit)
-                CALL powell_optimize (this%n, this%x , this%powell_param)
-                if (this%powell_param%state .eq. -1) then
-                     this%powell_param%state = 8
-                     CALL powell_optimize (this%n, this%x , this%powell_param)
-                     IF ( this%iw > 0 ) THEN
-                     WRITE(this%iw,'(" POWELL| Number of function evaluations",T71,I10)') this%powell_param%nf
-                     WRITE(this%iw,'(" POWELL| Final value of function",T61,G20.10)') this%powell_param%fopt
-                   END IF
-                    STOP "powell done"
-                endif
+                this%x(1,:) = var_back_trans(this%x(1,:),this%u_bound,this%l_bound)
+                select type(mocmaes => this%population)
+                 type is (mo_cmaes_type)
+                    CALL mo_cmaes_run(mocmaes)
+                end select
+                this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound) 
+                CALL penalty_fct(this%x(1,:),this%l_bound,this%u_bound,this%penalty)
+                !---reset----------
+                this%current_inp = 0
+                this%num_input_rcvd = 0
+                this%i_iteration = this%i_iteration + 1
+            endif
+          endif
+          if (this%current_inp .lt.popsize*this%num_ref_mol .and. &
+            (report_status .eq. "wait_done" .or. report_status .eq. "initial_hello")) then
+            CALL swarm_message_add(cmd, "command", "energy")
+            CALL swarm_message_add(cmd, "pop_id", id )
+            CALL swarm_message_add(cmd, "inp_num", this%current_inp )
+!            CALL index2colrow(this%current_inp,size(this%energies,dim=2),i,j,id,size(this%energies,dim=3))
+            print *,'indeces',i,j,id
+            CALL gen_input_file(i,j,this%database,input_file)
+            CALL swarm_message_add(cmd, "inp_file", input_file)
+            ! change charge if necessary
+            ! w27 1-15 are 0 then 16-21 are 1 then 22-29 are -1 and 30 is 0
+            if (this%database .eq. 3) then
+                select case(i)
+                    case(1:15,30)
+                        charge = 0
+                    case(16:21)
+                        charge = 1
+                    case(22:29)
+                        charge = -1
+                end select
+            endif
+            CALL swarm_message_add(cmd, "charge", charge)
+            CALL swarm_message_add(cmd, "x", this%x(1,:))
+            this%current_inp = this%current_inp + 1
+          else
+            CALL swarm_message_add(cmd, "command", "wait")     
+          endif
+
+      endif
+END SUBROUTINE do_mocma
+
+! *****************************************************************************
+!> \brief Helper routine for glbopt_master_steer(), updates stats, etc.
+!> \param this ...
+!> \param report ...
+!> \author Ole Schuett
+! *****************************************************************************
+SUBROUTINE do_optim(this,report,cmd,method,should_stop)
+    TYPE(paramopt_master_type), INTENT(INOUT)  :: this
+    TYPE(swarm_message_type)                   :: report, cmd
+    CHARACTER(len=default_string_length)       :: report_status
+    CHARACTER(len=default_string_length)       :: input_file
+    LOGICAL, INTENT(INOUT)                     :: should_stop
+    INTEGER                                    :: wid
+    INTEGER                                    :: input
+    REAL(kind=dp)                              :: myresult
+    INTEGER                                    :: charge=0
+    REAL(kind=dp)                              :: penalty
+    INTEGER                                    :: i,j 
+    INTEGER                                    :: iounit 
+    INTEGER                                    :: method 
+    INTEGER                                    :: id=1 
+
+    if (this%benchmark) then
+          CALL swarm_message_get(report, "worker_id", wid)
+          CALL swarm_message_get(report, "status", report_status)
+          if (trim(report_status) .eq. "done") then
+            CALL swarm_message_get(report, "result", myresult)
+            this%f = myresult
+            this%x(1,:) = var_back_trans(this%x(1,:),this%u_bound,this%l_bound)
+            select case(method)
+                case(paramopt_do_powell)
+                   CALL powell_optimize (this%n, this%x , this%powell_param)
+                   if (this%powell_param%state .eq. -1) then
+                    this%powell_param%state = 8
+                    this%x(1,:) = var_back_trans(this%x(1,:),this%u_bound,this%l_bound)
+                    CALL powell_optimize (this%n, this%x , this%powell_param)
+                    this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound) 
+                    IF ( this%iw > 0 ) THEN
+                         WRITE(this%iw,'(" POWELL| Number of function evaluations",T71,I10)') this%powell_param%nf
+                         WRITE(this%iw,'(" POWELL| Final value of function",T61,G20.10)') this%powell_param%fopt
+                         WRITE(this%iw,'(" POWELL| Final x",T61,100G20.10)') this%x
+                    END IF
+                     STOP "powell done"
+                    endif
+                case(paramopt_do_cma)
+                    CALL cmaes_run(this%cmaes_inp,this%population)
+            end select 
+            this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound) 
+
+            CALL send_all(cmd,this%x,this%bench_func)
+            !----------------------------------------------
+            CALL open_file(file_name="output", file_status="UNKNOWN",&
+                    file_action="WRITE", file_position="APPEND",unit_number=iounit)
+                    write(iounit,*) this%x,this%f
+            CALL close_file(iounit)
+          else if (report_status .eq. "wait_done" .or. report_status .eq. "initial_hello") then
+            CALL send_all(cmd,this%x,this%bench_func)
+          endif
+    else
+          CALL swarm_message_get(report, "worker_id", wid)
+          CALL swarm_message_get(report, "status", report_status)
+          if (trim(report_status) .eq. "done") then
+            this%num_input_rcvd = this%num_input_rcvd + 1
+            CALL swarm_message_get(report, "pop_id",id)
+            CALL swarm_message_get(report, "inp_num",input)
+!            CALL index2colrow(input,size(this%energies,dim=2),i,j,id) 
+            CALL swarm_message_get(report, "result", this%energies(id,i,j))
+            if (this%num_input_rcvd .eq. this%num_ref_mol) then
+                CALL energy2function(this%energies(id,:,:),this%ref_matrix,this%database,myresult)
+                penalty = 1e3*this%penalty**2
+                this%f = myresult + penalty
+                CALL open_file(file_name="output", file_status="UNKNOWN",&
+                    file_action="WRITE", file_position="APPEND",unit_number=iounit)
+                    write(iounit,*) this%x,this%f,penalty
+                CALL close_file(iounit)
+                select case(method)
+                    case(paramopt_do_powell)
+                       this%x(1,:) = var_back_trans(this%x(1,:),this%u_bound,this%l_bound)
+                       CALL powell_optimize (this%n, this%x , this%powell_param)
+                       this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound) 
+                       if (this%powell_param%state .eq. -1) then
+                        this%powell_param%state = 8
+                        this%x(1,:) = var_back_trans(this%x(1,:),this%u_bound,this%l_bound)
+                        CALL powell_optimize (this%n, this%x , this%powell_param)
+                        this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound) 
+                        IF ( this%iw > 0 ) THEN
+                             WRITE(this%iw,'(" POWELL| Number of function evaluations",T71,I10)') this%powell_param%nf
+                             WRITE(this%iw,'(" POWELL| Final value of function",T61,G20.10)') this%powell_param%fopt
+                             WRITE(this%iw,'(" POWELL| Final x",T61,100G20.10)') this%x
+                        END IF
+                         STOP "powell done"
+                        endif
+                    case(paramopt_do_cma)
+                        this%x(1,:) = var_back_trans(this%x(1,:),this%u_bound,this%l_bound)
+                        CALL cmaes_run(this%cmaes_inp,this%population)
+                        this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound) 
+                end select 
+                CALL penalty_fct(this%x(1,:),this%l_bound,this%u_bound,this%penalty)
                 !---reset----------
                 this%current_inp = 0
                 this%num_input_rcvd = 0
@@ -350,115 +597,33 @@ SUBROUTINE do_powell(this,report,cmd,should_stop)
           if (this%current_inp .lt. this%num_ref_mol .and. &
             (report_status .eq. "wait_done" .or. report_status .eq. "initial_hello")) then
             CALL swarm_message_add(cmd, "command", "energy")
+            CALL swarm_message_add(cmd, "pop_id", id )
             CALL swarm_message_add(cmd, "inp_num", this%current_inp )
-            CALL index2colrow(this%current_inp,size(this%energies,dim=2),i,j)
+!            CALL index2colrow(this%current_inp,size(this%energies,dim=2),i,j,id)
             CALL gen_input_file(i,j,this%database,input_file)
             CALL swarm_message_add(cmd, "inp_file", input_file)
+            ! change charge if necessary
+            ! w27 1-15 are 0 then 16-21 are 1 then 22-29 are -1 and 30 is 0
+            if (this%database .eq. 3) then
+                select case(i)
+                    case(1:15,30)
+                        charge = 0
+                    case(16:21)
+                        charge = 1
+                    case(22:29)
+                        charge = -1
+                end select
+            endif
             CALL swarm_message_add(cmd, "charge", charge)
-            CALL swarm_message_add(cmd, "x", this%x)
-            CALL swarm_message_add(cmd, "ref_func", this%bench_func)
+            CALL swarm_message_add(cmd, "x", this%x(1,:))
             this%current_inp = this%current_inp + 1
           else
             CALL swarm_message_add(cmd, "command", "wait")     
           endif
-END SUBROUTINE do_powell
+
+      endif
+END SUBROUTINE do_optim
  
-! *****************************************************************************
-!> \brief Helper routine for glbopt_master_steer(), updates stats, etc.
-!> \param this ...
-!> \param report ...
-!> \author Ole Schuett
-! *****************************************************************************
-SUBROUTINE do_cma(this,report,cmd,should_stop)
-    TYPE(paramopt_master_type), INTENT(INOUT)  :: this
-    TYPE(swarm_message_type)                   :: report, cmd
-    CHARACTER(len=default_string_length)       :: report_status
-    CHARACTER(len=default_string_length)       :: input_file
-    LOGICAL, INTENT(INOUT)                     :: should_stop
-    INTEGER                                    :: wid
-    INTEGER                                    :: input
-    REAL(kind=dp)                              :: myresult
-    INTEGER                                    :: charge=0
-    REAL(kind=dp)                              :: penalty
-    INTEGER                                    :: i,j 
-    INTEGER                                    :: iounit 
-
-          CALL swarm_message_get(report, "worker_id", wid)
-          CALL swarm_message_get(report, "status", report_status)
-          if (trim(report_status) .eq. "done") then
-            this%num_input_rcvd = this%num_input_rcvd + 1
-            CALL swarm_message_get(report, "inp_num",input)
-            CALL index2colrow(input,size(this%energies,dim=2),i,j) 
-            CALL swarm_message_get(report, "result", this%energies(i,j))
-            !print *,'input',input,'matrix i,j',i ,j
-            !print *,'energy',this%energies(i,j)
-            if (this%num_input_rcvd .eq. this%num_ref_mol) then
-                CALL energy2function(this%energies,this%ref_matrix,this%database,myresult)
-                !boundary check
-                penalty = 1e3*penalty_fct(this%x,this%l_bound,this%u_bound)**2
-                myresult = myresult + penalty
-                this%cmaes_inp%f(1) = myresult
-                CALL open_file(file_name="output", file_status="UNKNOWN",&
-                    file_action="WRITE", file_position="APPEND",unit_number=iounit)
-                    write(iounit,*) this%x,myresult,penalty
-                CALL close_file(iounit)
-                CALL cmaes_run(this%cmaes_inp,this%population)
-                !---reset----------
-                this%current_inp = 0
-                this%num_input_rcvd = 0
-                this%i_iteration = this%i_iteration + 1
-            endif
-          endif
-          if (this%current_inp .lt. this%num_ref_mol .and. &
-            (report_status .eq. "wait_done" .or. report_status .eq. "initial_hello")) then
-            CALL swarm_message_add(cmd, "command", "energy")
-            CALL swarm_message_add(cmd, "inp_num", this%current_inp )
-            CALL index2colrow(this%current_inp,size(this%energies,dim=2),i,j)
-            CALL gen_input_file(i,j,this%database,input_file)
-            CALL swarm_message_add(cmd, "inp_file", input_file)
-            CALL swarm_message_add(cmd, "charge", charge)
-            CALL swarm_message_add(cmd, "x", this%x)
-            CALL swarm_message_add(cmd, "ref_func", this%bench_func)
-            this%current_inp = this%current_inp + 1
-          else
-            CALL swarm_message_add(cmd, "command", "wait")     
-          endif
-END SUBROUTINE do_cma 
-
-! *****************************************************************************
-!> \brief Helper routine for glbopt_master_steer(), updates stats, etc.
-!> \param this ...
-!> \param report ...
-!> \author Ole Schuett
-! *****************************************************************************
- SUBROUTINE progress_report(this, report)
-    TYPE(paramopt_master_type), INTENT(INOUT)  :: this
-    TYPE(swarm_message_type)                 :: report
-
-    CHARACTER(len=default_string_length)     :: status
-    INTEGER                                  :: gopt_steps, md_steps, &
-                                                report_worker_id
-    REAL(KIND=dp)                            :: report_Epot
-
-    this%i_iteration = this%i_iteration + 1
-
-    CALL swarm_message_get(report, "worker_id", report_worker_id)
-    CALL swarm_message_get(report, "status", status)
-
-    IF(TRIM(status) == "ok") THEN
-       CALL swarm_message_get(report, "Epot", report_Epot)
-       CALL swarm_message_get(report, "md_steps", md_steps)
-       CALL swarm_message_get(report, "gopt_steps", gopt_steps)
-       this%count_reports    = this%count_reports + 1
-
-
-       IF(this%iw>0) THEN
-          WRITE (this%iw,'(A,46X,I8)')&
-             " GLBOPT| Reporting worker ", report_worker_id
-       END IF
-    END IF
- END SUBROUTINE progress_report
-
 ! *****************************************************************************
 !> \brief Finalized the master of the global optimizer
 !> \param this ...
@@ -483,10 +648,6 @@ END SUBROUTINE do_cma
     END SELECT
 
     logger => cp_error_get_logger(this%error)
-    !CALL cp_print_key_finished_output(this%progress_traj_unit, logger, &
-    !  this%glbopt_section, "PROGRESS_TRAJECTORY", error=this%error)
-
-    !CALL section_vals_release(this%glbopt_section, error=this%error)
 
  END SUBROUTINE paramopt_master_finalize
 ! *****************************************************************************
@@ -661,7 +822,7 @@ SUBROUTINE grid_search(this)
     print *,'n',n
     if (this%i_iteration .gt. product(n)) STOP "grid sample is getting to big"
     grid(1) = modulo(this%i_iteration,n(1))  
-    this%x(1) = grid(1)*this%step_size+this%l_bound(1)
+    this%x(1,1) = grid(1)*this%step_size+this%l_bound(1)
     do i=2,size(grid)
         mask1 = .FALSE. 
         mask2 = .FALSE. 
@@ -669,7 +830,7 @@ SUBROUTINE grid_search(this)
         mask2(1:i-1) = .TRUE.
         !print *,'product',product(n,mask=mask1),product(n,mask=mask2)
         grid(i) = int(real(modulo(this%i_iteration,product(n,mask=mask1)))/real(product(n,mask=mask2)))
-        this%x(i) = grid(i)*this%step_size+this%l_bound(i)
+        this%x(1,i) = grid(i)*this%step_size+this%l_bound(i)
     enddo
     print *,'grid',grid
     !    j = int(real(modulo(this%i_iteration,n(1)*n(2)))/real(n(2)))
@@ -686,12 +847,24 @@ END SUBROUTINE grid_search
 !> \param this ...
 !> \author Ole Schuett
 ! *****************************************************************************
- SUBROUTINE index2colrow(input,indim,i,j)
-    INTEGER,INTENT(IN)                    :: input,indim
-    INTEGER,INTENT(OUT)                   :: j,i
-    j = modulo(input,indim) + 1
-    i = ceiling(real(input + 1)/real(indim)) 
- END SUBROUTINE index2colrow
+ SUBROUTINE index2grid(ind,ndim,grid_ind)
+    INTEGER,INTENT(IN)                    :: ind   
+    INTEGER,DIMENSION(:),INTENT(IN)       :: ndim !number of points in dimension
+    INTEGER,DIMENSION(:),INTENT(OUT)      :: grid_ind !grid index
+    LOGICAL,DIMENSION(size(ndim))         :: mask1,mask2
+    INTEGER                               :: i  
+    print *,'inp',ind,'ndim',ndim
+    grid_ind(1) = modulo(ind,ndim(1))  
+    do i=2,size(grid_ind)
+        mask1 = .FALSE. 
+        mask2 = .FALSE. 
+        mask1(1:i) = .TRUE.
+        mask2(1:i-1) = .TRUE.
+        !print *,'product',product(n,mask=mask1),product(n,mask=mask2)
+        grid_ind(i) = int(real(modulo(ind,product(ndim,mask=mask1)))/real(product(ndim,mask=mask2))) + 1
+    enddo
+    print *,'index',grid_ind
+ END SUBROUTINE index2grid
 
 !   "Convert an integer to string."
  character(len=default_string_length) function str(k)
@@ -702,24 +875,107 @@ end function str
 
 
 !   "penalty for x out of feasible region"
- real(KIND=dp) function penalty_fct(x,l_bound,u_bound)
-    real(kind=dp),dimension(:), intent(in) :: x
+ subroutine penalty_fct(x,l_bound,u_bound,penalty)
+    real(kind=dp),dimension(:), intent(inout) :: x
     real(kind=dp),dimension(:), intent(in) :: l_bound
     real(kind=dp),dimension(:), intent(in) :: u_bound
+    real(kind=dp)                          :: penalty
     integer                                :: i
-    penalty_fct = 0._dp
+    penalty = 0._dp
     do i=1,size(x)
         if (x(i) .gt. u_bound(i)) then
-           penalty_fct = penalty_fct + x(i) - u_bound(i) 
+           penalty = penalty + x(i) - u_bound(i)
+            x(i) = u_bound(i) 
         endif
         if (x(i) .lt. l_bound(i)) then
-           penalty_fct = penalty_fct - x(i) + l_bound(i) 
+           penalty = penalty - x(i) + l_bound(i) 
+           x(i) = l_bound(i)
         endif
     enddo
     
-end function penalty_fct
+end subroutine penalty_fct
 
+! *****************************************************************************
+!> \brief Central steering routine of Minima Hopping
+!> \param this ...
+!> \param report ...
+!> \param cmd ...
+!> \author Ole Schuett
+! *****************************************************************************
 
+    function var_trans(xtrans,u_bound,l_bound) result(x) 
+        REAL(KIND=dp),DIMENSION(:),intent(in)              :: xtrans
+        REAL(KIND=dp),DIMENSION(size(xtrans))              :: x 
+        REAL(KIND=dp),DIMENSION(:)                         :: l_bound
+        REAL(KIND=dp),DIMENSION(:)                         :: u_bound 
+        x = xtrans*(u_bound-l_bound) + l_bound
+    end function var_trans
+    function var_back_trans(x,u_bound,l_bound) result(xtrans) 
+        REAL(KIND=dp),DIMENSION(:),intent(in)              :: x
+        REAL(KIND=dp),DIMENSION(size(x))                   :: xtrans 
+        REAL(KIND=dp),DIMENSION(:)                         :: l_bound
+        REAL(KIND=dp),DIMENSION(:)                         :: u_bound 
+        xtrans = (x - l_bound)/(u_bound-l_bound)
+    end function var_back_trans  
+
+! *****************************************************************************
+!> \brief Central steering routine of Minima Hopping
+!> \param this ...
+!> \param report ...
+!> \param cmd ...
+!> \author Ole Schuett
+! *****************************************************************************
+
+ SUBROUTINE create_rng(rng,input_seed)
+    TYPE(rng_stream_type),POINTER            :: rng 
+    REAL(kind=dp),DIMENSION(3,2)             :: seed
+    INTEGER                                  :: time(3)
+    INTEGER                                  :: input_seed
+    TYPE(cp_error_type)                      :: error
+
+    if (input_seed .gt. 0) then
+        !deterministic seed
+        seed(:,:) = &
+            RESHAPE( (/input_seed*42.0_dp, &
+                       input_seed*54.0_dp, &
+                       input_seed*63.0_dp, &
+                       input_seed*98.0_dp, &
+                       input_seed*10.0_dp, &
+                       input_seed*2.0_dp/),&
+                     (/ 3, 2 /) )        
+    else
+        !random seed from itime
+        call itime(time)
+        seed(:,1) = REAL(time)
+        seed(:,2) = (/ 1._dp, 2._dp, 3._dp /)
+    endif 
+    
+    CALL create_rng_stream(rng,name='uniform',distribution_type=UNIFORM,seed=seed,error=error)    
+ END SUBROUTINE create_rng
+! *****************************************************************************
+!> \brief Central steering routine of Minima Hopping
+!> \param this ...
+!> \param report ...
+!> \param cmd ...
+!> \author Ole Schuett
+! *****************************************************************************
+
+ SUBROUTINE send_all(cmd,x,bench_func,id)
+    TYPE(swarm_message_type)                   :: cmd
+    REAL(kind=dp),DIMENSION(:,:),POINTER       :: x
+    INTEGER                                    :: bench_func
+    INTEGER,OPTIONAL                           :: id
+
+    if (present(id)) then
+    CALL swarm_message_add(cmd, "command", "function")
+    CALL swarm_message_add(cmd, "x", x(id,:))
+    CALL swarm_message_add(cmd, "ref_func",bench_func) 
+    else
+    CALL swarm_message_add(cmd, "command", "function")
+    CALL swarm_message_add(cmd, "x", x(1,:))
+    CALL swarm_message_add(cmd, "ref_func",bench_func) 
+    endif 
+ END SUBROUTINE send_all
 
 END MODULE paramopt_master
 

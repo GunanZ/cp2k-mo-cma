@@ -881,7 +881,8 @@ MODULE input_constants
 ! global opt parameters
   INTEGER, PARAMETER, PUBLIC               :: paramopt_do_cma  =1,&
                                               paramopt_do_powell=2,&
-                                              paramopt_do_grid=3
+                                              paramopt_do_grid=3,&
+                                              paramopt_do_mocma=4
 ! fm matrix multiplication
   INTEGER, PARAMETER, PUBLIC               :: do_pdgemm  =1,&
                                               do_dbcsr   =2

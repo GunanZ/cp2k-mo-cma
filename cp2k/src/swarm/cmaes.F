@@ -34,6 +34,7 @@ MODULE cmaes
   USE swarm_message,                   ONLY: swarm_message_add,&
                                              swarm_message_get,&
                                              swarm_message_type
+
 #include "../common/cp_common_uses.f90"
 
  IMPLICIT NONE
@@ -45,18 +46,19 @@ MODULE cmaes
  PUBLIC :: cmaes_run
  PUBLIC :: cmaes_type
  PUBLIC :: cmaes_input
- PUBLIC :: pop_init
+ PUBLIC :: cmaes_init
+ PUBLIC :: update_covariance
+ PUBLIC :: update_step_size
 
  TYPE cmaes_type
    REAL(KIND=dp), DIMENSION(:,:), ALLOCATABLE          :: A,B,C,D,tmp_mat,BD
-   REAL(KIND=dp), DIMENSION(:), POINTER                :: x
-   REAL(KIND=dp), DIMENSION(:), ALLOCATABLE            :: xtrans
+   REAL(KIND=dp), DIMENSION(:), POINTER              :: x
    REAL(KIND=dp), DIMENSION(:), POINTER                :: u_bound
    REAL(KIND=dp), DIMENSION(:), POINTER                :: l_bound
-   REAL(KIND=dp), DIMENSION(:), ALLOCATABLE            :: xold
+   REAL(KIND=dp), DIMENSION(:), ALLOCATABLE          :: xold
    REAL(KIND=dp), DIMENSION(:), ALLOCATABLE            :: z 
-   REAL(KIND=dp), DIMENSION(:), POINTER                :: f
-   REAL(KIND=dp), DIMENSION(:), ALLOCATABLE            :: fold
+   REAL(KIND=dp), DIMENSION(:), POINTER              :: f
+   REAL(KIND=dp), DIMENSION(:), ALLOCATABLE          :: fold
    REAL(KIND=dp), DIMENSION(:), ALLOCATABLE            :: tmp_vec
    REAL(KIND=dp), DIMENSION(:), ALLOCATABLE            :: Az
    REAL(KIND=dp), DIMENSION(:), ALLOCATABLE            :: diagD
@@ -66,7 +68,6 @@ MODULE cmaes
    REAL(KIND=dp), DIMENSION(:), ALLOCATABLE            :: pc 
    INTEGER                                             :: n
    INTEGER                                             :: iteration
-   INTEGER                                             :: Id
    !----step size----
    REAL(KIND=dp)                                       :: damp
    REAL(KIND=dp)                                       :: p_target
@@ -81,6 +82,8 @@ MODULE cmaes
    !------------------ 
    REAL(KIND=dp)                                       :: det
    REAL(KIND=dp)                                       :: dx
+ CONTAINS
+   PROCEDURE                                           :: cmaes_init 
  END TYPE cmaes_type
  
  TYPE cmaes_input
@@ -96,9 +99,9 @@ MODULE cmaes
    REAL(KIND=dp), DIMENSION(:), POINTER                :: u_bound
    REAL(KIND=dp), DIMENSION(:), POINTER                :: l_bound
  END TYPE cmaes_input
+
  CONTAINS
-
-
+ 
 ! *****************************************************************************
 !> \brief Initializes master for Minima Hopping
 !> \param this ...
@@ -108,21 +111,18 @@ MODULE cmaes
 !> \param error ...
 !> \author Ole Schuett
 ! *****************************************************************************
- SUBROUTINE cmaes_init(this, input, error)
-    TYPE(cmaes_type)                                   :: this
+ SUBROUTINE cmaes_init(this, input)
+    CLASS(cmaes_type)                                  :: this
     TYPE(cmaes_input)                                  :: input
-    TYPE(cp_error_type), INTENT(inout)                 :: error
      
     INTEGER                                            :: n
     INTEGER                                            :: m
     INTEGER                                            :: i
-
     !---input init
     input%iteration = 0
-
     
     !---cma_inp init
-    n = size(input%x)
+    n = input%n 
     m = input%m
     this%n = n
     this%x => input%x
@@ -134,7 +134,6 @@ MODULE cmaes
     allocate(this%tmp_mat(n,n))
     allocate(this%BD(n,n))
     allocate(this%pc(n)) 
-    allocate(this%xtrans(n)) 
     allocate(this%xold(n)) 
     allocate(this%z(n)) 
     allocate(this%tmp_vec(n))
@@ -177,22 +176,22 @@ MODULE cmaes
     this%l_bound => input%l_bound
     this%u_bound => input%u_bound
     !---------------------------
-    if (input%randinput) then
-        print *,'generating random x'
-        do i=1,n; this%xtrans(i) = next_random_number(this%rng_uniform_stream,error=error); enddo  
-        this%x = var_trans(this%xtrans,this%u_bound,this%l_bound)
-    else
-        this%x = input%x
-    endif
-    this%xtrans = var_back_trans(this%x,this%u_bound,this%l_bound)
+    !if (input%randinput) then
+    !    print *,'generating random x'
+    !    do i=1,n; this%x(i) = next_random_number(this%rng_uniform_stream,error=error); enddo  
+    !    this%x = var_trans(this%x,this%u_bound,this%l_bound)
+    !else
+    this%x = input%x
+    !endif
+    !this%xtrans = var_back_trans(this%x,this%u_bound,this%l_bound)
     !this%xold = this%x
     !----are we doing everything in 0 ..1 ?
-    this%xold = this%xtrans
+    this%xold = this%x
     !this%x = this%xtrans
     !-------------------------
     this%f = huge(1._dp) 
     this%fold = huge(1._dp)
-    print *,'step_size cma',this%sigma
+  !  print *,'step_size cma',this%sigma
  END SUBROUTINE cmaes_init
 
 ! *****************************************************************************
@@ -204,19 +203,6 @@ MODULE cmaes
 !> \param error ...
 !> \author Ole Schuett
 ! *****************************************************************************
- SUBROUTINE pop_init(population,input)
-    TYPE(cmaes_type),ALLOCATABLE,DIMENSION(:)          :: population
-    TYPE(cmaes_input)                                  :: input
-    TYPE(cp_error_type)                                :: error 
-    INTEGER                                            :: n
-    INTEGER                                            :: m
-    INTEGER                                            :: i
-    allocate(population(2))
-    DO i=1,2
-        CALL cmaes_init(population(i), input, error)
-    ENDDO
- END SUBROUTINE pop_init
-
 ! *****************************************************************************
 !> \brief Central steering routine of Minima Hopping
 !> \param this ...
@@ -226,8 +212,8 @@ MODULE cmaes
 ! *****************************************************************************
  SUBROUTINE cmaes_run(input,population)
     TYPE(cmaes_input)                                  :: input
-    TYPE(cmaes_type),ALLOCATABLE,DIMENSION(:),TARGET   :: population
-    TYPE(cmaes_type),POINTER                           :: a_k,a_k_parent => Null()
+    CLASS(cmaes_type),ALLOCATABLE,DIMENSION(:),TARGET             :: population
+    CLASS(cmaes_type),POINTER                          :: a_k,a_k_parent => Null()
     INTEGER                                            :: iteration
     INTEGER                                            :: i
     INTEGER                                            :: j
@@ -238,10 +224,6 @@ MODULE cmaes
     a_k => population(1)
     !a_k_parent => population(2)
     n = a_k%n
-    ! are we doing it in 0 ..1 ? yes
-    print *,'a_k%x',a_k%x
-    a_k%x = var_back_trans(a_k%x,a_k%u_bound,a_k%l_bound)
-    
     if (a_k%f(1) .lt. epsilon(0._dp)) then
        print *, epsilon(0._dp),"target accuracy reached",input%iteration
        STOP
@@ -264,13 +246,14 @@ MODULE cmaes
      do i=1,n; a_k%z(i) = next_random_number(a_k%rng_gaussian_stream,error=error); enddo
      CALL DGEMV('N',n,n,1.0d0,a_k%A,n,a_k%z,1,0.0d0,a_k%Az,1)
      a_k%xold = a_k%x
-     print *,'p-better',a_k%p_better,'f',a_k%f,'fold',a_k%fold
-     print *,'xold',a_k%x,'sigma',a_k%sigma,'Az',a_k%Az
-     print *,"C",a_k%C
-     a_k%x = a_k%x + a_k%sigma * a_k%Az
+     !print *,'p-better',a_k%p_better,'f',a_k%f,'fold',a_k%fold
+     !print *,'xold',a_k%x,'sigma',a_k%sigma,'Az',a_k%Az
+     !print *,"C",a_k%C
+     a_k%x = a_k%x+ a_k%sigma * a_k%Az
      a_k%dx = norm2(a_k%x-a_k%xold)
 
-     print *,'xnew',a_k%x 
+     !print *,'xnew',a_k%x 
+     
      !bounds check
      do i=1,n
         if (a_k%x(i) .lt. 0._dp) a_k%x(i) = 0._dp 
@@ -280,8 +263,6 @@ MODULE cmaes
      !   if (a_k%x(i) .lt. a_k%l_bound(i)) a_k%x(i) = a_k%l_bound(i)
      !   if (a_k%x(i) .gt. a_k%u_bound(i)) a_k%x(i) = a_k%u_bound(i)
      !enddo 
-    !in 0 .. 1?
-    a_k%x = var_trans(a_k%x,a_k%u_bound,a_k%l_bound)
 
  END SUBROUTINE cmaes_run
 
@@ -311,7 +292,7 @@ MODULE cmaes
 !> \author Ole Schuett
 ! *****************************************************************************
  SUBROUTINE update_step_size(this)
-    TYPE(cmaes_type)                                   :: this
+    CLASS(cmaes_type)                                   :: this
     this%p_succ = (1._dp - this%cp)*this%p_succ + real(this%cp*this%p_better)
     this%sigma = this%sigma*exp((this%p_succ - this%p_target)/ &
                          (this%damp*(1._dp-this%p_target)))
@@ -325,7 +306,7 @@ MODULE cmaes
 !> \author Ole Schuett
 ! *****************************************************************************
  SUBROUTINE update_covariance(this)
-    TYPE(cmaes_type)                                   :: this
+    CLASS(cmaes_type)                                   :: this
     INTEGER                                            :: n,i,j
     INTEGER                                            :: info
 
@@ -390,7 +371,7 @@ END SUBROUTINE update_covariance
 !> \author Ole Schuett
 ! *****************************************************************************
  SUBROUTINE create_rng(this,input)
-    TYPE(cmaes_type)                                   :: this
+    CLASS(cmaes_type)                                   :: this
     TYPE(cmaes_input)                                  :: input
     REAL(kind=dp),DIMENSION(3,2)                       :: seed
     INTEGER                                            :: time(3)
@@ -425,7 +406,7 @@ END SUBROUTINE update_covariance
 !> \author Ole Schuett
 ! *****************************************************************************
  SUBROUTINE write_out(a_k)
-    TYPE(cmaes_type),POINTER                           :: a_k
+    CLASS(cmaes_type),POINTER                           :: a_k
     INTEGER                                            :: i,j,n
     
     !print *,'x',a_k%x,a_k%xold
@@ -441,7 +422,6 @@ END SUBROUTINE update_covariance
     close(1)
     open(unit=1,file="C.out") 
     do, i=1,n
-         write(1,*) ( a_k%C(i,j), j=1,n )
     enddo 
     close(1)
         open(unit=1,file="D.out") 
@@ -603,7 +583,6 @@ END SUBROUTINE write_out
 
       RETURN
       END SUBROUTINE
-
 ! *****************************************************************************
 !> \brief Central steering routine of Minima Hopping
 !> \param this ...
@@ -619,12 +598,5 @@ END SUBROUTINE write_out
         REAL(KIND=dp),DIMENSION(:)                         :: u_bound 
         x = xtrans*(u_bound-l_bound) + l_bound
     end function var_trans
-    function var_back_trans(x,u_bound,l_bound) result(xtrans) 
-        REAL(KIND=dp),DIMENSION(:),intent(in)              :: x
-        REAL(KIND=dp),DIMENSION(size(x))                   :: xtrans 
-        REAL(KIND=dp),DIMENSION(:)                         :: l_bound
-        REAL(KIND=dp),DIMENSION(:)                         :: u_bound 
-        xtrans = (x - l_bound)/(u_bound-l_bound)
-    end function var_back_trans  
 END MODULE cmaes
 

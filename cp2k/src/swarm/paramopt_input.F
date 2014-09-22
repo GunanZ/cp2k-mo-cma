@@ -43,6 +43,7 @@ MODULE paramopt_input
     USE input_constants,                 ONLY: paramopt_do_cma,&
                                                paramopt_do_powell,&
                                                paramopt_do_grid,&
+                                               paramopt_do_mocma,&
                                                low_print_level
     TYPE(section_type), POINTER              :: swarm_section
     TYPE(cp_error_type), INTENT(inout)       :: error
@@ -60,11 +61,13 @@ MODULE paramopt_input
     CALL keyword_create(keyword, name="METHOD",&
          description="Methods to use for optimization.", required=.TRUE.,&
          default_i_val=paramopt_do_cma,&
-         enum_c_vals=s2a("CMA","POWELL","GRID"),&
+         enum_c_vals=s2a("CMA","POWELL","GRID","MOCMA"),&
          enum_desc=s2a("Runs CMA algorithm.",&
                        "Runs NEWUOA algorithm.",&
-                       "Runs a grid search"),&
-         enum_i_vals=(/paramopt_do_cma, paramopt_do_powell, paramopt_do_grid/),&
+                       "Runs a grid search ",&
+                       "Runs Multi Obj CMA optim"),&
+         enum_i_vals=(/paramopt_do_cma, paramopt_do_powell, &
+         paramopt_do_grid,paramopt_do_mocma/),&
          error=error)
     CALL section_add_keyword(paramopt_section,keyword,error=error)
     CALL keyword_release(keyword,error=error)
@@ -75,14 +78,14 @@ MODULE paramopt_input
 !    CALL section_add_keyword(paramopt_section, keyword, error=error)
 !    CALL keyword_release(keyword,error=error)
 !    
-!    CALL keyword_create(keyword=keyword,&
-!         name="BENCHMARK",&
-!         description="blabla", &
-!         usage="BENCHMARK {LOGICAL}",&
-!         default_l_val=.FALSE., lone_keyword_l_val=.TRUE., error=error)
-!    CALL section_add_keyword(paramopt_section,keyword,error=error)
-!    CALL keyword_release(keyword,error=error)  
-!   
+    CALL keyword_create(keyword=keyword,&
+         name="BENCHMARK",&
+         description="blabla", &
+         usage="BENCHMARK {LOGICAL}",&
+         default_l_val=.FALSE., lone_keyword_l_val=.TRUE., error=error)
+    CALL section_add_keyword(paramopt_section,keyword,error=error)
+    CALL keyword_release(keyword,error=error)  
+   
     CALL keyword_create(keyword, name="NUM_VAR",&
          description="balba TODO.",&
          default_i_val= 1,error=error)

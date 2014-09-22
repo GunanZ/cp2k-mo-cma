@@ -30,7 +30,8 @@ MODULE powell
     REAL(dp)           :: rhosq, recip, reciq, fbeg, fopt, diffa, xoptsq, &
                           rho, delta, dsq, dnorm, ratio, temp, tempq, beta, &
                           dx, vquad, diff, diffc, diffb, fsave, detrat, hdiag, &
-                          distsq, gisq, gqsq, f, bstep, alpha, dstep
+                          distsq, gisq, gqsq, bstep, alpha, dstep
+    REAL(dp),POINTER   :: f
   END TYPE opt_state_type
 
   PRIVATE
