@@ -14,14 +14,11 @@
 !> \author CJM & JGH
 ! *****************************************************************************
 MODULE force_env_types
-  USE atprop_types,                    ONLY: atprop_release,&
-                                             atprop_type
+  USE atprop_types,                    ONLY: atprop_type
   USE cell_types,                      ONLY: cell_type
   USE cp_para_env,                     ONLY: cp_para_env_release
   USE cp_para_types,                   ONLY: cp_para_env_type
-  USE cp_result_types,                 ONLY: cp_result_release,&
-                                             cp_result_retain,&
-                                             cp_result_type
+  USE cp_result_types,                 ONLY: cp_result_type
   USE cp_subsys_types,                 ONLY: cp_subsys_get,&
                                              cp_subsys_release,&
                                              cp_subsys_type,&
@@ -76,9 +73,7 @@ MODULE force_env_types
                                              qs_ks_release
   USE timings,                         ONLY: timeset,&
                                              timestop
-  USE virial_types,                    ONLY: virial_release,&
-                                             virial_retain,&
-                                             virial_type
+  USE virial_types,                    ONLY: virial_type
 #include "./common/cp_common_uses.f90"
 
   IMPLICIT NONE
@@ -157,13 +152,10 @@ MODULE force_env_types
      TYPE ( cp_para_env_type ), POINTER                  :: para_env
      TYPE ( force_env_p_type ), DIMENSION(:), POINTER    :: sub_force_env
      TYPE ( qmmm_env_qm_type ), POINTER                  :: qmmm_env
-     TYPE ( virial_type  ), POINTER                      :: virial
      INTEGER, POINTER                                    :: ep_env_id
      TYPE ( mixed_environment_type ), POINTER            :: mixed_env
      TYPE ( section_vals_type), POINTER                  :: force_env_section
      TYPE ( section_vals_type), POINTER                  :: root_section
-     TYPE ( atprop_type), POINTER                        :: atprop_env
-     TYPE ( cp_result_type), POINTER                     :: results
   END TYPE force_env_type
 
 ! *****************************************************************************
@@ -270,8 +262,6 @@ CONTAINS
           CASE (use_mixed_force)
              CALL mixed_env_release(force_env%mixed_env,error=error)
           END SELECT
-          CALL cp_result_release(results=force_env%results,error=error)
-          CALL atprop_release(force_env%atprop_env,error=error)
           CALL globenv_release(force_env%globenv,error=error)
           CALL cp_para_env_release(force_env%para_env,error=error)
           ! Not deallocated
@@ -283,7 +273,6 @@ CONTAINS
           CALL meta_env_release(force_env%meta_env,error=error)
           CALL fp_env_release(force_env%fp_env,error=error)
           CALL qmmm_env_qm_release(force_env%qmmm_env,error=error)
-          CALL virial_release(force_env%virial,error=error)
           CALL section_vals_release(force_env%force_env_section,error=error)
           CALL section_vals_release(force_env%root_section,error=error)
           force_env%ref_count=0
@@ -302,7 +291,7 @@ CONTAINS
 !> \param qs_env ...
 !> \param meta_env ...
 !> \param fp_env ...
-!> \param atprop_env ...
+!> \param atprop ...
 !> \param subsys ...
 !> \param para_env ...
 !> \param potential_energy ...
@@ -333,11 +322,10 @@ CONTAINS
 !> \author fawzi
 ! *****************************************************************************
   RECURSIVE SUBROUTINE force_env_get(force_env, in_use, fist_env, qs_env, &
-       meta_env, fp_env, atprop_env, subsys, para_env, potential_energy, additional_potential, &
+       meta_env, fp_env, atprop, subsys, para_env, potential_energy, additional_potential, &
        kinetic_energy, harmonic_shell, kinetic_shell, cell, cell_ref, sub_force_env,&
        qmmm_env, eip_env, virial, use_ref_cell, globenv, input, ep_env_id, force_env_section, &
        method_name_id, root_section, mixed_env, results, error)
-
     TYPE(force_env_type), POINTER            :: force_env
     INTEGER, INTENT(out), OPTIONAL           :: in_use
     TYPE(fist_environment_type), OPTIONAL, &
@@ -346,7 +334,7 @@ CONTAINS
       POINTER                                :: qs_env
     TYPE(meta_env_type), OPTIONAL, POINTER   :: meta_env
     TYPE(fp_type), OPTIONAL, POINTER         :: fp_env
-    TYPE(atprop_type), OPTIONAL, POINTER     :: atprop_env
+    TYPE(atprop_type), OPTIONAL, POINTER     :: atprop
     TYPE(cp_subsys_type), OPTIONAL, POINTER  :: subsys
     TYPE(cp_para_env_type), OPTIONAL, &
       POINTER                                :: para_env
@@ -524,7 +512,8 @@ CONTAINS
        IF (PRESENT(eip_env)) THEN
           eip_env => force_env%eip_env
        END IF
-       IF (PRESENT(results)) results => force_env%results
+       IF (PRESENT(results)) &
+         CALL cp_subsys_get(force_env%subsys, results=results, error=error)
        IF (PRESENT(subsys)) subsys => force_env%subsys
        IF (PRESENT(para_env)) para_env => force_env%para_env
        ! adjust the total energy for the metadynamics
@@ -552,12 +541,14 @@ CONTAINS
           additional_potential = force_env%additional_potential
        END IF
        IF (PRESENT(fp_env)) fp_env => force_env%fp_env
-       IF (PRESENT(atprop_env)) atprop_env => force_env%atprop_env
        IF (PRESENT(meta_env)) meta_env => force_env%meta_env
        IF (PRESENT(sub_force_env)) sub_force_env => force_env%sub_force_env
        IF (PRESENT(qmmm_env))      qmmm_env      => force_env%qmmm_env
        IF (PRESENT(mixed_env))     mixed_env     => force_env%mixed_env
-       IF (PRESENT(virial))        virial        => force_env%virial
+       IF (PRESENT(atprop)) &
+          CALL cp_subsys_get(force_env%subsys, atprop=atprop, error=error)
+       IF (PRESENT(virial)) &
+          CALL cp_subsys_get(force_env%subsys, virial=virial, error=error)
        IF (PRESENT(globenv))       globenv       => force_env%globenv
        IF (PRESENT(root_section))  root_section  => force_env%root_section
        IF (PRESENT(ep_env_id))     ep_env_id        => force_env%ep_env_id
@@ -745,29 +736,25 @@ CONTAINS
 !> \param force_env the force environment where the cell should be changed
 !> \param meta_env the new meta environment
 !> \param fp_env ...
-!> \param virial ...
 !> \param force_env_section ...
 !> \param method_name_id ...
 !> \param additional_potential ...
-!> \param results ...
 !> \param error variable to control error logging, stopping,...
 !>        see module cp_error_handling
 !> \par History
 !>      09.2003 created [fawzi]
 !> \author Fawzi Mohamed
 ! *****************************************************************************
-  SUBROUTINE force_env_set(force_env, meta_env,fp_env, virial, force_env_section,&
-     method_name_id, additional_potential, results, error)
+  SUBROUTINE force_env_set(force_env, meta_env,fp_env, force_env_section,&
+     method_name_id, additional_potential, error)
 
     TYPE(force_env_type), POINTER            :: force_env
     TYPE(meta_env_type), OPTIONAL, POINTER   :: meta_env
     TYPE(fp_type), OPTIONAL, POINTER         :: fp_env
-    TYPE(virial_type), OPTIONAL, POINTER     :: virial
     TYPE(section_vals_type), OPTIONAL, &
       POINTER                                :: force_env_section
     INTEGER, OPTIONAL                        :: method_name_id
     REAL(KIND=dp), INTENT(IN), OPTIONAL      :: additional_potential
-    TYPE(cp_result_type), OPTIONAL, POINTER  :: results
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     CHARACTER(len=*), PARAMETER :: routineN = 'force_env_set', &
@@ -793,13 +780,6 @@ CONTAINS
           CALL fp_env_release(force_env%fp_env,error=error)
           force_env%fp_env => fp_env
        END IF
-       IF (PRESENT(virial)) THEN
-          IF (ASSOCIATED(virial)) THEN
-             CALL virial_retain(virial,error=error)
-          END IF
-          CALL virial_release(force_env%virial,error=error)
-          force_env%virial => virial
-       END IF
        IF (PRESENT(force_env_section)) THEN
           IF (ASSOCIATED(force_env_section)) THEN
              CALL section_vals_retain(force_env_section,error=error)
@@ -809,13 +789,6 @@ CONTAINS
        END IF
        IF (PRESENT(additional_potential)) THEN
           force_env%additional_potential = additional_potential
-       END IF
-       IF (PRESENT(results)) THEN
-          IF(ASSOCIATED(results)) THEN
-             CALL cp_result_retain(results,error)
-          END IF
-          CALL cp_result_release(force_env%results,error)
-          force_env%results => results
        END IF
        IF (PRESENT(method_name_id)) THEN
           force_env%method_name_id=method_name_id

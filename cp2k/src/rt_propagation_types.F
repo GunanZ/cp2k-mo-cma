@@ -114,6 +114,7 @@ MODULE rt_propagation_types
     INTEGER                                     :: narn_old
     LOGICAL                                     :: converged
     LOGICAL                                     :: matrix_update
+    LOGICAL                                     :: write_restart
     TYPE(rtp_history_type),POINTER              :: history
     TYPE(cp_fm_struct_type), POINTER            :: ao_ao_fmstruct
     INTEGER                                     :: lanzcos_max_iter
@@ -144,10 +145,11 @@ CONTAINS
 !> \param dft_control ...
 !> \param template ...
 !> \param linear_scaling ...
+!> \param write_restart ...
 !> \param mos_aux ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE rt_prop_create(rtp,mos,mpools,dft_control,template,linear_scaling,mos_aux,error)
+  SUBROUTINE rt_prop_create(rtp,mos,mpools,dft_control,template,linear_scaling,write_restart,mos_aux,error)
 
     TYPE(rt_prop_type), POINTER              :: rtp
     TYPE(mo_set_p_type), DIMENSION(:), &
@@ -155,7 +157,7 @@ CONTAINS
     TYPE(qs_matrix_pools_type), POINTER      :: mpools
     TYPE(dft_control_type), POINTER          :: dft_control
     TYPE(cp_dbcsr_type), POINTER             :: template
-    LOGICAL                                  :: linear_scaling
+    LOGICAL                                  :: linear_scaling, write_restart
     TYPE(mo_set_p_type), DIMENSION(:), &
       POINTER                                :: mos_aux
     TYPE(cp_error_type), INTENT(inout)       :: error
@@ -182,6 +184,7 @@ CONTAINS
 
     NULLIFY(rtp%mos,rtp%rho)
     rtp%linear_scaling=linear_scaling
+    rtp%write_restart=write_restart
 
     IF(rtp%linear_scaling) THEN
        ALLOCATE(rtp%rho,stat=stat)
@@ -369,8 +372,8 @@ CONTAINS
     TYPE(cp_dbcsr_p_type), DIMENSION(:), &
       OPTIONAL, POINTER                      :: C_mat, propagator_matrix, &
                                                 S_der
-    REAL(dp), OPTIONAL                       :: dt
-    INTEGER, OPTIONAL                        :: nsteps
+    REAL(dp), INTENT(out), OPTIONAL          :: dt
+    INTEGER, INTENT(out), OPTIONAL           :: nsteps
     TYPE(cp_dbcsr_p_type), DIMENSION(:), &
       OPTIONAL, POINTER                      :: SinvH, SinvB
     TYPE(cp_fm_p_type), DIMENSION(:), &
@@ -421,7 +424,7 @@ CONTAINS
 !> \param error ...
 ! *****************************************************************************
   SUBROUTINE rt_prop_release(rtp,error)
-    TYPE(rt_prop_type)                       :: rtp
+    TYPE(rt_prop_type), INTENT(inout)        :: rtp
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     CHARACTER(len=*), PARAMETER :: routineN = 'rt_prop_release', &
@@ -597,8 +600,8 @@ CONTAINS
 !> \param error ...
 ! *****************************************************************************
   SUBROUTINE rtp_history_create(rtp,aspc_order,error)
-    TYPE(rt_prop_type)                       :: rtp
-    INTEGER                                  :: aspc_order
+    TYPE(rt_prop_type), INTENT(inout)        :: rtp
+    INTEGER, INTENT(in)                      :: aspc_order
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     CHARACTER(len=*), PARAMETER :: routineN = 'rtp_history_create', &
@@ -659,7 +662,7 @@ CONTAINS
 !> \param error ...
 ! *****************************************************************************
   SUBROUTINE rtp_history_release(rtp,error)
-    TYPE(rt_prop_type)                       :: rtp
+    TYPE(rt_prop_type), INTENT(inout)        :: rtp
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     CHARACTER(len=*), PARAMETER :: routineN = 'rtp_history_release', &

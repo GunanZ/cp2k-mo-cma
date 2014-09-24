@@ -156,12 +156,12 @@ CONTAINS
                 ng1 = SIZE ( pw1%cc )
                 ng2 = SIZE ( pw2%cc )
                 ng = MIN ( ng1, ng2 )
-!$omp parallel do private(i)
+!$omp parallel do private(i) default(none) shared(ng,pw1,pw2)
                 DO i = 1, ng
                    pw2%cc(i) = pw1%cc(i)
                 END DO
                 IF ( ng2 > ng ) THEN
-!$omp parallel do private(i)
+!$omp parallel do private(i) default(none) shared(ng,ng2,pw2)
                    DO i = ng+1, ng2
                       pw2%cc(i) = CMPLX ( 0.0_dp, 0.0_dp,KIND=dp)
                    END DO
@@ -196,14 +196,14 @@ CONTAINS
 
              IF ( ( pw1%pw_grid %id_nr == pw2%pw_grid%reference ) ) THEN
                 IF( ng1 >= ng2 ) THEN
-!$omp parallel do private(i,j)
+!$omp parallel do private(i,j) default(none) shared(ng2,pw1,pw2)
                    DO i = 1, ng2
                       j = pw2%pw_grid%gidx ( i )
                       pw2%cc ( i ) = pw1%cc ( j )
                    END DO
                 ELSE
                    CALL pw_zero ( pw2, error=error)
-!$omp parallel do private(i,j)
+!$omp parallel do private(i,j) default(none) shared(ng1,pw1,pw2)
                    DO i = 1, ng1
                       j = pw2%pw_grid%gidx ( i )
                       pw2%cc ( j ) = pw1%cc ( i )
@@ -211,14 +211,14 @@ CONTAINS
                 END IF
              ELSE IF ( ( pw2%pw_grid %id_nr == pw1%pw_grid%reference ) ) THEN
                 IF( ng1 >= ng2 ) THEN
-!$omp parallel do private(i,j)
+!$omp parallel do private(i,j) default(none) shared(pw1,pw2,ng2)
                    DO i = 1, ng2
                       j = pw1%pw_grid%gidx ( i )
                       pw2%cc ( i ) = pw1%cc ( j )
                    END DO
                 ELSE
                    CALL pw_zero ( pw2, error=error)
-!$omp parallel do private(i,j)
+!$omp parallel do private(i,j) default(none) shared(pw1,pw2,ng1)
                    DO i = 1, ng1
                       j = pw1%pw_grid%gidx ( i )
                       pw2%cc ( j ) = pw1%cc ( i )
@@ -258,14 +258,14 @@ CONTAINS
 
        IF ( pw1%in_use == REALDATA1D .AND. pw2%in_use == REALDATA1D ) THEN
           ns = SIZE ( pw1%cr )
-!$omp parallel do private(i)
+!$omp parallel do private(i) default(none) shared(ns,pw1,pw2)
           DO i = 1, ns
              pw2%cr(i) = pw1%cr(i)
           END DO
        ELSE IF ( pw1%in_use == COMPLEXDATA1D .AND. &
             pw2%in_use == COMPLEXDATA1D ) THEN
           ns = SIZE ( pw1%cc )
-!$omp parallel do private(i)
+!$omp parallel do private(i) default(none) shared(ns,pw2,pw1)
           DO i = 1, ns
              pw2%cc(i) = pw1%cc(i)
           END DO
@@ -377,39 +377,39 @@ CONTAINS
        cnt = SIZE ( pw%cc )
 
        IF ( n ( 1 ) == 1 ) THEN
-!$omp parallel do private (i)
+!$omp parallel do private (i) default(none) shared(cnt, pw)
           DO i = 1, cnt
              pw%cc ( i ) = pw%cc ( i ) * pw%pw_grid%g ( 1, i )
           END DO
           flop = flop + 6 * cnt
        ELSE IF ( n ( 1 ) > 1 ) THEN
-!$omp parallel do private (i)
+!$omp parallel do private (i) default(none) shared(cnt, pw,n)
           DO i = 1, cnt
              pw%cc ( i ) = pw%cc ( i ) * ( pw%pw_grid%g ( 1, i ) ** n ( 1 ) )
           END DO
           flop = flop + 7 * cnt
        END IF
        IF ( n ( 2 ) == 1 ) THEN
-!$omp parallel do private (i)
+!$omp parallel do private (i) default(none) shared(pw, cnt)
           DO i = 1, cnt
              pw%cc ( i ) = pw%cc ( i ) * pw%pw_grid%g ( 2, i )
           END DO
           flop = flop + 6 * cnt
        ELSE IF ( n ( 2 ) > 1 ) THEN
-!$omp parallel do private (i)
+!$omp parallel do private (i) default(none) shared(pw, cnt,n)
           DO i = 1, cnt
              pw%cc ( i ) = pw%cc ( i ) * ( pw%pw_grid%g ( 2, i ) ** n ( 2 ) )
           END DO
           flop = flop + 7 * cnt
        END IF
        IF ( n ( 3 ) == 1 ) THEN
-!$omp parallel do private (i)
+!$omp parallel do private (i) default(none) shared(pw,cnt)
           DO i = 1, cnt
              pw%cc ( i ) = pw%cc ( i ) * pw%pw_grid%g ( 3, i )
           END DO
           flop = flop + 6 * cnt
        ELSE IF ( n ( 3 ) > 1 ) THEN
-!$omp parallel do private (i)
+!$omp parallel do private (i) default(none) shared(pw,cnt,n)
           DO i = 1, cnt
              pw%cc ( i ) = pw%cc ( i ) * ( pw%pw_grid%g ( 3, i ) ** n ( 3 ) )
           END DO
@@ -419,7 +419,7 @@ CONTAINS
        ! im can take the values 1, -1, i, -i
        ! skip this if im == 1
        IF ( ABS ( REAL ( im,KIND=dp) - 1.0_dp ) > 1.e-10 ) THEN
-!$omp parallel do private (i)
+!$omp parallel do private (i) default(none) shared(pw,cnt,im)
           DO i = 1, cnt
              pw%cc ( i ) = im * pw%cc ( i )
           END DO
@@ -484,7 +484,7 @@ CONTAINS
           END DO
           flop = flop + 5 * cnt
        ELSE
-!$omp parallel do private (ig)
+!$omp parallel do private (ig) default(none) shared(pwdr2,pw,i,j,cnt)
           DO ig = 1, cnt
              pwdr2%cc(ig) = pw%cc(ig) * (pw%pw_grid%g(i,ig)*pw%pw_grid%g(j,ig))
           END DO
@@ -543,14 +543,14 @@ CONTAINS
        cnt = SIZE ( pw%cc )
 
        IF ( i == j ) THEN
-!$omp parallel do private (ig)
+!$omp parallel do private (ig) default(none) private(gg) shared(cnt,pw,o3,pwdr2_gg,i)
           DO ig = pw%pw_grid%first_gne0, cnt
              gg = pw%pw_grid%g(i,ig)**2 - o3*pw%pw_grid%gsq(ig)
              pwdr2_gg%cc(ig) = gg * pw%cc(ig) / pw%pw_grid%gsq(ig)
           END DO
           flop = flop + 6 * cnt
        ELSE
-!$omp parallel do private (ig)
+!$omp parallel do private (ig) default(none) shared(pwdr2_gg,pw,i,j,cnt)
           DO ig = pw%pw_grid%first_gne0, cnt
              pwdr2_gg%cc(ig) = pw%cc(ig) * (pw%pw_grid%g(i,ig)*pw%pw_grid%g(j,ig)) &
                   / pw%pw_grid%gsq(ig)
@@ -731,13 +731,13 @@ CONTAINS
 
        IF ( pw1%in_use == REALDATA1D .AND. pw2%in_use == REALDATA1D ) THEN
           IF (my_alpha==1.0_dp) THEN
-!$omp parallel do private(i)
+!$omp parallel do private(i) default(none) shared(pw2,pw1)
              DO i = 1, SIZE ( pw2%cr )
                 pw2%cr(i) = pw2%cr(i) + pw1%cr(i)
              END DO
              flop = REAL ( SIZE ( pw2%cr ),KIND=dp)
           ELSE
-!$omp parallel do private(i)
+!$omp parallel do private(i) default(none) shared(pw2,pw1,my_alpha)
              DO i = 1, SIZE ( pw2%cr )
                 pw2%cr(i) = pw2%cr(i) + my_alpha*pw1%cr(i)
              END DO
@@ -746,13 +746,13 @@ CONTAINS
        ELSE IF ( pw1%in_use == COMPLEXDATA1D .AND. &
             pw2%in_use == COMPLEXDATA1D ) THEN
           IF (my_alpha==1.0_dp) THEN
-!$omp parallel do private(i)
+!$omp parallel do private(i) default(none) shared(pw2,pw1)
              DO i = 1, SIZE ( pw2%cc )
                 pw2%cc(i) = pw2%cc(i) + pw1%cc(i)
              END DO
              flop = REAL ( 2 * SIZE ( pw2%cc ),KIND=dp)
           ELSE
-!$omp parallel do private(i)
+!$omp parallel do private(i) default(none) shared(pw2,my_alpha,pw1)
              DO i = 1, SIZE ( pw2%cc )
                 pw2%cc(i) = pw2%cc(i) + my_alpha*pw1%cc(i)
              END DO
@@ -794,12 +794,12 @@ CONTAINS
           IF ( pw1%pw_grid%spherical ) THEN
 
              IF (my_alpha==1.0_dp) THEN
-!$omp parallel do private(i)
+!$omp parallel do private(i) default(none) shared(pw2,pw1,ng)
                 DO i = 1, ng
                    pw2%cc (i) = pw2%cc (i) + pw1%cc (i)
                 END DO
              ELSE
-!$omp parallel do private(i)
+!$omp parallel do private(i) default(none) shared(pw2,pw1,my_alpha,ng)
                 DO i = 1, ng
                    pw2%cc (i) = pw2%cc (i) + my_alpha*pw1%cc (i)
                 END DO
@@ -809,13 +809,13 @@ CONTAINS
 
              IF (my_alpha==1.0_dp) THEN
                 IF( ng1 >= ng2 ) THEN
-!$omp parallel do private(i,j)
+!$omp parallel do private(i,j) default(none) shared(pw2,pw1,ng2)
                    DO i = 1, ng2
                       j = pw2%pw_grid%gidx ( i )
                       pw2%cc ( i ) = pw2%cc ( i ) + pw1%cc ( j )
                    END DO
                 ELSE
-!$omp parallel do private(i,j)
+!$omp parallel do private(i,j) default(none) shared(pw2,pw1,ng1)
                    DO i = 1, ng1
                       j = pw2%pw_grid%gidx ( i )
                       pw2%cc ( j ) = pw2%cc ( j ) + pw1%cc ( i )
@@ -823,13 +823,13 @@ CONTAINS
                 END IF
              ELSE
                 IF( ng1 >= ng2 ) THEN
-!$omp parallel do private(i,j)
+!$omp parallel do private(i,j) default(none) shared(pw2,pw1,my_alpha,ng2)
                    DO i = 1, ng2
                       j = pw2%pw_grid%gidx ( i )
                       pw2%cc ( i ) = pw2%cc ( i ) + my_alpha*pw1%cc ( j )
                    END DO
                 ELSE
-!$omp parallel do private(i,j)
+!$omp parallel do private(i,j) default(none) shared(pw2,pw1,my_alpha,ng1)
                    DO i = 1, ng1
                       j = pw2%pw_grid%gidx ( i )
                       pw2%cc ( j ) = pw2%cc ( j ) + my_alpha*pw1%cc ( i )
@@ -840,13 +840,13 @@ CONTAINS
 
              IF (my_alpha==1.0_dp) THEN
                 IF( ng1 >= ng2 ) THEN
-!$omp parallel do private(i,j)
+!$omp parallel do private(i,j) default(none) shared(pw2,pw1,ng2)
                    DO i = 1, ng2
                       j = pw1%pw_grid%gidx ( i )
                       pw2%cc ( i ) = pw2%cc ( i ) + pw1%cc ( j )
                    END DO
                 ELSE
-!$omp parallel do private(i,j)
+!$omp parallel do private(i,j) default(none) shared(pw2,pw1,ng1)
                    DO i = 1, ng1
                       j = pw1%pw_grid%gidx ( i )
                       pw2%cc ( j ) = pw2%cc ( j ) + pw1%cc ( i )
@@ -854,13 +854,13 @@ CONTAINS
                 END IF
              ELSE
                 IF( ng1 >= ng2 ) THEN
-!$omp parallel do private(i,j)
+!$omp parallel do private(i,j) default(none) shared(pw2,pw1,my_alpha,ng2)
                    DO i = 1, ng2
                       j = pw1%pw_grid%gidx ( i )
                       pw2%cc ( i ) = pw2%cc ( i ) + my_alpha* pw1%cc ( j )
                    END DO
                 ELSE
-!$omp parallel do private(i,j)
+!$omp parallel do private(i,j) default(none) shared(pw2,pw1,my_alpha,ng1)
                    DO i = 1, ng1
                       j = pw1%pw_grid%gidx ( i )
                       pw2%cc ( j ) = pw2%cc ( j ) + my_alpha*pw1%cc ( i )
@@ -952,7 +952,7 @@ CONTAINS
 
     IF ( PRESENT ( scale ) ) THEN
 
-!$omp parallel do private(gpt,l,m,n)
+!$omp parallel do private(gpt,l,m,n) default(none) shared(ngpts, mapl,mapm,mapn,ghat,scale,pw,c)
        DO gpt = 1, ngpts
 
           l = mapl ( ghat ( 1, gpt ) ) + 1
@@ -964,7 +964,7 @@ CONTAINS
 
     ELSE
 
-!$omp parallel do private(gpt,l,m,n)
+!$omp parallel do private(gpt,l,m,n) default(none) shared(ngpts, mapl,mapm,mapn,ghat,pw,c)
        DO gpt = 1, ngpts
 
           l = mapl ( ghat ( 1, gpt ) ) + 1
@@ -1117,7 +1117,7 @@ CONTAINS
 
     IF ( PRESENT ( scale ) ) THEN
 
-!$omp parallel do private(gpt,l,m,n)
+!$omp parallel do private(gpt,l,m,n) default(none) shared(ngpts, mapl,mapm,mapn,ghat,scale,pw,c)
        DO gpt = 1, ngpts
 
           l = mapl ( ghat ( 1, gpt ) ) + 1
@@ -1129,7 +1129,7 @@ CONTAINS
 
     ELSE
 
-!$omp parallel do private(gpt,l,m,n)
+!$omp parallel do private(gpt,l,m,n) default(none) shared(ngpts, mapl,mapm,mapn,ghat,pw,c)
        DO gpt = 1, ngpts
 
           l = mapl ( ghat ( 1, gpt ) ) + 1
@@ -1149,7 +1149,7 @@ CONTAINS
 
        IF ( PRESENT ( scale ) ) THEN
 
-!$omp parallel do private(gpt,l,m,n)
+!$omp parallel do private(gpt,l,m,n) default(none) shared(ngpts, mapl,mapm,mapn,ghat,scale,pw,c)
           DO gpt = 1, ngpts
 
              l = mapl ( ghat ( 1, gpt ) ) + 1
@@ -1161,7 +1161,7 @@ CONTAINS
 
        ELSE
 
-!$omp parallel do private(gpt,l,m,n)
+!$omp parallel do private(gpt,l,m,n) default(none) shared(ngpts, mapl,mapm,mapn,ghat,pw,c)
           DO gpt = 1, ngpts
 
              l = mapl ( ghat ( 1, gpt ) ) + 1

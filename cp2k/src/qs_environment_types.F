@@ -40,9 +40,7 @@ MODULE qs_environment_types
   USE cp_para_env,                     ONLY: cp_para_env_release,&
                                              cp_para_env_retain
   USE cp_para_types,                   ONLY: cp_para_env_type
-  USE cp_result_types,                 ONLY: cp_result_create,&
-                                             cp_result_release,&
-                                             cp_result_type
+  USE cp_result_types,                 ONLY: cp_result_type
   USE cp_subsys_types,                 ONLY: cp_subsys_get,&
                                              cp_subsys_release,&
                                              cp_subsys_retain,&
@@ -180,9 +178,7 @@ MODULE qs_environment_types
                                              se_taper_type
   USE task_list_types,                 ONLY: deallocate_task_list,&
                                              task_list_type
-  USE virial_types,                    ONLY: virial_release,&
-                                             virial_retain,&
-                                             virial_type
+  USE virial_types,                    ONLY: virial_type
   USE wannier_states_types,            ONLY: wannier_centres_type
   USE xas_env_types,                   ONLY: xas_env_release,&
                                              xas_env_retain,&
@@ -407,14 +403,12 @@ MODULE qs_environment_types
     TYPE(xas_environment_type), POINTER                   :: xas_env
     TYPE(cp_ddapc_type), POINTER                          :: cp_ddapc_env
     TYPE(cp_ddapc_ewald_type), POINTER                    :: cp_ddapc_ewald
-    TYPE(virial_type), POINTER                            :: virial
     REAL(KIND = dp), DIMENSION(:,:), POINTER              :: outer_scf_history
     INTEGER                                               :: outer_scf_ihistory
     TYPE(ep_qs_type), POINTER                             :: ep_qs_env
     TYPE(hfx_type),DIMENSION(:,:), POINTER                :: x_data
     TYPE(et_coupling_type),POINTER                        :: et_coupling
     TYPE(qs_dftb_pairpot_type), DIMENSION(:,:), POINTER   :: dftb_potential
-    TYPE(cp_result_type) ,POINTER                         :: results
     TYPE(task_list_type), POINTER                         :: task_list
     TYPE(task_list_type), POINTER                         :: task_list_aux_fit
     TYPE(task_list_type), POINTER                         :: task_list_soft
@@ -441,8 +435,6 @@ MODULE qs_environment_types
     TYPE(mp2_type), POINTER                               :: mp2_env
     TYPE(kg_environment_type), POINTER                    :: kg_env
     TYPE(wannier_centres_type), POINTER,DIMENSION(:)      :: WannierCentres=>NULL()
-    ! atomic properties
-    TYPE(atprop_type),POINTER                             :: atprop
     TYPE(qs_kind_type), DIMENSION(:), POINTER             :: qs_kind_set => Null()
   END TYPE qs_environment_type
 
@@ -883,7 +875,6 @@ CONTAINS
     IF (PRESENT(mo_loc_history)) mo_loc_history => qs_env%mo_loc_history
     IF (PRESENT(tddfpt_control)) tddfpt_control => qs_env%dft_control%tddfpt_control
     IF (PRESENT(linres_control)) linres_control => qs_env%linres_control
-    IF (PRESENT(virial)) virial => qs_env%virial
     IF (PRESENT(se_taper)) se_taper => qs_env%se_taper
     IF (PRESENT(se_store_int_env)) se_store_int_env => qs_env%se_store_int_env
     IF (PRESENT(se_nddo_mpole)) se_nddo_mpole => qs_env%se_nddo_mpole
@@ -929,6 +920,9 @@ CONTAINS
                       particles=particles,&
                       molecule_kinds_new=molecule_kinds_new,&
                       molecules_new=molecules_new,&
+                      atprop=atprop,&
+                      virial=virial,&
+                      results=results,&
                       error=error)
 
     IF (PRESENT(qs_kind_set)) qs_kind_set => qs_env%qs_kind_set
@@ -947,10 +941,6 @@ CONTAINS
     IF (PRESENT(dftb_potential)) dftb_potential => qs_env%dftb_potential
     IF (PRESENT(scp_env)) scp_env => qs_env%scp_env
     IF (PRESENT(efield)) efield => qs_env%efield
-
-    IF (PRESENT(atprop)) atprop => qs_env%atprop
-
-    IF (PRESENT(results)) results => qs_env%results
     IF (PRESENT(task_list)) task_list => qs_env%task_list
     IF (PRESENT(task_list_aux_fit)) task_list_aux_fit => qs_env%task_list_aux_fit
     IF (PRESENT(task_list_soft)) task_list_soft => qs_env%task_list_soft
@@ -1056,7 +1046,6 @@ CONTAINS
     NULLIFY (qs_env%input)
     NULLIFY (qs_env%linres_control)
     NULLIFY (qs_env%xas_env)
-    NULLIFY (qs_env%virial)
     NULLIFY (qs_env%cp_ddapc_env)
     NULLIFY (qs_env%cp_ddapc_ewald)
     NULLIFY (qs_env%outer_scf_history)
@@ -1064,7 +1053,6 @@ CONTAINS
     NULLIFY (qs_env%x_data)
     NULLIFY (qs_env%et_coupling)
     NULLIFY (qs_env%dftb_potential)
-    NULLIFY (qs_env%results)
     NULLIFY (qs_env%task_list)
     NULLIFY (qs_env%task_list_aux_fit)
     NULLIFY (qs_env%task_list_soft)
@@ -1086,7 +1074,6 @@ CONTAINS
     NULLIFY (qs_env%mp2_env)
     NULLIFY (qs_env%kg_env)
     NULLIFY (qs_env%WannierCentres)
-    NULLIFY (qs_env%atprop)
 
     qs_env%outer_scf_ihistory=0
     qs_env%broyden_adaptive_sigma=-1.0_dp
@@ -1122,7 +1109,6 @@ CONTAINS
     qs_env%sim_time=0._dp
     qs_env%sim_step=0
     ! Zero all variables containing results
-    CALL cp_result_create(qs_env%results, error)
     NULLIFY(qs_env%mo_derivs)
     NULLIFY(qs_env%mo_derivs_aux_fit)
     NULLIFY(qs_env%mo_loc_history)
@@ -1226,7 +1212,6 @@ CONTAINS
 !> \param neighbor_list_id ...
 !> \param linres_control ...
 !> \param xas_env ...
-!> \param virial ...
 !> \param cp_ddapc_env ...
 !> \param cp_ddapc_ewald ...
 !> \param outer_scf_history ...
@@ -1250,7 +1235,6 @@ CONTAINS
 !> \param kg_env ...
 !> \param WannierCentres ...
 !> \param ga_env ...
-!> \param atprop ...
 !> \param error ...
 !> \date    23.01.2002
 !> \author  MK
@@ -1270,10 +1254,10 @@ CONTAINS
        distribution_2d,dbcsr_dist,input, subsys, oce,rho_atom_set,rho0_atom_set,rho0_mpole,run_rtp,rtp,&
        rhoz_set,rhoz_tot,ecoul_1c,has_unit_metric,requires_mo_derivs,mo_derivs,&
        mo_derivs_aux_fit, mo_loc_history, nelectron_total, nelectron_spin, efield,&
-       neighbor_list_id,linres_control,xas_env,virial,cp_ddapc_env,cp_ddapc_ewald,&
+       neighbor_list_id,linres_control,xas_env,cp_ddapc_env,cp_ddapc_ewald,&
        outer_scf_history,outer_scf_ihistory,ep_qs_env,x_data,et_coupling,dftb_potential,&
        scp_env,se_taper,se_store_int_env,se_nddo_mpole,se_nonbond_env,admm_env,ls_scf_env,&
-       lri_env,lri_density,hfx_ri_env,dispersion_env,mp2_env,kg_env,WannierCentres,ga_env,atprop,error)
+       lri_env,lri_density,hfx_ri_env,dispersion_env,mp2_env,kg_env,WannierCentres,ga_env,error)
 
     TYPE(qs_environment_type), POINTER       :: qs_env
     TYPE(cell_type), OPTIONAL, POINTER       :: cell, super_cell, cell_ref
@@ -1362,7 +1346,6 @@ CONTAINS
       POINTER                                :: linres_control
     TYPE(xas_environment_type), OPTIONAL, &
       POINTER                                :: xas_env
-    TYPE(virial_type), OPTIONAL, POINTER     :: virial
     TYPE(cp_ddapc_type), OPTIONAL, POINTER   :: cp_ddapc_env
     TYPE(cp_ddapc_ewald_type), OPTIONAL, &
       POINTER                                :: cp_ddapc_ewald
@@ -1401,7 +1384,6 @@ CONTAINS
       DIMENSION(:), OPTIONAL, POINTER        :: WannierCentres
     TYPE(ga_environment_type), OPTIONAL, &
       POINTER                                :: ga_env
-    TYPE(atprop_type), OPTIONAL, POINTER     :: atprop
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
     CHARACTER(len=*), PARAMETER :: routineN = 'set_qs_env', &
@@ -1499,7 +1481,6 @@ CONTAINS
     IF (PRESENT(run_rtp)) qs_env%run_rtp=run_rtp
     IF (PRESENT(rtp)) qs_env%rtp=>rtp
     IF (PRESENT(efield)) qs_env%efield=>efield
-    IF (PRESENT(atprop)) qs_env%atprop=>atprop
     IF (PRESENT(rho)) THEN ! accepts also null pointers !
       IF (ASSOCIATED(rho)) CALL qs_rho_retain(rho,error=error)
       CALL qs_rho_release(qs_env%rho,error=error)
@@ -1596,13 +1577,6 @@ CONTAINS
        CALL xas_env_release(qs_env%xas_env, error=error)
        qs_env%xas_env => xas_env
     END IF
-    IF (PRESENT(virial)) THEN
-       IF (ASSOCIATED(virial)) THEN
-          CALL virial_retain(virial,error=error)
-       END IF
-       CALL virial_release(qs_env%virial,error=error)
-       qs_env%virial => virial
-     END IF
     IF (PRESENT(mpools)) THEN
        CALL mpools_retain(mpools,error=error)
        CALL mpools_release(qs_env%mpools, error=error)
@@ -2039,9 +2013,6 @@ CONTAINS
           IF(ASSOCIATED(qs_env%xas_env)) THEN
              CALL xas_env_release(qs_env%xas_env,error=error)
           END IF
-          IF(ASSOCIATED(qs_env%virial)) THEN
-             CALL virial_release(qs_env%virial,error=error)
-          END IF
           CALL pw_env_release(qs_env%pw_env, error=error)
           CALL ewald_env_release(qs_env%ewald_env, error=error)
           CALL ewald_pw_release(qs_env%ewald_pw, error=error)
@@ -2110,7 +2081,6 @@ CONTAINS
           CALL cp_ddapc_ewald_release(qs_env%cp_ddapc_ewald, error=error)
           CALL ep_qs_release(qs_env%ep_qs_env,error=error)
           CALL efield_berry_release(qs_env%efield,error=error)
-          CALL cp_result_release(qs_env%results,error=error)
           IF(ASSOCIATED(qs_env%x_data)) THEN
              CALL hfx_release(qs_env%x_data, error=error)
           END IF
@@ -2170,8 +2140,6 @@ CONTAINS
             DEALLOCATE(qs_env%WannierCentres, stat=stat)
             CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
           ENDIF
-          ! dereference atprop (we assume it will be deallocated in force_env!
-          NULLIFY(qs_env%atprop)
           ! now we are ready to deallocate the full structure
           DEALLOCATE(qs_env, stat=stat)
           CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
