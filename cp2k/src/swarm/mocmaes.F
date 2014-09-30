@@ -56,11 +56,11 @@ MODULE mocmaes
    INTEGER                                             :: front
    INTEGER                                             :: d_count
    INTEGER                                             :: s_i_count
-   INTEGER                                             :: Id
    TYPE(mo_cmaes_type_p),DIMENSION(:),ALLOCATABLE      :: s_i !should be length of pop_size
    TYPE(mo_cmaes_type),POINTER                         :: myparent=>null()
    INTEGER                                             :: popsize !offspring + parents
    LOGICAL                                             :: offspring
+   INTEGER,DIMENSION(:),ALLOCATABLE                    :: offspring_list
  END TYPE mo_cmaes_type
 
 
@@ -90,16 +90,20 @@ MODULE mocmaes
     INTEGER                                            :: popsize
     popsize = size(mocmaes)/2 
     do i=size(mocmaes),1,-1
+        mocmaes(i)%id = i
         call cmaes_init(mocmaes(i), input)
         mocmaes(i)%popsize = popsize
         allocate(mocmaes(i)%s_i(size(mocmaes)))
         do j=1,size(mocmaes)
             mocmaes(i)%s_i(j)%p => null()
         enddo
+        allocate(mocmaes(i)%offspring_list(0.5*popsize))
+        do j=1,0.5*popsize
+            mocmaes(i)%offspring_list(j) = j
+        enddo
         mocmaes(i)%s_i_count = 0 
         mocmaes(i)%d_count = 0
         mocmaes(i)%I_dist = 0._dp
-        mocmaes(i)%id = i
         if (i .le. popsize) then
            mocmaes(i)%offspring = .true.
            mocmaes(i)%myparent => mocmaes(i+popsize)
@@ -187,7 +191,10 @@ MODULE mocmaes
              a_k_parents%id = j+popsize
              a_k%offspring = .TRUE.
              a_k_parents%offspring = .FALSE.
+             print *,'oldx',a_k%x
              CALL gen_pop(a_k)
+             print *,'newx',a_k%x
+
      END DO
      deallocate(offspring,parents)
      !print *,"gen pop done"
@@ -524,6 +531,7 @@ SUBROUTINE init_selection(mocmaes)
     !generate new population 
      n=a_k%n
      do i=1,n; a_k%z(i) = next_random_number(a_k%rng_gaussian_stream,error=error); enddo
+     print *,'z',a_k%z
      CALL DGEMV('N',n,n,1.0d0,a_k%A,n,a_k%z,1,0.0d0,a_k%Az,1)
      a_k%xold = a_k%x
      !print *,'p-better',a_k%p_better,'f',a_k%f,'fold',a_k%fold
@@ -531,6 +539,10 @@ SUBROUTINE init_selection(mocmaes)
      !print *,"C",a_k%C
      a_k%x = a_k%x+ a_k%sigma * a_k%Az
      a_k%dx = norm2(a_k%x-a_k%xold)
+     do i=1,size(a_k%x)
+        if (a_k%x(i) .lt. a_k%l_bound(i)) a_k%x(i) = a_k%l_bound(i)
+        if (a_k%x(i) .gt. a_k%u_bound(i)) a_k%x(i) = a_k%u_bound(i)
+     enddo
     end subroutine gen_pop
 
 ! *****************************************************************************
@@ -547,6 +559,8 @@ SUBROUTINE init_selection(mocmaes)
     TYPE(mo_cmaes_type_p),DIMENSION(:)                 :: parents
     TYPE(mo_cmaes_type_p),DIMENSION(:)                 :: offspring
     INTEGER                                            :: i,j,k 
+    INTEGER,DIMENSION(:),ALLOCATABLE                  :: offspring_list
+    allocate(offspring_list(0.5*size(mocmaes)))
     do i=1,size(mocmaes)/2
        nullify(parents(i)%p,offspring(i)%p)
     enddo
@@ -555,12 +569,17 @@ SUBROUTINE init_selection(mocmaes)
     do k=1,size(mocmaes)
         if (mocmaes(k)%offspring) then
            offspring(i)%p => mocmaes(k) 
+           offspring_list(i) = mocmaes(k)%Id
            i = i + 1
         else
            parents(j)%p => mocmaes(k)
            parents(j)%p%myparent => null()
            j = j + 1
         endif
-    enddo 
+    enddo
+    do k=1,size(mocmaes)
+        mocmaes(k)%offspring_list = offspring_list
+    enddo
+    deallocate(offspring_list)
 END SUBROUTINE update_offspring
 END MODULE mocmaes

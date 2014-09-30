@@ -82,6 +82,8 @@ MODULE cmaes
    !------------------ 
    REAL(KIND=dp)                                       :: det
    REAL(KIND=dp)                                       :: dx
+   !-----------------
+   INTEGER                                             :: Id=1
  CONTAINS
    PROCEDURE                                           :: cmaes_init 
  END TYPE cmaes_type
@@ -379,6 +381,7 @@ END SUBROUTINE update_covariance
 
     if (input%input_seed .gt. 0) then
         !deterministic seed
+        input%input_seed = input%input_seed + this%Id
         seed(:,:) = &
             RESHAPE( (/input%input_seed*42.0_dp, &
                        input%input_seed*54.0_dp, &
