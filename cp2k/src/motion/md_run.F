@@ -15,8 +15,13 @@ MODULE md_run
   USE barostat_types,                  ONLY: barostat_type,&
                                              create_barostat_type,&
                                              release_barostat_type
+#ifdef __PLUMED_CP2K
   USE cell_methods,                    ONLY: cell_type,&
-                                             pbc_cp2k_plumed_getset_cell
+                                             pbc_cp2k_plumed_getset_cell,&
+                                             pbc_cp2k_plumed
+#else
+  USE cell_methods,                    ONLY: cell_type
+#endif
   USE cp_external_control,             ONLY: external_control
   USE cp_output_handling,              ONLY: cp_add_iter_level,&
                                              cp_iterate,&
@@ -207,7 +212,7 @@ CONTAINS
     REAL(KIND=dp), POINTER                   :: constant, time, used_time
     TYPE(atomic_kind_list_type), POINTER     :: atomic_kinds
     TYPE(barostat_type), POINTER             :: barostat
-    TYPE(cell_type), POINTER                 :: cell, cell_ref
+    TYPE(cell_type), POINTER                 :: cell
     TYPE(cp_logger_type), POINTER            :: logger
     TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(cp_subsys_type), POINTER            :: subsys, subsys_i
@@ -223,8 +228,8 @@ CONTAINS
     TYPE(thermal_regions_type), POINTER      :: thermal_regions
     TYPE(thermostats_type), POINTER          :: thermostats
     TYPE(virial_type), POINTER               :: virial
-#ifdef PLUMED_CP2K
-    INTEGER                                  :: natom_plumed, nsp_plumed
+#ifdef __PLUMED_CP2K
+    INTEGER                                  :: natom_plumed, nsp_plumed, i_kinds
     INTEGER, DIMENSION(90)                   :: na_plumed
     REAL(KIND=dp)                            :: timestep_plumed
     REAL(KIND=dp), DIMENSION(90)             :: pma0_plumed
@@ -235,7 +240,7 @@ CONTAINS
     CPPrecondition(ASSOCIATED(force_env),cp_failure_level,routineP,error,failure)
 
     failure=.FALSE.
-    NULLIFY (particles, cell, cell_ref, simpar, itimes, used_time, subsys, &
+    NULLIFY (particles, cell, simpar, itimes, used_time, subsys, &
          md_ener, thermostats, barostat, reftraj, force_env_section, &
          reftraj_section, work_section, atomic_kinds, &
          local_particles, time, fe_env, free_energy_section, &
@@ -306,14 +311,13 @@ CONTAINS
         CALL release_reftraj(reftraj,error=error)
     END IF
 
-    CALL force_env_get(force_env, subsys=subsys, cell=cell, cell_ref=cell_ref,&
+    CALL force_env_get(force_env, subsys=subsys, cell=cell, &
                        force_env_section=force_env_section,  error=error )
     CALL cp_subsys_get(subsys,virial=virial,error=error)
 
     ! Set V0 if needed
     IF (simpar%ensemble == nph_uniaxial_ensemble.OR.simpar%ensemble == nph_uniaxial_damped_ensemble) THEN
-       CPPrecondition(ASSOCIATED(cell_ref),cp_failure_level,routineP,error,failure)
-       IF ( simpar%v0 == 0._dp ) simpar%v0 = cell_ref%deth
+       IF ( simpar%v0 == 0._dp ) simpar%v0 = cell%deth
     ENDIF
 
     ! Initialize velocities possibly applying constraints at the zeroth MD step
@@ -408,7 +412,7 @@ CONTAINS
        IF (ASSOCIATED(force_env%meta_env)) THEN
            ! Setup stuff for plumed if needed
            IF (force_env%meta_env%use_plumed .EQV. .TRUE.) THEN
-#ifdef PLUMED_CP2K
+#ifdef __PLUMED_CP2K
                natom_plumed=subsys%particles%n_els
                nsp_plumed=subsys%atomic_kinds%n_els
                timestep_plumed=simpar%dt
@@ -481,7 +485,7 @@ CONTAINS
        CALL initialize_reftraj(reftraj, reftraj_section, md_env, error=error)
        itimes = reftraj%info%first_snapshot -1
        md_stride = reftraj%info%stride
-#ifdef PLUMED_CP2K
+#ifdef __PLUMED_CP2K
        IF (ASSOCIATED(force_env%meta_env)) THEN
            IF (force_env%meta_env%use_plumed .EQV. .TRUE.) THEN
                natom_plumed=subsys%particles%n_els
