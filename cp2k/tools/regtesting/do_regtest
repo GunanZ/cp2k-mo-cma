@@ -498,6 +498,8 @@ fi
 
 # from here failures are likely to be bugs in cp2k
 if [[ ${nobuild} != "nobuild" ]]; then
+   echo "----------------------------ARCH-file-------------------------------------"
+   cat ${dir_base}/${cp2k_dir}/arch/${ARCH}.${cp2k_version}
    echo "-------------------------compiling cp2k-----------------------------------"
    echo "${make} -j $((maxtasks)) ${ARCH_SPEC} VERSION=${cp2k_version}"
    echo "(make output is written to ${make_out})"
@@ -572,6 +574,10 @@ printf "Copying tests into working directory ... "
       cp -rp ${dir_base}/${cp2k_dir}/tests/* ${dir_out}/tests
   )
 
+printf "done!\n"
+
+printf "Creating symbolic link of data directory ... "
+ln -s ${dir_base}/${cp2k_dir}/data ${dir_out}/data
 printf "done!\n"
 
 #
