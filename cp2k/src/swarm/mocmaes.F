@@ -97,8 +97,8 @@ MODULE mocmaes
         do j=1,size(mocmaes)
             mocmaes(i)%s_i(j)%p => null()
         enddo
-        allocate(mocmaes(i)%offspring_list(0.5*popsize))
-        do j=1,0.5*popsize
+        allocate(mocmaes(i)%offspring_list(popsize/2))
+        do j=1,popsize/2
             mocmaes(i)%offspring_list(j) = j
         enddo
         mocmaes(i)%s_i_count = 0 
@@ -560,7 +560,7 @@ SUBROUTINE init_selection(mocmaes)
     TYPE(mo_cmaes_type_p),DIMENSION(:)                 :: offspring
     INTEGER                                            :: i,j,k 
     INTEGER,DIMENSION(:),ALLOCATABLE                  :: offspring_list
-    allocate(offspring_list(0.5*size(mocmaes)))
+    allocate(offspring_list(size(mocmaes)/2))
     do i=1,size(mocmaes)/2
        nullify(parents(i)%p,offspring(i)%p)
     enddo

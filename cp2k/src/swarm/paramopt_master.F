@@ -73,7 +73,7 @@ MODULE paramopt_master
    !--------------------------
    REAL(KIND=dp),ALLOCATABLE,DIMENSION(:,:,:)          :: energies
    REAL(KIND=dp),ALLOCATABLE,DIMENSION(:,:,:)          :: rmsd
-   REAL(KIND=dp),ALLOCATABLE,DIMENSION(:,:,:)          :: converged
+   INTEGER,ALLOCATABLE,DIMENSION(:,:,:)                :: converged
    REAL(KIND=dp),ALLOCATABLE,DIMENSION(:,:)            :: ref_matrix
    INTEGER                                             :: database=1
    REAL(KIND=dp),DIMENSION(:,:),POINTER                :: x
@@ -149,7 +149,7 @@ MODULE paramopt_master
     CALL section_vals_val_get(this%paramopt_section,"NUM_VAR", i_val=this%n, error=error)
     !------------------------------------
     n = this%n
-    popsize = 20
+    popsize = 30 
     if (mod(popsize,2) .ne. 0) then
         STOP "popsize wrong"
     endif
@@ -174,9 +174,11 @@ MODULE paramopt_master
         print *,'generating random x'
         CALL create_rng(rng_uniform_stream,global_seed)
         do j=1,2*popsize
-            do i=1,n; this%x(j,i) = next_random_number(rng_uniform_stream,error=error); enddo  
+            do i=1,n; this%x(j,i) = next_random_number(rng_uniform_stream,error=error); enddo 
             this%x(j,:) = var_trans(this%x(j,:),this%u_bound,this%l_bound)
          enddo
+         print *,'lower bound',this%l_bound
+         print *,'upper bound',this%u_bound
          print *,'done random x',this%x(1,:)
          print *,'done random x trans',var_back_trans(this%x(1,:),this%u_bound,this%l_bound)
          CALL delete_rng_stream(rng_uniform_stream,error=error)
@@ -184,7 +186,7 @@ MODULE paramopt_master
     !------------------------------------
     this%m = 2
     m = this%m
-    this%database = 3 ! 1 for the s22 and 2 for water_cluster and 3 for water27
+    this%database = 1 ! 1 for the s22 and 2 for water_cluster and 3 for water27
     if (.not. this%benchmark) then 
         if (this%database == 1) then
             this%num_ref_mol = 3*22
@@ -355,17 +357,16 @@ SUBROUTINE do_grid_search(this,report,cmd,should_stop)
     INTEGER                                    :: i,j 
     INTEGER                                    :: iounit 
     INTEGER                                    :: id=1
-    INTEGER,DIMENSION(2)                       :: ind
+    INTEGER,DIMENSION(3)                       :: ind
           CALL swarm_message_get(report, "worker_id", wid)
           CALL swarm_message_get(report, "status", report_status)
           if (trim(report_status) .eq. "done") then
             this%num_input_rcvd = this%num_input_rcvd + 1
             CALL swarm_message_get(report, "pop_id",id)
             CALL swarm_message_get(report, "inp_num",input)
-            CALL index2grid(input,(/size(this%energies,dim=2),size(this%energies,dim=3)/),ind)
-            CALL swarm_message_get(report, "result", this%energies(id,ind(1),ind(2)))
-            CALL swarm_message_get(report, "converged", this%converged(id,ind(1),ind(2)))
-            
+            CALL index2grid(input,(/1,size(this%energies,dim=2),size(this%energies,dim=3)/),ind)
+            CALL swarm_message_get(report, "result", this%energies(id,ind(2),ind(3)))
+            CALL swarm_message_get(report, "converged", this%converged(id,ind(2),ind(3)))
             if (this%num_input_rcvd .eq. this%num_ref_mol) then
                 CALL energy2function(this%energies(id,:,:),this%ref_matrix,this%database,myresult)
                 this%f = myresult
@@ -385,15 +386,17 @@ SUBROUTINE do_grid_search(this,report,cmd,should_stop)
           if (this%current_inp .le. this%num_ref_mol .and. &
             (report_status .eq. "wait_done" .or. report_status .eq. "initial_hello")) then
             CALL swarm_message_add(cmd, "command", "energy")
-            CALL swarm_message_add(cmd, "pop_id",id)
+            CALL swarm_message_add(cmd, "pop_id",1)
             CALL swarm_message_add(cmd, "inp_num", this%current_inp )
-            CALL index2grid(this%current_inp,(/size(this%energies,dim=2),size(this%energies,dim=3)/),ind)
-            CALL gen_input_file(ind(1),ind(2),this%database,input_file)
+            CALL index2grid(this%current_inp,(/1,size(this%energies,dim=2), &
+                             size(this%energies,dim=3)/),ind)
+                             print *,ind
+            CALL gen_input_file(ind(2),ind(3),this%database,input_file)
             CALL swarm_message_add(cmd, "inp_file", input_file)
             ! change charge if necessary
             ! w27 1-15 are 0 then 16-21 are 1 then 22-29 are -1 and 30 is 0
             if (this%database .eq. 3) then
-                select case(ind(1))
+                select case(ind(2))
                     case(1:15,30)
                         charge = 0
                     case(16:21)
@@ -492,6 +495,8 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                             size(this%energies,dim=2),&
                             size(this%energies,dim=3)/),ind)
             CALL swarm_message_get(report, "result",func)
+            CALL swarm_message_get(report, "converged", this%converged(id,ind(2),ind(3)))
+            !if (this%converged(id,ind(2),ind(3)) .eq. 0) STOP "not converged"
             this%energies(id,ind(2),ind(3)) = func(1)
             this%rmsd(id,ind(2),ind(3))     = func(2) 
             if (this%num_input_rcvd .eq. offspringsize*this%num_ref_mol) then
@@ -624,10 +629,11 @@ SUBROUTINE do_optim(this,report,cmd,method,should_stop)
             this%num_input_rcvd = this%num_input_rcvd + 1
             CALL swarm_message_get(report, "pop_id",id)
             CALL swarm_message_get(report, "inp_num",input)
-            CALL index2grid(input,(/size(this%energies,dim=2),size(this%energies,dim=3)/),ind)
-            CALL swarm_message_get(report, "result", this%energies(id,ind(1),ind(2)))
-            CALL swarm_message_get(report, "converged", this%converged(id,ind(1),ind(2)))
-            if (this%converged(id,ind(1),ind(2)) .eq. 0) STOP "hm converged"
+            CALL index2grid(input,(/1,size(this%energies,dim=2),size(this%energies,dim=3)/),ind)
+            CALL swarm_message_get(report, "result", this%energies(id,ind(2),ind(3)))
+            CALL swarm_message_get(report, "converged", this%converged(id,ind(2),ind(3)))
+!            CALL swarm_message_get(report, "converged", this%converged(id,ind(2),ind(3)))
+!            if (this%converged(id,ind(2),ind(4)) .eq. 0) STOP "hm converged"
             !print *,'input',input,ind,this%num_input_rcvd
             if (this%num_input_rcvd .eq. this%num_ref_mol) then
                 CALL energy2function(this%energies(id,:,:),this%ref_matrix,this%database,myresult)
@@ -680,14 +686,15 @@ SUBROUTINE do_optim(this,report,cmd,method,should_stop)
             CALL swarm_message_add(cmd, "command", "energy")
             CALL swarm_message_add(cmd, "pop_id", id )
             CALL swarm_message_add(cmd, "inp_num", this%current_inp )
-            CALL index2grid(this%current_inp,(/size(this%energies,dim=2),size(this%energies,dim=3)/),ind)
+            CALL index2grid(this%current_inp,(/1,size(this%energies,dim=2), &
+                             size(this%energies,dim=3)/),ind)
             print *,'input',this%current_inp,ind
-            CALL gen_input_file(ind(1),ind(2),this%database,input_file)
+            CALL gen_input_file(ind(2),ind(3),this%database,input_file)
             CALL swarm_message_add(cmd, "inp_file", input_file)
             ! change charge if necessary
             ! w27 1-15 are 0 then 16-21 are 1 then 22-29 are -1 and 30 is 0
             if (this%database .eq. 3) then
-                select case(ind(1))
+                select case(ind(2))
                     case(1:15,30)
                         charge = 0
                     case(16:21)

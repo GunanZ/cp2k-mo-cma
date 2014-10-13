@@ -163,7 +163,7 @@ MODULE paramopt_worker
 
     CHARACTER(len=default_string_length)     :: command
     REAL(kind=dp)                            :: test
-   REAL(kind=dp)                            :: y,x,x1,h
+   REAL(kind=dp)                            :: x,x1,h
    REAL(kind=dp),DIMENSION(:),POINTER       :: func
    INTEGER                                  :: Id
 
@@ -177,10 +177,10 @@ MODULE paramopt_worker
                 CALL swarm_message_get(cmd, "ref_func", worker%ref_func)
                 !CALL run_mdgopt(worker, cmd, report)
                 !------------do calc here------------
-                CALL myfun(worker%x,y,worker%ref_func)
+                CALL myfun(worker%x,worker%func(1),worker%ref_func)
                 !------------------------------------ 
                 CALL swarm_message_add(report, "status", "done") 
-                CALL swarm_message_add(report, "result", y)
+                CALL swarm_message_add(report, "result", worker%func(1))
             ELSE IF (TRIM(command) == "energy") THEN
                nullify(worker%x)
                CALL swarm_message_get(cmd, "pop_id", worker%pop_id)
@@ -194,7 +194,8 @@ MODULE paramopt_worker
                CALL swarm_message_add(report, "status", "done")
                CALL swarm_message_add(report, "pop_id", worker%pop_id)
                CALL swarm_message_add(report, "inp_num", worker%inp_num) 
-               CALL swarm_message_add(report, "result", y)
+               CALL swarm_message_add(report, "result", worker%func(1))
+               CALL swarm_message_add(report, "converged", worker%converged)
             ELSE
                print *,"Worker: received unkown command:"
                STOP 
@@ -223,7 +224,6 @@ MODULE paramopt_worker
             CALL swarm_message_add(report, "inp_num", worker%inp_num)
             CALL swarm_message_add(report, "pop_id", worker%pop_id)
             CALL swarm_message_add(report, "result", worker%func)
-            CALL swarm_message_add(report, "converged", worker%converged)
           ELSE IF (TRIM(command) == "energy") THEN
             nullify(worker%x)
             CALL swarm_message_get(cmd, "inp_num", worker%inp_num)
@@ -238,6 +238,7 @@ MODULE paramopt_worker
             CALL swarm_message_add(report, "inp_num", worker%inp_num)
             CALL swarm_message_add(report, "pop_id", worker%pop_id)
             CALL swarm_message_add(report, "result", worker%func)
+            CALL swarm_message_add(report, "converged", worker%converged)
           ENDIF
        CASE DEFAULT
         STOP "Unkown glbopt_method"
@@ -288,7 +289,7 @@ MODULE paramopt_worker
     !CALL swarm_message_get(cmd,"num_inp",i_inp)
     !CALL swarm_message_get(cmd,"iter",iter)
     !CALL swarm_message_get(cmd,"x",this%x)
-
+    write(this%iw,*) "this is x in worker",this%x
     !print *,'this is x in worker',this%x
     !print *,'this is charge', this%charge
     !print *,'this is inp',this%inp_file
@@ -298,21 +299,21 @@ MODULE paramopt_worker
     !this%D3 = (/1._dp,this%x(1:2)/)
     d3_ptr = this%D3
     !----for dftb3 param optimization-----------------
-    ! NEEDS TO BE ADJUSTED !!!!!!!!!!!!!!!!!
-    !allocate(dftb3_param(4))
-    !dftb3_param = this%x(1:4)
+!    ! NEEDS TO BE ADJUSTED !!!!!!!!!!!!!!!!!
+!    allocate(dftb3_param(4))
+!    dftb3_param = this%x(4:7)
     !---for hb param optimization---------------------
     hb_para = this%x(1)
     !-------------------------------------------------
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%SUBSYS%TOPOLOGY%COORD_FILE_NAME", &
                               c_val=this%inp_file, error = this%error)
-    !do i=1,size(dftb3_param)
-    !    CALL section_vals_val_set(this%root_section, &
-    !                              i_rep_section=i,&
-    !                              keyword_name="FORCE_EVAL%SUBSYS%KIND%DFTB3_PARAM", &
-    !                              r_val=dftb3_param(i), error = this%error)
-    !enddo
+!    do i=1,size(dftb3_param)
+!        CALL section_vals_val_set(this%root_section, &
+!                                  i_rep_section=i,&
+!                                  keyword_name="FORCE_EVAL%SUBSYS%KIND%DFTB3_PARAM", &
+!                                  r_val=dftb3_param(i), error = this%error)
+!    enddo
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%D3_SCALING", &
                               r_vals_ptr=d3_ptr, error = this%error)
@@ -364,29 +365,30 @@ MODULE paramopt_worker
     else
         this%converged = 0
     endif
-    !-----------------geo opt------------------------------------
-    if (this%converged .eq. 1) then
-      ALLOCATE(pos2(3*natoms))
-      ALLOCATE(pos(3*natoms))
-      ALLOCATE(g(2,3*natoms))
-      CALL get_pos(this%f_env_id, pos, 3*natoms, ierr)
-      CALL cp_geo_opt(this%force_env, this%globenv, eval_opt_geo=.TRUE.,error=this%error)
-      CALL get_energy(this%f_env_id,energy,ierr)
-      CALL get_pos(this%f_env_id, pos2, 3*natoms, ierr)
-      CALL get_rmsd(natoms,RESHAPE(pos,(/ 3, natoms /)), &
-                             RESHAPE(pos2,(/ 3, natoms /) ), &
-                             0, U,center2,center1, rmsd,.FALSE.,g)
-      !----------------calc energy--------------------
-       if (this%force_env%qs_env%converged) then
-            this%converged = 1
-       else
-            this%converged = 0
-       endif
-       deallocate(pos,pos2,g)!
-    else 
-        energy = huge(1._dp)
-    endif
-    !------------------cleanup------------------------------------------------------
+!    !-----------------geo opt------------------------------------
+!    if (this%converged .eq. 1) then
+!      ALLOCATE(pos2(3*natoms))
+!      ALLOCATE(pos(3*natoms))
+!      ALLOCATE(g(2,3*natoms))
+!      CALL get_pos(this%f_env_id, pos, 3*natoms, ierr)
+!      CALL cp_geo_opt(this%force_env, this%globenv, eval_opt_geo=.TRUE.,error=this%error)
+!      CALL get_energy(this%f_env_id,energy,ierr)
+!      CALL get_pos(this%f_env_id, pos2, 3*natoms, ierr)
+!      CALL get_rmsd(natoms,RESHAPE(pos,(/ 3, natoms /)), &
+!                             RESHAPE(pos2,(/ 3, natoms /) ), &
+!                             0, U,center2,center1, rmsd,.FALSE.,g)
+!      !----------------calc energy--------------------
+!       if (this%force_env%qs_env%converged) then
+!            this%converged = 1
+!       else
+!            this%converged = 0
+!            energy = huge(1._dp)
+!       endif
+!       deallocate(pos,pos2,g)!
+!    else 
+!        energy = huge(1._dp)
+!    endif
+!    !------------------cleanup------------------------------------------------------
     CALL destroy_force_env(this%f_env_id, ierr)
     IF(ierr /= 0) STOP "paramopt_worker: destroy_force_env failed" 
     !work_section => section_vals_get_subs_vals(this%subsys_section,"COORD",error=this%error)
