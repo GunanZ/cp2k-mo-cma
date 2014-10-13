@@ -330,6 +330,13 @@ CONTAINS
                        .FALSE., gopt_env%force_env%para_env, error)
        ediff = etot - eold
 
+       ! check if energy converged
+       IF(associated(gopt_env%force_env%qs_env)) THEN
+          should_stop = .not.gopt_env%force_env%qs_env%converged
+          IF(should_stop) EXIT
+       ENDIF   
+
+
        ! check for an external exit command
        CALL external_control(should_stop,"GEO",globenv=globenv,error=error)
        IF(should_stop) EXIT
