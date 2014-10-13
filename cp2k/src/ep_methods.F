@@ -1614,9 +1614,6 @@ CONTAINS
          input=qs_env_input,&
          subsys=subsys,&
          energy=energy,&
-         matrix_ks=matrix_ks,&
-         matrix_s=matrix_s,&
-         kinetic=kinetic,&
          mos=mos,&
          rho=rho,&
          error=error)
@@ -1831,6 +1828,11 @@ CONTAINS
        CALL init_preconditioner(ep_env%precond(ispin)%preconditioner,&
             para_env=para_env,&
             blacs_env=blacs_env,error=error)
+       CALL get_qs_env(qs_env,&
+                       matrix_ks=matrix_ks,&
+                       matrix_s=matrix_s,&
+                       kinetic=kinetic,&
+                       error=error)
        CALL make_preconditioner(ep_env%precond(ispin)%preconditioner,&
             ot_precond_full_kinetic,&
             ot_precond_solver_default,&
@@ -1936,7 +1938,7 @@ CONTAINS
           unit_nr=cp_print_key_unit_nr(logger,ep_env%input,"PRINT%EP_RHO_CUBE/RHO0",&
                extension=".cube",middle_name="rho0_"//TRIM(ADJUSTL(cp_to_string(ispin))),&
                log_filename=.FALSE.,error=error)
-          CALL cp_pw_to_cube ( ep_env%main_qs_env%rho%rho_r(1)%pw, unit_nr=unit_nr,&
+          CALL cp_pw_to_cube (rho%rho_r(1)%pw, unit_nr=unit_nr,&
                title="rho0_"//TRIM(ADJUSTL(cp_to_string(ispin))),&
                particles=particles,&
                stride=section_get_ivals(ep_env%input,"PRINT%EP_RHO_CUBE%STRIDE",error=error),&
@@ -1966,6 +1968,7 @@ CONTAINS
          extension=".epLog",message=routineP//&
          " creating w_matrix main_qs_env",error=error)
     nspin = SIZE(mos)
+    CALL get_qs_env(qs_env, matrix_s=matrix_s, error=error)
     CALL cp_dbcsr_allocate_matrix_set(matrix_w,nspin,error=error)
     DO ispin=1,nspin
        ALLOCATE(matrix_w(ispin)%matrix)

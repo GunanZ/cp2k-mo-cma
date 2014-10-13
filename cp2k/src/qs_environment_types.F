@@ -81,9 +81,7 @@ MODULE qs_environment_types
   USE kg_environment_types,            ONLY: kg_env_release,&
                                              kg_environment_type
   USE kinds,                           ONLY: dp
-  USE kpoint_types,                    ONLY: kpoint_create,&
-                                             kpoint_release,&
-                                             kpoint_type
+  USE kpoint_types,                    ONLY: kpoint_type
   USE lri_environment_types,           ONLY: lri_density_release,&
                                              lri_density_type,&
                                              lri_env_release,&
@@ -134,8 +132,7 @@ MODULE qs_environment_types
                                              qs_matrix_pools_type
   USE qs_mo_types,                     ONLY: deallocate_mo_set,&
                                              mo_set_p_type
-  USE qs_neighbor_list_types,          ONLY: deallocate_neighbor_list_set,&
-                                             neighbor_list_set_p_type
+  USE qs_neighbor_list_types,          ONLY: neighbor_list_set_p_type
   USE qs_oce_types,                    ONLY: deallocate_oce_set,&
                                              oce_matrix_type
   USE qs_period_efield_types,          ONLY: efield_berry_release,&
@@ -208,7 +205,6 @@ MODULE qs_environment_types
 !> \param id_nr identification number, guarateed to be unique
 !> \param ref_count reference count (see doc/ReferenceCounting.html)
 !> \param cell the simulation cell (box)
-!> \param kpoints information on the kpoints used
 !> \param image_matrix matrix needed for the image charge approach within QM/MM
 !> \param image_coeff coefficients of the image charges within QM/MM
 !> \param ipiv auxiliary matrix needed for solving linear system of equations
@@ -220,33 +216,7 @@ MODULE qs_environment_types
 !>        relevant to a dft calculation
 !> \param mos the molecular orbitals, in LSD array with the different spins
 !> \param mos_aux_fit molecular orbitals for admm
-!> \param sab_orb ,sac_ae, sac_ppl, sap_ppnl:
-!>        neighbor lists for the calculation of the core Hamiltonian matrix
-!> \param sap_oce: neighbor lists for the calculation of the expansion
-!>        coefficients of the local atomic densities rho1_hard and rho1_soft
-!> \param sab_se: neighbor lists for the calculation of the 2 centers
-!>        hartree term in semi-empirical methods
-!> \param sac_tbe: neighbor lists for the calculation of the tight binding
-!>        Ewald terms (DFTB)
-!> \param sab_core neighbor lists for the calculation of the core interactions
-!> \param sab_all neighbor lists for the calculation of the  matrix element of
-!>        non-symmetric operators
-!> \param sab_vdw: neighbor lists for the calculation of dispersion interactions
-!> \param sab_scp: neighbor lists for the calculation of the dispersion interactions
-!>        when self-consistent polarization (SCP) is included
-!> \param sab_almo: neighbor lists to create ALMO delocalization template
 !> \param energy place where the energies calculated are stored
-!> \param matrix_h core hamiltonian (matrix_h(1)), if needed by the calculation also
-!>        its derivatives wrt. x,y, and z (matrix_h(2:4))
-!> \param matrix_ks Khon-Sham matrix (filtred by the structure of S).
-!>        with LSD an array with the differents orbitals
-!> \param matrix_s the overlap matrix (matrix_s(1)), if needed by the calculation also
-!>        its derivatives wrt. x,y, and z (matrix_s(2:4))
-!> \param kinetic kinetic part of h
-!> \param gamma_matrix gamma (Coulomb) matrix in DFTB, if needed by the calculation also
-!>        its derivatives wrt. x,y, and z
-!> \param rho the (old) density, in various representations (ao+grid)
-!> \param rho_xc the (old) soft density, used for the GAPW_XC method only
 !> \param scf_control various parameters relevant to the scf cycle
 !> \param rel_control various parameters relevant to the relativistic calclation
 !> \param pw_env various things to create and get info on the grids used
@@ -256,10 +226,6 @@ MODULE qs_environment_types
 !> \param para_env parallel environement that should be  used to do the qs
 !>        related calculations
 !> \param blacs_env parallel environement needed by scalapack (full matrixes)
-!> \param rho_core a grid with the charges of the cores of the atoms in the
-!>        reciprocal (g) space
-!> \param vppl a realspace grid with the local pseudopotential
-!> \param vee a realspace grid with the external electrostatic potential
 !>
 !> \param rhoext a realspace grid with the external density 
 !> \param external_vxc a realspace grid with the external vxc 
@@ -280,7 +246,6 @@ MODULE qs_environment_types
 !> \param requires_mo_derivs logical, true if dE/dC is required (e.g. OT)
 !> \param has_unit_metric logical, true if the S matrix is considered unity for the SCF
 !> \param mo_derivs the actual derivatives of the total energy wrt to MO coeffs (divided by 2*f_i)
-!> \param neighbor_list_id the current version of the neighbor_list
 !> \param xas_env temporary information for xas calculation
 !> \param dftb_potential pair potentials for use with DFTB
 !> \param scp_env SCP environment for use with QS
@@ -333,48 +298,19 @@ MODULE qs_environment_types
     TYPE(ga_environment_type), POINTER                    :: ga_env
     TYPE(ls_scf_env_type), POINTER                        :: ls_scf_env
     TYPE(cell_type), POINTER                              :: super_cell
-    TYPE(kpoint_type), POINTER                            :: kpoints
     TYPE(dft_control_type), POINTER                       :: dft_control
     TYPE(mo_set_p_type), DIMENSION(:), POINTER            :: mos, mos_aux_fit
     TYPE(cp_fm_p_type), DIMENSION(:), POINTER             :: mo_derivs_aux_fit
     TYPE(cp_fm_p_type), DIMENSION(:), POINTER             :: mo_loc_history
     TYPE(cp_dbcsr_p_type), DIMENSION(:), POINTER          :: mo_derivs
-    INTEGER                                               :: neighbor_list_id
-    TYPE(neighbor_list_set_p_type), DIMENSION(:), POINTER :: sab_orb,sac_ae,&
-                                                             sac_ppl,sap_ppnl,&
-                                                             sap_oce,sab_se,sab_vdw,&
-                                                             sab_tbe,sab_core,sab_all,sab_scp,&
-                                                             sab_aux_fit, sab_aux_fit_vs_orb,&
-                                                             sab_aux_fit_asymm, sab_lrc,&
-                                                             sab_almo
     TYPE(harris_env_type), POINTER                        :: harris_env
-    !TYPE(cp_dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_h,&
-    !                                                         matrix_ks,&
-    !                                                         matrix_vxc,&
-    !                                                         matrix_s,&
-    !                                                         kinetic,&
-    !                                                         matrix_w,&
-    !                                                         matrix_w_mp2,&
-    !                                                         matrix_p_mp2,&
-    !                                                         gamma_matrix,&
-    !                                                         matrix_s_aux_fit,&
-    !                                                         matrix_s_aux_fit_vs_orb,&
-    !                                                         matrix_ks_aux_fit
-    TYPE(qs_rho_type), POINTER                            :: rho,&
-                                                             rho_buffer,&
-                                                             rho_xc,&
-                                                             rho_aux_fit
     TYPE(scf_control_type), POINTER                       :: scf_control
     TYPE(rel_control_type), POINTER                       :: rel_control
     TYPE(scp_environment_type), POINTER                   :: scp_env
     TYPE(pw_env_type), POINTER                            :: pw_env
     TYPE(cp_para_env_type), POINTER                       :: para_env
     TYPE(cp_blacs_env_type), POINTER                      :: blacs_env
-    TYPE(pw_p_type), POINTER                              :: rho_core
-    TYPE(pw_p_type), POINTER                              :: vppl
-    TYPE(pw_p_type), POINTER                              :: rho_nlcc
-    TYPE(pw_p_type), POINTER                              :: rho_nlcc_g
-    TYPE(pw_p_type), POINTER                              :: vee
+
     ! ZMP adding variables
     TYPE(qs_rho_type), POINTER                            :: rho_external
     TYPE(pw_p_type), POINTER                              :: external_vxc
@@ -787,10 +723,12 @@ CONTAINS
     TYPE(rho0_mpole_type), POINTER           :: rho0_m
 
     failure=.FALSE.
-    NULLIFY(atomic_kinds, particles, molecules_new,&
-         molecule_kinds_new)
+    NULLIFY(atomic_kinds, particles, molecules_new,molecule_kinds_new)
+    CPPrecondition(ASSOCIATED(qs_env),cp_failure_level,routineP,error,failure)
     CPPrecondition(qs_env%ref_count>0,cp_failure_level,routineP,error,failure)
     CPPrecondition(ASSOCIATED(qs_env%subsys),cp_failure_level,routineP,error,failure)
+    CPPrecondition(ASSOCIATED(qs_env%ks_env),cp_failure_level,routineP,error,failure)
+
     IF (PRESENT(nelectron_total)) nelectron_total=qs_env%nelectron_total
     IF (PRESENT(nelectron_spin))  nelectron_spin=qs_env%nelectron_spin
     IF (PRESENT(outer_scf_history)) outer_scf_history=>qs_env%outer_scf_history
@@ -799,38 +737,13 @@ CONTAINS
     IF (PRESENT(mp2_env)) mp2_env => qs_env%mp2_env
     IF (PRESENT(kg_env)) kg_env => qs_env%kg_env
     IF (PRESENT(super_cell)) super_cell => qs_env%super_cell
-    IF (PRESENT(kpoints)) kpoints => qs_env%kpoints
-    IF (PRESENT(do_kpoints)) THEN
-       do_kpoints = (qs_env%kpoints%nkp > 0)
-    END IF
     IF (PRESENT(qmmm)) qmmm = qs_env%qmmm
     IF (PRESENT(qmmm_periodic)) qmmm_periodic = qs_env%qmmm_periodic
     IF (PRESENT(dft_control)) dft_control => qs_env%dft_control
     IF (PRESENT(mos)) mos => qs_env%mos
     IF (PRESENT(mos_aux_fit)) mos_aux_fit => qs_env%mos_aux_fit
-    IF (PRESENT(neighbor_list_id)) neighbor_list_id=qs_env%neighbor_list_id
-    IF (PRESENT(sab_orb)) sab_orb => qs_env%sab_orb
-    IF (PRESENT(sab_aux_fit)) sab_aux_fit => qs_env%sab_aux_fit
-    IF (PRESENT(sab_aux_fit_asymm)) sab_aux_fit_asymm => qs_env%sab_aux_fit_asymm
-    IF (PRESENT(sab_aux_fit_vs_orb)) sab_aux_fit_vs_orb => qs_env%sab_aux_fit_vs_orb
-    IF (PRESENT(sab_all)) sab_all => qs_env%sab_all
-    IF (PRESENT(sab_scp)) sab_scp => qs_env%sab_scp
-    IF (PRESENT(sab_vdw)) sab_vdw => qs_env%sab_vdw
-    IF (PRESENT(sac_ae)) sac_ae => qs_env%sac_ae
-    IF (PRESENT(sac_ppl)) sac_ppl => qs_env%sac_ppl
-    IF (PRESENT(sap_ppnl)) sap_ppnl => qs_env%sap_ppnl
-    IF (PRESENT(sap_oce)) sap_oce =>  qs_env%sap_oce
-    IF (PRESENT(sab_se)) sab_se =>  qs_env%sab_se
-    IF (PRESENT(sab_lrc)) sab_lrc =>  qs_env%sab_lrc
-    IF (PRESENT(sab_tbe)) sab_tbe =>  qs_env%sab_tbe
-    IF (PRESENT(sab_core)) sab_core =>  qs_env%sab_core
-    IF (PRESENT(sab_almo)) sab_almo =>  qs_env%sab_almo
     IF (PRESENT(use_harris)) use_harris = qs_env%use_harris
     IF (PRESENT(harris_env)) harris_env => qs_env%harris_env
-    IF (PRESENT(rho)) rho => qs_env%rho
-    IF (PRESENT(rho_aux_fit)) rho_aux_fit => qs_env%rho_aux_fit
-    IF (PRESENT(rho_buffer)) rho_buffer => qs_env%rho_buffer
-    IF (PRESENT(rho_xc)) rho_xc => qs_env%rho_xc
     IF (PRESENT(pw_env)) pw_env => qs_env%pw_env
     IF (PRESENT(ewald_env)) ewald_env => qs_env%ewald_env
     IF (PRESENT(ewald_pw)) ewald_pw => qs_env%ewald_pw
@@ -839,11 +752,6 @@ CONTAINS
     IF (PRESENT(blacs_env)) blacs_env => qs_env%blacs_env
     IF (PRESENT(scf_control)) scf_control => qs_env%scf_control
     IF (PRESENT(rel_control)) rel_control => qs_env%rel_control
-    IF (PRESENT(rho_core)) rho_core => qs_env%rho_core
-    IF (PRESENT(rho_nlcc)) rho_nlcc => qs_env%rho_nlcc
-    IF (PRESENT(rho_nlcc_g)) rho_nlcc_g => qs_env%rho_nlcc_g
-    IF (PRESENT(vppl)) vppl => qs_env%vppl
-    IF (PRESENT(vee)) vee => qs_env%vee
     ! ZMP pointing vectors
     IF (PRESENT(rho_external)) rho_external => qs_env%rho_external
     IF (PRESENT(external_vxc)) external_vxc => qs_env%external_vxc
@@ -924,25 +832,53 @@ CONTAINS
                       cp_subsys=cp_subsys,&
                       error=error)
 
-          CALL get_ks_env(qs_env%ks_env,&
-                          v_hartree_rspace=v_hartree_rspace,&
-                          s_mstruct_changed=s_mstruct_changed,&
-                          rho_changed=rho_changed,&
-                          potential_changed=potential_changed,&
-                          forces_up_to_date=forces_up_to_date,&
-                          matrix_h=matrix_h,&
-                          matrix_ks=matrix_ks,&
-                          matrix_vxc=matrix_vxc,&
-                          matrix_ks_aux_fit=matrix_ks_aux_fit,&
-                          kinetic=kinetic,&
-                          matrix_s=matrix_s,&
-                          matrix_s_aux_fit=matrix_s_aux_fit,&
-                          matrix_s_aux_fit_vs_orb=matrix_s_aux_fit_vs_orb,&
-                          matrix_w=matrix_w,&
-                          matrix_w_mp2=matrix_w_mp2,&
-                          matrix_p_mp2=matrix_p_mp2,&
-                          gamma_matrix=gamma_matrix,&
-                          error=error)
+    CALL get_ks_env(qs_env%ks_env,&
+                    v_hartree_rspace=v_hartree_rspace,&
+                    s_mstruct_changed=s_mstruct_changed,&
+                    rho_changed=rho_changed,&
+                    potential_changed=potential_changed,&
+                    forces_up_to_date=forces_up_to_date,&
+                    matrix_h=matrix_h,&
+                    matrix_ks=matrix_ks,&
+                    matrix_vxc=matrix_vxc,&
+                    matrix_ks_aux_fit=matrix_ks_aux_fit,&
+                    kinetic=kinetic,&
+                    matrix_s=matrix_s,&
+                    matrix_s_aux_fit=matrix_s_aux_fit,&
+                    matrix_s_aux_fit_vs_orb=matrix_s_aux_fit_vs_orb,&
+                    matrix_w=matrix_w,&
+                    matrix_w_mp2=matrix_w_mp2,&
+                    matrix_p_mp2=matrix_p_mp2,&
+                    gamma_matrix=gamma_matrix,&
+                    rho=rho,&
+                    rho_buffer=rho_buffer,&
+                    rho_xc=rho_xc,&
+                    rho_aux_fit=rho_aux_fit,&
+                    rho_core=rho_core,&
+                    rho_nlcc=rho_nlcc,&
+                    rho_nlcc_g=rho_nlcc_g,&
+                    vppl=vppl,&
+                    vee=vee,&
+                    neighbor_list_id=neighbor_list_id,&
+                    sab_orb=sab_orb,&
+                    sab_aux_fit=sab_aux_fit,&
+                    sab_aux_fit_asymm=sab_aux_fit_asymm,&
+                    sab_aux_fit_vs_orb=sab_aux_fit_vs_orb,&
+                    sab_all=sab_all,&
+                    sab_scp=sab_scp,&
+                    sab_vdw=sab_vdw,&
+                    sac_ae=sac_ae,&
+                    sac_ppl=sac_ppl,&
+                    sap_ppnl=sap_ppnl,&
+                    sap_oce=sap_oce,&
+                    sab_se=sab_se,&
+                    sab_lrc=sab_lrc,&
+                    sab_tbe=sab_tbe,&
+                    sab_core=sab_core,&
+                    sab_almo=sab_almo,&
+                    kpoints=kpoints,&
+                    do_kpoints=do_kpoints,&
+                    error=error)
 
     IF (PRESENT(natom)) natom=SIZE(particles%els)
     IF (PRESENT(nkind)) nkind=SIZE(atomic_kinds%els)
@@ -991,44 +927,18 @@ CONTAINS
     NULLIFY (qs_env%image_coeff)
     NULLIFY (qs_env%ga_env)
     NULLIFY (qs_env%super_cell)
-    NULLIFY (qs_env%kpoints)
     NULLIFY (qs_env%dft_control)
     NULLIFY (qs_env%mos)
     NULLIFY (qs_env%mos_aux_fit)
-    NULLIFY (qs_env%sab_orb)
-    NULLIFY (qs_env%sab_aux_fit)
-    NULLIFY (qs_env%sab_aux_fit_asymm)
-    NULLIFY (qs_env%sab_aux_fit_vs_orb)
-    NULLIFY (qs_env%sab_scp)
-    NULLIFY (qs_env%sab_vdw)
-    NULLIFY (qs_env%sab_all)
-    NULLIFY (qs_env%sac_ae)
-    NULLIFY (qs_env%sac_ppl)
-    NULLIFY (qs_env%sap_ppnl)
-    NULLIFY (qs_env%sap_oce)
-    NULLIFY (qs_env%sab_se)
-    NULLIFY (qs_env%sab_lrc)
-    NULLIFY (qs_env%sab_tbe)
-    NULLIFY (qs_env%sab_core)
-    NULLIFY (qs_env%sab_almo)
     NULLIFY (qs_env%harris_env)
     NULLIFY (qs_env%mpools)
     NULLIFY (qs_env%mpools_aux_fit)
-    NULLIFY (qs_env%rho)
-    NULLIFY (qs_env%rho_aux_fit)
-    NULLIFY (qs_env%rho_buffer)
-    NULLIFY (qs_env%rho_xc)
     NULLIFY (qs_env%pw_env)
     NULLIFY (qs_env%ewald_env)
     NULLIFY (qs_env%ewald_pw)
     NULLIFY (qs_env%scf_control)
     NULLIFY (qs_env%rel_control)
     NULLIFY (qs_env%qs_charges)
-    NULLIFY (qs_env%rho_nlcc)
-    NULLIFY (qs_env%rho_nlcc_g)
-    NULLIFY (qs_env%rho_core)
-    NULLIFY (qs_env%vppl)
-    NULLIFY (qs_env%vee)
     ! ZMP initializing arrays
     NULLIFY (qs_env%rho_external)
     NULLIFY (qs_env%external_vxc)
@@ -1079,7 +989,6 @@ CONTAINS
 
     qs_env%outer_scf_ihistory=0
     qs_env%broyden_adaptive_sigma=-1.0_dp
-    qs_env%neighbor_list_id=-1
     qs_env%nelectron_total=-1
     qs_env%nelectron_spin=-1
 
@@ -1091,7 +1000,6 @@ CONTAINS
     CALL cp_blacs_env_create(qs_env%blacs_env,qs_env%para_env,&
                              globenv%blacs_grid_layout,&
                              globenv%blacs_repeatable,error=error)
-    CALL kpoint_create(qs_env%kpoints,error)
     qs_env%ref_count=1
     last_qs_env_id_nr=last_qs_env_id_nr+1
     qs_env%id_nr=last_qs_env_id_nr
@@ -1120,50 +1028,24 @@ CONTAINS
 !> \brief   Set the QUICKSTEP environment.
 !> \param qs_env ...
 !> \param super_cell ...
-!> \param kpoints ...
 !> \param dft_control ...
 !> \param mos ...
 !> \param mos_aux_fit ...
 !> \param qmmm ...
 !> \param qmmm_periodic ...
-!> \param sab_orb ...
-!> \param sab_aux_fit ...
-!> \param sab_aux_fit_asymm ...
-!> \param sab_aux_fit_vs_orb ...
-!> \param sab_all ...
-!> \param sac_ae ...
-!> \param sac_ppl ...
-!> \param sap_ppnl ...
-!> \param sap_oce ...
-!> \param sab_lrc ...
-!> \param sab_se ...
-!> \param sab_tbe ...
-!> \param sab_core ...
-!> \param sab_scp ...
-!> \param sab_vdw ...
-!> \param sab_almo ...
 !> \param harris_env ...
 !> \param pw_env ...
 !> \param ewald_env ...
 !> \param ewald_pw ...
 !> \param mpools ...
 !> \param mpools_aux_fit ...
-!> \param rho ...
-!> \param vee ...
 !> \param rho_external ...
 !> \param external_vxc ...
 !> \param mask ...
-!> \param rho_aux_fit ...
-!> \param rho_buffer ...
-!> \param rho_xc ...
 !> \param kinetic ...
 !> \param scf_control ...
 !> \param rel_control ...
 !> \param qs_charges ...
-!> \param vppl ...
-!> \param rho_core ...
-!> \param rho_nlcc ...
-!> \param rho_nlcc_g ...
 !> \param ks_env ...
 !> \param ks_qmmm_env ...
 !> \param wf_history ...
@@ -1194,7 +1076,6 @@ CONTAINS
 !> \param nelectron_total ...
 !> \param nelectron_spin ...
 !> \param efield ...
-!> \param neighbor_list_id ...
 !> \param linres_control ...
 !> \param xas_env ...
 !> \param cp_ddapc_env ...
@@ -1225,35 +1106,28 @@ CONTAINS
 !> \author  MK
 !> \version 1.0
 ! *****************************************************************************
-  SUBROUTINE set_qs_env(qs_env,super_cell,kpoints,dft_control,&
-       mos,mos_aux_fit,qmmm,qmmm_periodic,sab_orb,sab_aux_fit,sab_aux_fit_asymm, &
-       sab_aux_fit_vs_orb,sab_all,sac_ae,sac_ppl,sap_ppnl,sap_oce,sab_lrc,&
-       sab_se,sab_tbe,sab_core,sab_scp,sab_vdw,sab_almo,harris_env,&
-       pw_env,ewald_env,ewald_pw,mpools,mpools_aux_fit,rho,vee,&
+  SUBROUTINE set_qs_env(qs_env,super_cell,dft_control,&
+       mos,mos_aux_fit,qmmm,qmmm_periodic,harris_env,&
+       pw_env,ewald_env,ewald_pw,mpools,mpools_aux_fit,&
        rho_external,external_vxc,mask,&
-       rho_aux_fit,rho_buffer,rho_xc,kinetic,scf_control,rel_control,qs_charges,vppl,rho_core,rho_nlcc, rho_nlcc_g, ks_env,&
+       kinetic,scf_control,rel_control,qs_charges,ks_env,&
        ks_qmmm_env,wf_history,scf_env,use_harris,task_list,task_list_aux_fit,task_list_soft,&
        task_list_zmp,&
        distribution_2d,dbcsr_dist,input, subsys, oce,rho_atom_set,rho0_atom_set,rho0_mpole,run_rtp,rtp,&
        rhoz_set,rhoz_tot,ecoul_1c,has_unit_metric,requires_mo_derivs,mo_derivs,&
        mo_derivs_aux_fit, mo_loc_history, nelectron_total, nelectron_spin, efield,&
-       neighbor_list_id,linres_control,xas_env,cp_ddapc_env,cp_ddapc_ewald,&
+       linres_control,xas_env,cp_ddapc_env,cp_ddapc_ewald,&
        outer_scf_history,outer_scf_ihistory,ep_qs_env,x_data,et_coupling,dftb_potential,&
        scp_env,se_taper,se_store_int_env,se_nddo_mpole,se_nonbond_env,admm_env,ls_scf_env,&
        lri_env,lri_density,hfx_ri_env,dispersion_env,mp2_env,kg_env,WannierCentres,ga_env,error)
 
     TYPE(qs_environment_type), POINTER       :: qs_env
     TYPE(cell_type), OPTIONAL, POINTER       :: super_cell
-    TYPE(kpoint_type), OPTIONAL, POINTER     :: kpoints
     TYPE(dft_control_type), OPTIONAL, &
       POINTER                                :: dft_control
     TYPE(mo_set_p_type), DIMENSION(:), &
       OPTIONAL, POINTER                      :: mos, mos_aux_fit
     LOGICAL, OPTIONAL                        :: qmmm, qmmm_periodic
-    TYPE(neighbor_list_set_p_type), DIMENSION(:), OPTIONAL, POINTER :: &
-      sab_orb, sab_aux_fit, sab_aux_fit_asymm, sab_aux_fit_vs_orb, sab_all, &
-      sac_ae, sac_ppl, sap_ppnl, sap_oce, sab_lrc, sab_se, sab_tbe, sab_core, &
-      sab_scp, sab_vdw, sab_almo
     TYPE(harris_env_type), OPTIONAL, POINTER :: harris_env
     TYPE(pw_env_type), OPTIONAL, POINTER     :: pw_env
     TYPE(ewald_environment_type), OPTIONAL, &
@@ -1261,12 +1135,8 @@ CONTAINS
     TYPE(ewald_pw_type), OPTIONAL, POINTER   :: ewald_pw
     TYPE(qs_matrix_pools_type), OPTIONAL, &
       POINTER                                :: mpools, mpools_aux_fit
-    TYPE(qs_rho_type), OPTIONAL, POINTER     :: rho
-    TYPE(pw_p_type), OPTIONAL, POINTER       :: vee
     TYPE(qs_rho_type), OPTIONAL, POINTER     :: rho_external
     TYPE(pw_p_type), OPTIONAL, POINTER       :: external_vxc, mask
-    TYPE(qs_rho_type), OPTIONAL, POINTER     :: rho_aux_fit, rho_buffer, &
-                                                rho_xc
     TYPE(cp_dbcsr_p_type), DIMENSION(:), &
       OPTIONAL, POINTER                      :: kinetic
     TYPE(scf_control_type), OPTIONAL, &
@@ -1274,8 +1144,6 @@ CONTAINS
     TYPE(rel_control_type), OPTIONAL, &
       POINTER                                :: rel_control
     TYPE(qs_charges_type), OPTIONAL, POINTER :: qs_charges
-    TYPE(pw_p_type), OPTIONAL, POINTER       :: vppl, rho_core, rho_nlcc, &
-                                                rho_nlcc_g
     TYPE(qs_ks_env_type), OPTIONAL, POINTER  :: ks_env
     TYPE(qs_ks_qmmm_env_type), OPTIONAL, &
       POINTER                                :: ks_qmmm_env
@@ -1316,7 +1184,6 @@ CONTAINS
     INTEGER, DIMENSION(2), OPTIONAL          :: nelectron_spin
     TYPE(efield_berry_type), OPTIONAL, &
       POINTER                                :: efield
-    INTEGER, OPTIONAL                        :: neighbor_list_id
     TYPE(linres_control_type), OPTIONAL, &
       POINTER                                :: linres_control
     TYPE(xas_environment_type), OPTIONAL, &
@@ -1389,29 +1256,11 @@ CONTAINS
        qs_env%dft_control => dft_control
     END IF
     !
-    IF (PRESENT(kpoints)) qs_env%kpoints = kpoints
     IF (PRESENT(qmmm)) qs_env%qmmm = qmmm
     IF (PRESENT(qmmm_periodic)) qs_env%qmmm_periodic = qmmm_periodic
     IF (PRESENT(mos)) qs_env%mos => mos
     IF (PRESENT(mos_aux_fit)) qs_env%mos_aux_fit => mos_aux_fit
-    IF (PRESENT(neighbor_list_id)) qs_env%neighbor_list_id=neighbor_list_id
-    IF (PRESENT(sab_orb)) qs_env%sab_orb => sab_orb
-    IF (PRESENT(sab_aux_fit)) qs_env%sab_aux_fit => sab_aux_fit
-    IF (PRESENT(sab_aux_fit_asymm)) qs_env%sab_aux_fit_asymm => sab_aux_fit_asymm
-    IF (PRESENT(sab_aux_fit_vs_orb)) qs_env%sab_aux_fit_vs_orb => sab_aux_fit_vs_orb
-    IF (PRESENT(sab_scp)) qs_env%sab_scp => sab_scp
-    IF (PRESENT(sab_vdw)) qs_env%sab_vdw => sab_vdw
-    IF (PRESENT(sab_all)) qs_env%sab_all => sab_all
-    IF (PRESENT(sac_ae)) qs_env%sac_ae => sac_ae
-    IF (PRESENT(sac_ppl)) qs_env%sac_ppl => sac_ppl
-    IF (PRESENT(sap_ppnl)) qs_env%sap_ppnl => sap_ppnl
     IF (PRESENT(ls_scf_env)) qs_env%ls_scf_env => ls_scf_env
-    IF (PRESENT(sap_oce)) qs_env%sap_oce => sap_oce
-    IF (PRESENT(sab_se)) qs_env%sab_se => sab_se
-    IF (PRESENT(sab_lrc)) qs_env%sab_lrc => sab_lrc
-    IF (PRESENT(sab_tbe)) qs_env%sab_tbe => sab_tbe
-    IF (PRESENT(sab_core)) qs_env%sab_core => sab_core
-    IF (PRESENT(sab_almo)) qs_env%sab_almo => sab_almo
     ! if intels checking (-C) complains here, you have rediscovered a bug in the intel
     ! compiler (present in at least 10.0.025). A testcase has been submitted to intel.
     IF (PRESENT(use_harris)) qs_env%use_harris = use_harris
@@ -1432,26 +1281,6 @@ CONTAINS
     IF (PRESENT(run_rtp)) qs_env%run_rtp=run_rtp
     IF (PRESENT(rtp)) qs_env%rtp=>rtp
     IF (PRESENT(efield)) qs_env%efield=>efield
-    IF (PRESENT(rho)) THEN ! accepts also null pointers !
-      IF (ASSOCIATED(rho)) CALL qs_rho_retain(rho,error=error)
-      CALL qs_rho_release(qs_env%rho,error=error)
-      qs_env%rho => rho
-    END IF
-    IF (PRESENT(rho_aux_fit)) THEN ! accepts also null pointers !
-      IF (ASSOCIATED(rho_aux_fit)) CALL qs_rho_retain(rho_aux_fit,error=error)
-      CALL qs_rho_release(qs_env%rho_aux_fit,error=error)
-      qs_env%rho_aux_fit => rho_aux_fit
-    END IF
-    IF (PRESENT(rho_buffer)) THEN ! accepts also null pointers !
-      IF (ASSOCIATED(rho_buffer)) CALL qs_rho_retain(rho_buffer,error=error)
-      CALL qs_rho_release(qs_env%rho_buffer,error=error)
-      qs_env%rho_buffer => rho_buffer
-    END IF
-    IF (PRESENT(rho_xc)) THEN ! accepts also null pointers !
-      IF (ASSOCIATED(rho_xc)) CALL qs_rho_retain(rho_xc,error=error)
-      CALL qs_rho_release(qs_env%rho_xc,error=error)
-      qs_env%rho_xc => rho_xc
-    END IF
 
     IF (PRESENT(pw_env)) THEN ! accept also null pointers?
       CALL pw_env_retain(pw_env,error=error)
@@ -1483,11 +1312,6 @@ CONTAINS
        CALL linres_control_release(qs_env%linres_control,error=error)
        qs_env%linres_control => linres_control
     END IF
-    IF (PRESENT(rho_core)) qs_env%rho_core => rho_core
-    IF (PRESENT(rho_nlcc)) qs_env%rho_nlcc => rho_nlcc
-    IF (PRESENT(rho_nlcc_g)) qs_env%rho_nlcc_g => rho_nlcc_g
-    IF (PRESENT(vppl)) qs_env%vppl => vppl
-    IF (PRESENT(vee)) qs_env%vee => vee
     ! ZMP associating variables
     IF (PRESENT(rho_external)) THEN ! accepts also null pointers !
        IF (ASSOCIATED(rho_external)) CALL qs_rho_retain(rho_external,error=error)
@@ -1707,7 +1531,6 @@ CONTAINS
        IF (qs_env%ref_count<1) THEN
           CALL ga_env_release(qs_env%ga_env,error=error)
           CALL cell_release(qs_env%super_cell,error=error)
-          CALL kpoint_release(qs_env%kpoints,error=error)
           CALL dft_control_release(qs_env%dft_control, error=error)
           IF (ASSOCIATED(qs_env%mos)) THEN
              DO i=1,SIZE(qs_env%mos)
@@ -1747,136 +1570,6 @@ CONTAINS
              DEALLOCATE(qs_env%mo_loc_history, stat=stat)
              CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
           ENDIF
-
-          IF (ASSOCIATED(qs_env%sab_scp)) THEN
-             DO i=1,SIZE(qs_env%sab_scp)
-                CALL deallocate_neighbor_list_set(&
-                     qs_env%sab_scp(i)%neighbor_list_set)
-             END DO
-             DEALLOCATE(qs_env%sab_scp,stat=stat)
-             CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
-          END IF
-          IF (ASSOCIATED(qs_env%sab_vdw)) THEN
-             DO i=1,SIZE(qs_env%sab_vdw)
-                CALL deallocate_neighbor_list_set(&
-                     qs_env%sab_vdw(i)%neighbor_list_set)
-             END DO
-             DEALLOCATE(qs_env%sab_vdw,stat=stat)
-             CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
-          END IF
-          IF (ASSOCIATED(qs_env%sab_orb)) THEN
-             DO i=1,SIZE(qs_env%sab_orb)
-                CALL deallocate_neighbor_list_set(&
-                     qs_env%sab_orb(i)%neighbor_list_set)
-             END DO
-             DEALLOCATE(qs_env%sab_orb,stat=stat)
-             CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
-          END IF
-          IF (ASSOCIATED(qs_env%sab_aux_fit)) THEN
-             DO i=1,SIZE(qs_env%sab_aux_fit)
-                CALL deallocate_neighbor_list_set(&
-                     qs_env%sab_aux_fit(i)%neighbor_list_set)
-             END DO
-             DEALLOCATE(qs_env%sab_aux_fit,stat=stat)
-             CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
-          END IF
-          IF (ASSOCIATED(qs_env%sab_aux_fit_asymm)) THEN
-             DO i=1,SIZE(qs_env%sab_aux_fit_asymm)
-                CALL deallocate_neighbor_list_set(&
-                     qs_env%sab_aux_fit_asymm(i)%neighbor_list_set)
-             END DO
-             DEALLOCATE(qs_env%sab_aux_fit_asymm,stat=stat)
-             CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
-          END IF
-          IF (ASSOCIATED(qs_env%sab_aux_fit_vs_orb)) THEN
-             DO i=1,SIZE(qs_env%sab_aux_fit_vs_orb)
-                CALL deallocate_neighbor_list_set(&
-                     qs_env%sab_aux_fit_vs_orb(i)%neighbor_list_set)
-             END DO
-             DEALLOCATE(qs_env%sab_aux_fit_vs_orb,stat=stat)
-             CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
-          END IF
-
-          IF (ASSOCIATED(qs_env%sab_all)) THEN
-             DO i=1,SIZE(qs_env%sab_all)
-                CALL deallocate_neighbor_list_set(&
-                     qs_env%sab_all(i)%neighbor_list_set)
-             END DO
-             DEALLOCATE(qs_env%sab_all,stat=stat)
-             CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
-          END IF
-          IF (ASSOCIATED(qs_env%sac_ae)) THEN
-             DO i=1,SIZE(qs_env%sac_ae)
-                CALL deallocate_neighbor_list_set(&
-                     qs_env%sac_ae(i)%neighbor_list_set)
-             END DO
-             DEALLOCATE(qs_env%sac_ae,stat=stat)
-             CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
-          END IF
-          IF (ASSOCIATED(qs_env%sac_ppl)) THEN
-             DO i=1,SIZE(qs_env%sac_ppl)
-                CALL deallocate_neighbor_list_set(&
-                     qs_env%sac_ppl(i)%neighbor_list_set)
-             END DO
-             DEALLOCATE(qs_env%sac_ppl,stat=stat)
-             CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
-          END IF
-          IF (ASSOCIATED(qs_env%sap_ppnl)) THEN
-             DO i=1,SIZE(qs_env%sap_ppnl)
-                CALL deallocate_neighbor_list_set(&
-                     qs_env%sap_ppnl(i)%neighbor_list_set)
-             END DO
-             DEALLOCATE(qs_env%sap_ppnl,stat=stat)
-             CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
-          END IF
-          IF (ASSOCIATED(qs_env%sap_oce)) THEN
-             DO i=1,SIZE(qs_env%sap_oce)
-                CALL deallocate_neighbor_list_set(&
-                     qs_env%sap_oce(i)%neighbor_list_set)
-             END DO
-             DEALLOCATE(qs_env%sap_oce,stat=stat)
-             CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
-          END IF
-          IF (ASSOCIATED(qs_env%sab_se)) THEN
-             DO i=1,SIZE(qs_env%sab_se)
-                CALL deallocate_neighbor_list_set(&
-                     qs_env%sab_se(i)%neighbor_list_set)
-             END DO
-             DEALLOCATE(qs_env%sab_se,stat=stat)
-             CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
-          END IF
-          IF (ASSOCIATED(qs_env%sab_lrc)) THEN
-             DO i=1,SIZE(qs_env%sab_lrc)
-                CALL deallocate_neighbor_list_set(&
-                     qs_env%sab_lrc(i)%neighbor_list_set)
-             END DO
-             DEALLOCATE(qs_env%sab_lrc,stat=stat)
-             CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
-          END IF
-          IF (ASSOCIATED(qs_env%sab_tbe)) THEN
-             DO i=1,SIZE(qs_env%sab_tbe)
-                CALL deallocate_neighbor_list_set(&
-                     qs_env%sab_tbe(i)%neighbor_list_set)
-             END DO
-             DEALLOCATE(qs_env%sab_tbe,stat=stat)
-             CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
-          END IF
-          IF (ASSOCIATED(qs_env%sab_core)) THEN
-             DO i=1,SIZE(qs_env%sab_core)
-                CALL deallocate_neighbor_list_set(&
-                     qs_env%sab_core(i)%neighbor_list_set)
-             END DO
-             DEALLOCATE(qs_env%sab_core,stat=stat)
-             CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
-          END IF
-          IF (ASSOCIATED(qs_env%sab_almo)) THEN
-             DO i=1,SIZE(qs_env%sab_almo)
-                CALL deallocate_neighbor_list_set(&
-                     qs_env%sab_almo(i)%neighbor_list_set)
-             END DO
-             DEALLOCATE(qs_env%sab_almo,stat=stat)
-             CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
-          END IF
           IF (ASSOCIATED(qs_env%rtp))THEN
              CALL rt_prop_release(qs_env%rtp,error)
              DEALLOCATE (qs_env%rtp)
@@ -1896,13 +1589,6 @@ CONTAINS
           IF (ASSOCIATED(qs_env%hartree_local)) THEN
              CALL hartree_local_release(qs_env%hartree_local,error=error)
           END IF
-          IF(ASSOCIATED(qs_env%rho_xc)) THEN
-             NULLIFY(qs_env%rho_xc%rho_ao)
-             CALL qs_rho_release(qs_env%rho_xc, error=error)
-          END IF
-          CALL qs_rho_release(qs_env%rho, error=error)
-          CALL qs_rho_release(qs_env%rho_aux_fit, error=error)
-          CALL qs_rho_release(qs_env%rho_buffer,error=error)
           CALL scf_c_release(qs_env%scf_control, error=error)
           CALL rel_c_release(qs_env%rel_control, error=error)
 
@@ -1936,18 +1622,6 @@ CONTAINS
           CALL ewald_pw_release(qs_env%ewald_pw, error=error)
           CALL cp_para_env_release(qs_env%para_env,error=error)
           CALL cp_blacs_env_release(qs_env%blacs_env, error=error)
-          IF (ASSOCIATED(qs_env%rho_nlcc_g)) THEN
-             CALL pw_release(qs_env%rho_nlcc_g%pw,error=error)
-             DEALLOCATE(qs_env%rho_nlcc_g)
-          ENDIF
-          IF (ASSOCIATED(qs_env%rho_nlcc)) THEN
-             CALL pw_release(qs_env%rho_nlcc%pw,error=error)
-             DEALLOCATE(qs_env%rho_nlcc)
-          ENDIF
-          IF (ASSOCIATED(qs_env%rho_core)) THEN
-             CALL pw_release(qs_env%rho_core%pw,error=error)
-             DEALLOCATE(qs_env%rho_core)
-          ENDIF
           IF (ASSOCIATED(qs_env%image_matrix)) THEN
              DEALLOCATE(qs_env%image_matrix)
           ENDIF
@@ -1956,14 +1630,6 @@ CONTAINS
           ENDIF
           IF (ASSOCIATED(qs_env%image_coeff)) THEN
              DEALLOCATE(qs_env%image_coeff)
-          ENDIF
-          IF (ASSOCIATED(qs_env%vppl)) THEN
-             CALL pw_release(qs_env%vppl%pw,error=error)
-             DEALLOCATE(qs_env%vppl)
-          ENDIF
-          IF (ASSOCIATED(qs_env%vee)) THEN
-             CALL pw_release(qs_env%vee%pw,error=error)
-             DEALLOCATE(qs_env%vee)
           ENDIF
           ! ZMP
           IF(ASSOCIATED(qs_env%rho_external)) THEN

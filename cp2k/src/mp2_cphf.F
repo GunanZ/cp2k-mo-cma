@@ -83,8 +83,10 @@ MODULE mp2_cphf
                                              integrate_v_rspace
   USE qs_ks_types,                     ONLY: qs_ks_env_type,&
                                              set_ks_env
+  USE qs_neighbor_list_types,          ONLY: neighbor_list_set_p_type
   USE qs_rho_methods,                  ONLY: qs_rho_rebuild
-  USE qs_rho_types,                    ONLY: qs_rho_release,&
+  USE qs_rho_types,                    ONLY: qs_rho_create,&
+                                             qs_rho_release,&
                                              qs_rho_type
   USE timings,                         ONLY: timeset,&
                                              timestop
@@ -171,9 +173,12 @@ MODULE mp2_cphf
       POINTER                                :: integral_containers
     TYPE(hfx_container_type), POINTER        :: maxval_container
     TYPE(hfx_type), POINTER                  :: actual_x_data
+    TYPE(neighbor_list_set_p_type), &
+      DIMENSION(:), POINTER                  :: sab_orb
     TYPE(pw_env_type), POINTER               :: pw_env
     TYPE(pw_p_type)                          :: dvg(3), pot_g, rho_g, rho_r, &
                                                 temp_pw_g
+    TYPE(pw_p_type), POINTER                 :: rho_core
     TYPE(pw_poisson_type), POINTER           :: poisson_env
     TYPE(pw_pool_p_type), DIMENSION(:), &
       POINTER                                :: pw_pools
@@ -195,7 +200,7 @@ MODULE mp2_cphf
     dimen=nmo
     virtual=dimen-homo
     NULLIFY(input,pw_env,matrix_s,blacs_env,rho,energy,force,virial,matrix_w_mp2,&
-            matrix_p_mp2,matrix_ks)
+            matrix_p_mp2,matrix_ks,rho_core,sab_orb)
     CALL get_qs_env(qs_env,&
                     ks_env=ks_env,&
                     pw_env=pw_env,&
@@ -209,6 +214,8 @@ MODULE mp2_cphf
                     energy=energy,&
                     force=force,&
                     virial=virial,&
+                    rho_core=rho_core,&
+                    sab_orb=sab_orb,&
                     error=error)
 
     ! check if we have to calculate the virial
@@ -258,7 +265,7 @@ MODULE mp2_cphf
            row_blk_size=cp_dbcsr_row_block_sizes(matrix_s(1)%matrix),&
            col_blk_size=cp_dbcsr_col_block_sizes(matrix_s(1)%matrix),&
            nblks=0, nze=0, error=error)
-      CALL cp_dbcsr_alloc_block_from_nbl(mat_mu_nu(ispin)%matrix,qs_env%sab_orb,error=error)
+      CALL cp_dbcsr_alloc_block_from_nbl(mat_mu_nu(ispin)%matrix,sab_orb,error=error)
       CALL cp_dbcsr_set(mat_mu_nu(ispin)%matrix,0.0_dp,error=error)
     END DO
 
@@ -302,6 +309,7 @@ MODULE mp2_cphf
 
     ! create a working rho environment
     NULLIFY(rho_work)
+    CALL qs_rho_create(rho_work, error)
     CALL qs_rho_rebuild(rho=rho_work, qs_env=qs_env, rebuild_ao=.TRUE., rebuild_grids=.FALSE., error=error)
 
     ! here we check if we have to reallocate the HFX container
@@ -568,7 +576,7 @@ MODULE mp2_cphf
        force(ikind)%rho_core=0.0_dp
     ENDDO
     ! right contribution
-    CALL integrate_v_rspace(v_rspace=rho_r,p=qs_env%rho%rho_ao(1),h=matrix_ks(1),&
+    CALL integrate_v_rspace(v_rspace=rho_r,p=rho%rho_ao(1),h=matrix_ks(1),&
                             qs_env=qs_env,calculate_forces=.TRUE.,error=error)
 
     IF(use_virial) THEN
@@ -597,7 +605,7 @@ MODULE mp2_cphf
       END DO
  
       ! calculate total SCF density and potential
-      CALL calculate_rho_elec(matrix_p=qs_env%rho%rho_ao(1)%matrix,&
+      CALL calculate_rho_elec(matrix_p=rho%rho_ao(1)%matrix,&
                               rho=rho_r,&
                               rho_gspace=rho_g,&
                               total_rho=tot_rho_r,&
@@ -607,7 +615,7 @@ MODULE mp2_cphf
       ! and associated potential
       CALL pw_transfer(rho_r%pw, rho_g%pw, error=error)
       ! don't forget the core density
-      CALL pw_axpy(qs_env%rho_core%pw, rho_g%pw, error=error)
+      CALL pw_axpy(rho_core%pw, rho_g%pw, error=error)
       CALL pw_poisson_solve(poisson_env,rho_g%pw, pair_energy, pot_g%pw,error=error)
 
       ! finally update virial with the volume contribution
@@ -636,7 +644,7 @@ MODULE mp2_cphf
     END IF
 
     DO ispin=1, qs_env%dft_control%nspins
-      CALL cp_dbcsr_add(qs_env%rho%rho_ao(ispin)%matrix, matrix_p_mp2(ispin)%matrix, 1.0_dp,  1.0_dp, error)
+      CALL cp_dbcsr_add(rho%rho_ao(ispin)%matrix, matrix_p_mp2(ispin)%matrix, 1.0_dp,  1.0_dp, error)
     END DO
 
     ! release stuff

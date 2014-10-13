@@ -130,6 +130,7 @@ MODULE qs_ks_methods
   USE qs_mo_types,                     ONLY: get_mo_set,&
                                              mo_set_p_type,&
                                              mo_set_type
+  USE qs_neighbor_list_types,          ONLY: neighbor_list_set_p_type
   USE qs_rho0_ggrid,                   ONLY: integrate_vhg0_rspace
   USE qs_rho_types,                    ONLY: qs_rho_type
   USE qs_vxc,                          ONLY: qs_vxc_create
@@ -250,7 +251,7 @@ CONTAINS
                                                 v_rspace_new_aux_fit, &
                                                 v_tau_rspace, &
                                                 v_tau_rspace_aux_fit
-    TYPE(pw_p_type), POINTER                 :: vppl_rspace
+    TYPE(pw_p_type), POINTER                 :: rho_nlcc, vee, vppl_rspace
     TYPE(pw_poisson_type), POINTER           :: poisson_env
     TYPE(pw_pool_p_type), DIMENSION(:), &
       POINTER                                :: pw_pools
@@ -271,7 +272,7 @@ CONTAINS
     NULLIFY(matrix_h,matrix_p,matrix_p_aux_fit,matrix_s, auxbas_pw_pool, &
          poisson_env, pw_pools, v_rspace_new, v_rspace_new_aux_fit, &
          v_tau_rspace,v_tau_rspace_aux_fit,matrix_vxc,matrix_ks,matrix_ks_aux_fit,&
-         matrix_s_aux_fit, matrix_s_aux_fit_vs_orb)
+         matrix_s_aux_fit, matrix_s_aux_fit_vs_orb, vee, rho_nlcc)
 
     CPPrecondition(ASSOCIATED(ks_env),cp_failure_level,routineP,error,failure)
 
@@ -295,6 +296,8 @@ CONTAINS
          virial=virial,&
          ep_qs_env=ep_qs_env,&
          v_hartree_rspace=v_hartree_rspace%pw,&
+         vee=vee,&
+         rho_nlcc=rho_nlcc,&
          error=error)
 
     use_virial = virial%pv_availability.AND.(.NOT.virial%pv_numer)
@@ -457,8 +460,8 @@ CONTAINS
           ! Compute the energy due to the external potential
           ee_ener=0.0_dp
           DO ispin=1,nspins
-             ee_ener=ee_ener+accurate_sum(qs_env%vee%pw%cr3d*rho%rho_r(ispin)%pw%cr3d)*&
-                  qs_env%vee%pw%pw_grid%dvol
+             ee_ener=ee_ener+accurate_sum(vee%pw%cr3d*rho%rho_r(ispin)%pw%cr3d)*&
+                  vee%pw%pw_grid%dvol
           END DO
           CALL mp_sum(ee_ener,qs_env%para_env%group)
           ! the sign accounts for the charge of the electrons
@@ -584,7 +587,7 @@ CONTAINS
           END DO
        END IF
 
-       IF(ASSOCIATED(qs_env%rho_nlcc) .AND. calculate_forces)THEN
+       IF(ASSOCIATED(rho_nlcc) .AND. calculate_forces)THEN
           CPPrecondition(.NOT.(gapw .OR. gapw_xc),cp_failure_level,routineP,error,failure)
           DO ispin=1,nspins
              CALL integrate_rho_nlcc(v_rspace_new(ispin),qs_env,error=error)
@@ -707,10 +710,13 @@ CONTAINS
 
        !** merge the auxiliary KS matrix and the primary one
        IF( dft_control%do_admm) THEN
-         CALL get_qs_env(qs_env,mos=mo_array,error=error)
+         CALL get_qs_env(qs_env,&
+                         mos=mo_array,&
+                         mos_aux_fit=mos_aux_fit,&
+                         rho=rho_struct,&
+                         error=error)
+         matrix_p => rho_struct%rho_ao
          DO ispin=1,nspins
-           matrix_p =>qs_env%rho%rho_ao
-           CALL get_qs_env(qs_env,mos_aux_fit=mos_aux_fit,error=error)
            CALL get_mo_set(mo_set=mo_array(ispin)%mo_set,mo_coeff=mo_coeff)
            CALL get_mo_set(mo_set=mos_aux_fit(ispin)%mo_set,mo_coeff=mo_coeff_aux_fit)
            IF(.NOT.qs_env%run_rtp)THEN
@@ -958,7 +964,7 @@ CONTAINS
            ! Getting nuclear force contribution from the core charge density
             CALL integrate_v_core_rspace(v_hartree_rspace, qs_env,error=error)
            ! Getting electronic force contribution from fitted LRI charge density
-            matrix_p =>qs_env%rho%rho_ao
+            matrix_p => rho%rho_ao
             CALL calculate_lri_forces(lri_env,lri_density,qs_env,matrix_p,atomic_kind_set,error)
        END IF
 
@@ -1638,14 +1644,18 @@ CONTAINS
     TYPE(cp_dbcsr_type), POINTER             :: refmatrix
     TYPE(dft_control_type), POINTER          :: dft_control
     TYPE(kpoint_type), POINTER               :: kpoints
+    TYPE(neighbor_list_set_p_type), &
+      DIMENSION(:), POINTER                  :: sab_aux_fit, sab_orb
     TYPE(qs_ks_env_type), POINTER            :: ks_env
 
-    NULLIFY(dft_control,ks_env,matrix_s, matrix_s_aux_fit)
+    NULLIFY(dft_control,ks_env,matrix_s, matrix_s_aux_fit, sab_orb, sab_aux_fit)
     CALL get_qs_env(qs_env,&
                     do_kpoints=do_kpoints,&
                     dft_control=dft_control,&
                     matrix_s=matrix_s,&
                     ks_env=ks_env,&
+                    sab_orb=sab_orb,&
+                    sab_aux_fit=sab_aux_fit,&
                     error=error)
 
     IF(do_kpoints) THEN
@@ -1669,8 +1679,7 @@ CONTAINS
                   row_blk_size=cp_dbcsr_row_block_sizes(refmatrix),&
                   col_blk_size=cp_dbcsr_col_block_sizes(refmatrix),&
                   nblks=0, nze=0, error=error)
-                CALL cp_dbcsr_alloc_block_from_nbl(matrixkp_ks(ispin,ic)%matrix,&
-                     qs_env%sab_orb,error=error)
+                CALL cp_dbcsr_alloc_block_from_nbl(matrixkp_ks(ispin,ic)%matrix,sab_orb,error=error)
                 CALL cp_dbcsr_set(matrixkp_ks(ispin,ic)%matrix,0.0_dp,error=error)
              ENDDO
           ENDDO
@@ -1702,7 +1711,7 @@ CONTAINS
                   row_blk_size=cp_dbcsr_row_block_sizes(refmatrix),&
                   col_blk_size=cp_dbcsr_col_block_sizes(refmatrix),&
                   nblks=0, nze=0, error=error)
-             CALL cp_dbcsr_alloc_block_from_nbl(matrix_ks(ispin)%matrix,qs_env%sab_orb,error=error)
+             CALL cp_dbcsr_alloc_block_from_nbl(matrix_ks(ispin)%matrix,sab_orb,error=error)
              CALL cp_dbcsr_set(matrix_ks(ispin)%matrix,0.0_dp,error=error)
           ENDDO
           CALL set_ks_env(ks_env,matrix_ks=matrix_ks,error=error)
@@ -1729,7 +1738,7 @@ CONTAINS
                   row_blk_size=cp_dbcsr_row_block_sizes(refmatrix),&
                   col_blk_size=cp_dbcsr_col_block_sizes(refmatrix),&
                   nblks=0, nze=0, error=error)
-             CALL cp_dbcsr_alloc_block_from_nbl(matrix_ks_aux_fit(ispin)%matrix,qs_env%sab_aux_fit,&
+             CALL cp_dbcsr_alloc_block_from_nbl(matrix_ks_aux_fit(ispin)%matrix,sab_aux_fit,&
                   error=error)
              CALL cp_dbcsr_set(matrix_ks_aux_fit(ispin)%matrix,0.0_dp,error=error)
           ENDDO

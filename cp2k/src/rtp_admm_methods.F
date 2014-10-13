@@ -63,7 +63,9 @@ MODULE rtp_admm_methods
   USE qs_mo_types,                     ONLY: get_mo_set,&
                                              mo_set_p_type,&
                                              mo_set_type
+  USE qs_neighbor_list_types,          ONLY: neighbor_list_set_p_type
   USE qs_overlap,                      ONLY: build_overlap_force
+  USE qs_rho_types,                    ONLY: qs_rho_type
   USE rt_propagation_types,            ONLY: get_rtp,&
                                              rt_prop_type
   USE timings,                         ONLY: timeset,&
@@ -116,13 +118,14 @@ CONTAINS
     TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(mo_set_p_type), DIMENSION(:), &
       POINTER                                :: mos, mos_aux_fit
+    TYPE(qs_rho_type), POINTER               :: rho, rho_aux_fit
     TYPE(rt_prop_type), POINTER              :: rtp
     TYPE(section_vals_type), POINTER         :: hfx_sections
 
     failure=.FALSE.
     CALL timeset(routineN,handle)
     NULLIFY(admm_env, hfx_sections, matrix_p, matrix_p_aux_fit, mos, &
-         mos_aux_fit, para_env,matrix_s_aux_fit,matrix_s_aux_fit_vs_orb)
+         mos_aux_fit, para_env,matrix_s_aux_fit,matrix_s_aux_fit_vs_orb, rho)
 
     hfx_sections => section_vals_get_subs_vals(input,"DFT%XC%HF",error=error)
     CALL section_vals_get(hfx_sections,explicit=do_hfx,error=error)
@@ -151,6 +154,8 @@ CONTAINS
                     matrix_s_aux_fit=matrix_s_aux_fit,&
                     matrix_s_aux_fit_vs_orb=matrix_s_aux_fit_vs_orb,&
                     s_mstruct_changed=s_mstruct_changed,&
+                    rho=rho,&
+                    rho_aux_fit=rho_aux_fit,&
                     error=error)
 
     CALL section_vals_get(hfx_sections,n_repetition=n_rep_hf,error=error)
@@ -167,22 +172,22 @@ CONTAINS
                             s_mstruct_changed, error=error)
 
     DO ispin=1,nspins
-       matrix_p_aux_fit =>qs_env%rho_aux_fit%rho_ao
-       matrix_p => qs_env%rho%rho_ao
+       matrix_p_aux_fit => rho_aux_fit%rho_ao
+       matrix_p => rho%rho_ao
        CALL rtp_admm_calculate_dm(admm_env,rtp_coeff_aux_fit,mos_aux_fit(ispin)%mo_set,&
                                        matrix_p_aux_fit(ispin)%matrix,&
                                        rtp%rtp_hfx%matrix_p_admm_im(ispin)%matrix,&
                                        ispin,nspins,error)
-       CALL calculate_rho_elec(matrix_p=qs_env%rho_aux_fit%rho_ao(ispin)%matrix,&
-            rho=qs_env%rho_aux_fit%rho_r(ispin),&
-            rho_gspace=qs_env%rho_aux_fit%rho_g(ispin),&
-            total_rho=qs_env%rho_aux_fit%tot_rho_r(ispin),&
+       CALL calculate_rho_elec(matrix_p=rho_aux_fit%rho_ao(ispin)%matrix,&
+            rho=rho_aux_fit%rho_r(ispin),&
+            rho_gspace=rho_aux_fit%rho_g(ispin),&
+            total_rho=rho_aux_fit%tot_rho_r(ispin),&
             qs_env=qs_env,soft_valid=.FALSE.,&
             basis_set_id=use_aux_fit_basis_set, error=error)
     END DO
     CALL set_qs_env(qs_env,admm_env=admm_env,error=error)
-    qs_env%rho_aux_fit%rho_r_valid=.TRUE.
-    qs_env%rho_aux_fit%rho_g_valid=.TRUE.
+    rho_aux_fit%rho_r_valid=.TRUE.
+    rho_aux_fit%rho_g_valid=.TRUE.
 
     CALL timestop(handle)
 
@@ -727,11 +732,20 @@ CONTAINS
       POINTER                                :: tmp_aux_aux, tmp_aux_mo, &
                                                 tmp_aux_mo1, tmp_aux_nao
     TYPE(cp_fm_struct_type), POINTER         :: mstruct
+    TYPE(neighbor_list_set_p_type), &
+      DIMENSION(:), POINTER                  :: sab_aux_fit_asymm, &
+                                                sab_aux_fit_vs_orb
     TYPE(qs_force_type), DIMENSION(:), &
       POINTER                                :: force
 
+    NULLIFY(sab_aux_fit_asymm, sab_aux_fit_vs_orb)
     failure = .FALSE.
 !   CALL cp_fm_create(tmp_aux_aux,admm_env%fm_struct_tmp,name="fm matrix",error=error)
+
+    CALL get_qs_env(qs_env,&
+                    sab_aux_fit_asymm=sab_aux_fit_asymm,&
+                    sab_aux_fit_vs_orb=sab_aux_fit_vs_orb,&
+                    error=error)
 
     ALLOCATE(matrix_w_s)
     CALL cp_dbcsr_init (matrix_w_s, error)
@@ -743,7 +757,7 @@ CONTAINS
          cp_dbcsr_get_data_size(matrix_s_aux_fit(1)%matrix),&
          cp_dbcsr_get_data_type(matrix_s_aux_fit(1)%matrix), &
          error=error)
-    CALL cp_dbcsr_alloc_block_from_nbl(matrix_w_s,qs_env%sab_aux_fit_asymm,error=error)
+    CALL cp_dbcsr_alloc_block_from_nbl(matrix_w_s,sab_aux_fit_asymm,error=error)
 
     ALLOCATE(matrix_w_q)
     CALL cp_dbcsr_init(matrix_w_q, error=error)
@@ -807,10 +821,10 @@ CONTAINS
        admm_force = 0.0_dp
        CALL build_overlap_force(qs_env, admm_force,&
             basis_set_id_a=use_aux_fit_basis_set, basis_set_id_b=use_aux_fit_basis_set, &
-            sab_nl=qs_env%sab_aux_fit_asymm, matrix_p=matrix_w_s, error=error)
+            sab_nl=sab_aux_fit_asymm, matrix_p=matrix_w_s, error=error)
        CALL build_overlap_force(qs_env, admm_force,&
             basis_set_id_a=use_aux_fit_basis_set, basis_set_id_b=use_orb_basis_set, &
-            sab_nl=qs_env%sab_aux_fit_vs_orb, matrix_p=matrix_w_q, error=error)
+            sab_nl=sab_aux_fit_vs_orb, matrix_p=matrix_w_q, error=error)
        ! add forces
        CALL get_qs_env(qs_env=qs_env,atomic_kind_set=atomic_kind_set,&
                        force=force,error=error)
