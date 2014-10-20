@@ -14,7 +14,7 @@
 !> \author Matthew J. McGrath  (01.25.2004)
 ! *****************************************************************************
 MODULE mc_ge_moves
-  USE cell_methods,                    ONLY: cell_clone,&
+  USE cell_types,                      ONLY: cell_clone,&
                                              cell_create,&
                                              cell_p_type,&
                                              cell_release,&
@@ -52,7 +52,7 @@ MODULE mc_ge_moves
                                              rng_stream_type
   USE particle_list_types,             ONLY: particle_list_p_type,&
                                              particle_list_type
-  USE particle_types,                  ONLY: write_particle_coordinates
+  USE particle_methods,                ONLY: write_particle_coordinates
   USE physcon,                         ONLY: angstrom
   USE termination,                     ONLY: stop_memory,&
                                              stop_program

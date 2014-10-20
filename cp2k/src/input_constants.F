@@ -78,9 +78,6 @@ MODULE input_constants
   INTEGER, PARAMETER, PUBLIC               :: do_cell_cp2k=1,&
                                               do_cell_xsc=2
 
-  INTEGER, PARAMETER, PUBLIC               :: plane_def_atoms=0,&
-                                              plane_def_vec=1
-
   INTEGER, PARAMETER, PUBLIC               :: rmsd_all=0,&
                                               rmsd_list=1,&
                                               rmsd_weightlist=2
@@ -194,7 +191,13 @@ MODULE input_constants
                                               no_guess=7,&
                                               mopac_guess=8,&
                                               sparse_guess=9,&
-                                              almo_scf_guess=10
+                                              almo_scf_guess=10,&
+                                              molecular_guess=11
+                                             
+  INTEGER, PARAMETER, PUBLIC               :: almo_frz_none=0,&
+                                              almo_frz_isolated=1,&
+                                              almo_frz_crystal=2,&
+                                              almo_frz_both=3
 
   INTEGER, PARAMETER, PUBLIC               :: pw_interp=1,&
                                               spline3_nopbc_interp=2,&
@@ -350,21 +353,6 @@ MODULE input_constants
                                               do_coord_xtl=6,&
                                               do_coord_cp2k=7
 
-  INTEGER, PARAMETER, PUBLIC               :: do_ff_undef=0,&
-                                              do_ff_quartic=1,&
-                                              do_ff_g96=2,&
-                                              do_ff_charmm=3,&
-                                              do_ff_harmonic=4,&
-                                              do_ff_g87=5,&
-                                              do_ff_morse=6,&
-                                              do_ff_cubic=7,&
-                                              do_ff_mixed_bend_stretch=8,&
-                                              do_ff_amber=9,&
-                                              do_ff_mm2=10,&
-                                              do_ff_mm3=11,&
-                                              do_ff_mm4=12,&
-                                              do_ff_fues=13
-
   INTEGER, PARAMETER, PUBLIC               :: do_stress_none=0,&
                                               do_stress_analytical=1,&
                                               do_stress_numerical=2,&
@@ -375,11 +363,6 @@ MODULE input_constants
                                               do_mc_gemc_nvt=1,&
                                               do_mc_gemc_npt=2,&
                                               do_mc_virial=3
-
-  INTEGER, PARAMETER, PUBLIC               :: do_multipole_none=-1,&
-                                              do_multipole_charge=0,&
-                                              do_multipole_dipole=1,&
-                                              do_multipole_quadrupole=2
 
   INTEGER, PARAMETER, PUBLIC               :: do_loc_none=0,&
                                               do_loc_jacobi=1,&
@@ -465,15 +448,6 @@ MODULE input_constants
                                               default_cell_md_id=1,&
                                               default_cell_direct_id=2
 
-  INTEGER, PARAMETER, PUBLIC               :: add_last_no=0,&
-                                              add_last_numeric=1,&
-                                              add_last_symbolic=2
-  INTEGER, PARAMETER, PUBLIC               :: silent_print_level=0,&
-                                              low_print_level=1,&
-                                              medium_print_level=2,&
-                                              high_print_level=3,&
-                                              debug_print_level=4
-
   INTEGER, PARAMETER, PUBLIC               :: xc_funct_no_shortcut=0,&
                                               xc_funct_blyp=1,&
                                               xc_funct_pade=2,&
@@ -530,26 +504,6 @@ MODULE input_constants
 
   INTEGER, PARAMETER, PUBLIC               :: do_add=1,&
                                               do_remove=2
-
-
-  INTEGER, PARAMETER, PUBLIC               :: use_perd_x=0,&
-                                              use_perd_y=1,&
-                                              use_perd_z=2,&
-                                              use_perd_xy=3,&
-                                              use_perd_xz=4,&
-                                              use_perd_yz=5,&
-                                              use_perd_xyz=6,&
-                                              use_perd_none=7
-
-  INTEGER, PARAMETER, PUBLIC               :: do_clv_geo_center=0,&
-                                              do_clv_fix_point =1,&
-                                              do_clv_xyz       =0,&
-                                              do_clv_x         =1,&
-                                              do_clv_y         =2,&
-                                              do_clv_z         =3,&
-                                              do_clv_xy        =4,&
-                                              do_clv_xz        =5,&
-                                              do_clv_yz        =6
 
   INTEGER, PARAMETER, PUBLIC               :: xc_pot_energy_none=0,&
                                               xc_pot_energy_xc_functional=1,&
@@ -785,19 +739,21 @@ MODULE input_constants
                                   almo_constraint_distance=1,&
                                   almo_constraint_ao_overlap=2
 
+  ! methods to treat electron delocalization
   INTEGER, PARAMETER, PUBLIC   :: almo_deloc_none=0,&
                                   almo_deloc_x=10,&
-                                  almo_deloc_qx=11,&
+                                  almo_deloc_xalmo_x=11,&
                                   almo_deloc_xk=12,&
-                                  almo_deloc_qscf=13,&
-                                  almo_deloc_full_scf=100,&
-                                  almo_deloc_x_then_full_scf=110
+                                  almo_deloc_xalmo_scf=13,&
+                                  almo_deloc_xalmo_1diag=14,&
+                                  almo_deloc_scf=100,&
+                                  almo_deloc_x_then_scf=110
   
   INTEGER, PARAMETER, PUBLIC   :: almo_scf_dm_sign=1,&
                                   almo_scf_diag=2,&
                                   almo_scf_pcg=3
 
-  ! parameters for CT methods
+  ! optimizer parameters
   INTEGER, PARAMETER, PUBLIC   :: cg_zero=0,&
                                   cg_polak_ribiere=1,&
                                   cg_fletcher_reeves=2,&
@@ -805,11 +761,19 @@ MODULE input_constants
                                   cg_fletcher=4,&
                                   cg_liu_storey=5,&
                                   cg_dai_yuan=6,& 
-                                  cg_hager_zhang=7 
-  
+                                  cg_hager_zhang=7
+  INTEGER, PARAMETER, PUBLIC   :: optimizer_diis=1,&
+                                  optimizer_pcg=2
+  INTEGER, PARAMETER, PUBLIC   :: prec_zero=0,&
+                                  prec_default=-1,&
+                                  prec_ks_plus_s=4
+  INTEGER, PARAMETER, PUBLIC   :: xalmo_case_block_diag=0,&
+                                  xalmo_case_fully_deloc=1,&
+                                  xalmo_case_normal=-1
+
+  ! parameters for CT methods
   INTEGER, PARAMETER, PUBLIC   :: tensor_orthogonal = 1, & 
                                   tensor_up_down = 2 
-  
   INTEGER, PARAMETER, PUBLIC   :: virt_full = 1,&
                                   virt_minimal = 2,&
                                   virt_occ_size = 3,&
@@ -841,23 +805,11 @@ MODULE input_constants
                                               do_opt_none=1,&
                                               do_opt_coeff=2,&
                                               do_opt_exps=3
-                                            
+
   ! callgraph parameters
   INTEGER, PARAMETER, PUBLIC               :: callgraph_none=0,&
                                               callgraph_master=1,&
                                               callgraph_all=2 
-
-  ! Impose cell symmetry
-  INTEGER, PARAMETER, PUBLIC               :: cell_sym_none=0,&
-                                              cell_sym_triclinic=1,&
-                                              cell_sym_monoclinic=2,&
-                                              cell_sym_orthorhombic=3,&
-                                              cell_sym_tetragonal_ab=4,&
-                                              cell_sym_tetragonal_ac=5,&
-                                              cell_sym_tetragonal_bc=6,&
-                                              cell_sym_rhombohedral=7,&
-                                              cell_sym_hexagonal=8,&
-                                              cell_sym_cubic=9
 
   ! kg coloring parameters
   INTEGER, PARAMETER, PUBLIC               :: kg_color_dsatur=0,&

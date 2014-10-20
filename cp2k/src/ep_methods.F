@@ -680,10 +680,10 @@ CONTAINS
     TYPE(qs_ks_env_type), POINTER            :: ks_env
 
     failure=.FALSE.
-    NULLIFY(ks_env, mos, mo_coeff, dft_control,matrix_ks,matrix_s)
+    NULLIFY(ks_env, mos, mo_coeff, dft_control,matrix_ks,matrix_s, para_env)
 
     CALL timeset(routineN,handle)
-    para_env=>qs_env%para_env
+    CALL get_qs_env(qs_env, para_env=para_env, error=error)
 
     CALL build_qs_neighbor_lists(qs_env,para_env,force_env_section=qs_env%input,error=error)
 
@@ -758,6 +758,7 @@ CONTAINS
     TYPE(cp_error_type)                      :: new_error, suberror
     TYPE(cp_fm_type), POINTER                :: orbitals, sub_orbitals
     TYPE(cp_logger_type), POINTER            :: logger, new_logger
+    TYPE(dft_control_type), POINTER          :: dft_control
     TYPE(f_env_type), POINTER                :: f_env
     TYPE(mo_set_p_type), DIMENSION(:), &
       POINTER                                :: mos
@@ -771,7 +772,7 @@ CONTAINS
     CALL timeset(routineN,handle)
 
     failure=.FALSE.
-    NULLIFY(sub_orbitals, main_qs_env, sub_proj, logger, orbitals)
+    NULLIFY(sub_orbitals, main_qs_env, sub_proj, logger, orbitals, dft_control)
     logger => cp_error_get_logger(error)
 
     CPPrecondition(ASSOCIATED(ep_env),cp_failure_level,routineP,error,failure)
@@ -781,8 +782,8 @@ CONTAINS
     CPPrecondition(ASSOCIATED(sub_proj),cp_failure_level,routineP,error,failure)
     CPPrecondition(ASSOCIATED(main_qs_env),cp_failure_level,routineP,error,failure)
     IF (.NOT. failure) THEN
-       nspins=main_qs_env%dft_control%nspins
-       CALL get_qs_env(main_qs_env,mos=mos,error=error)
+       CALL get_qs_env(main_qs_env,mos=mos,dft_control=dft_control,error=error)
+       nspins=dft_control%nspins
        rep_env => ep_env%mol_envs
 
        DO ispin=1,nspins ! transfer also occupation_numbers ?
@@ -1336,6 +1337,7 @@ CONTAINS
                                                 nspins, start_col
     LOGICAL                                  :: failure
     TYPE(cp_logger_type), POINTER            :: logger
+    TYPE(dft_control_type), POINTER          :: dft_control
     TYPE(qs_environment_type), POINTER       :: main_qs_env
     TYPE(qs_p_projection_p_type), &
       DIMENSION(:), POINTER                  :: sub_proj
@@ -1343,7 +1345,7 @@ CONTAINS
     CALL timeset(routineN,handle)
 
     failure=.FALSE.
-    NULLIFY(main_qs_env, sub_proj)
+    NULLIFY(main_qs_env, sub_proj, dft_control)
     logger => cp_error_get_logger(error)
 
     CPPrecondition(ASSOCIATED(ep_env),cp_failure_level,routineP,error,failure)
@@ -1353,7 +1355,8 @@ CONTAINS
     CPPrecondition(ASSOCIATED(sub_proj),cp_failure_level,routineP,error,failure)
     CPPrecondition(ASSOCIATED(main_qs_env),cp_failure_level,routineP,error,failure)
     IF (.NOT. failure) THEN
-       nspins=main_qs_env%dft_control%nspins
+       CALL get_qs_env(main_qs_env, dft_control=dft_control, error=error)
+       nspins=dft_control%nspins
        DO ispin=1,nspins
           start_col=1
           CALL cp_fm_get_info(wf_coeff(ispin)%matrix,ncol_global=nmo,error=error)
@@ -1591,11 +1594,10 @@ CONTAINS
 
     NULLIFY (atomic_kind_set, dft_control, force, ks_env, mos, matrix_ks, &
          matrix_s, matrix_w, particle_set, rho, scf_control,para_env,&
-         blacs_env,orbitals, kinetic)
+         blacs_env,orbitals, kinetic, para_env)
 
     globenv => ep_env%globenv
     qs_env => ep_env%main_qs_env
-    para_env=>qs_env%para_env
 
     CALL cp_print_key_log(logger,ep_env%input,"PRINT%RUN_INFO",&
          extension=".epLog",message=routineP//&
@@ -1604,19 +1606,20 @@ CONTAINS
 
     CALL qs_env_rebuild_pw_env(qs_env,error)
 
-    CALL get_qs_env(qs_env=qs_env,&
-         atomic_kind_set=atomic_kind_set,&
-         dft_control=dft_control,&
-         force=force,&
-         particle_set=particle_set,&
-         scf_control=scf_control,&
-         ks_env=ks_env,&
-         input=qs_env_input,&
-         subsys=subsys,&
-         energy=energy,&
-         mos=mos,&
-         rho=rho,&
-         error=error)
+    CALL get_qs_env(qs_env,&
+                    atomic_kind_set=atomic_kind_set,&
+                    dft_control=dft_control,&
+                    force=force,&
+                    particle_set=particle_set,&
+                    scf_control=scf_control,&
+                    ks_env=ks_env,&
+                    input=qs_env_input,&
+                    subsys=subsys,&
+                    energy=energy,&
+                    mos=mos,&
+                    rho=rho,&
+                    para_env=para_env,&
+                    error=error)
 
 
     CALL qs_subsys_get(subsys,particles=particles,error=error)
@@ -1781,8 +1784,7 @@ CONTAINS
     END DO
     CALL qs_rho_update_rho(rho, qs_env=qs_env, error=error)
     CALL qs_ks_did_change(ks_env,rho_changed=.TRUE.,error=error)
-    CALL qs_ks_update_qs_env(ks_env,qs_env,calculate_forces=.FALSE.,&
-         just_energy=.FALSE.,error=error)
+    CALL qs_ks_update_qs_env(qs_env, calculate_forces=.FALSE., just_energy=.FALSE., error=error)
     ep_env%energy%e0=energy%total
     unit_nr=cp_print_key_unit_nr(logger,ep_env%input,"PRINT%RUN_INFO",&
          extension=".epLog",error=error)
@@ -2007,9 +2009,7 @@ CONTAINS
          error=error)
 
     ! *** compute grid-based forces ***
-    CALL qs_ks_update_qs_env(ks_env=ks_env,&
-         qs_env=qs_env,&
-         calculate_forces=.TRUE.,error=error)
+    CALL qs_ks_update_qs_env(qs_env, calculate_forces=.TRUE., error=error)
 
     !  *** replicate forces ***
     CALL cp_print_key_log(logger,ep_env%input,"PRINT%RUN_INFO",&

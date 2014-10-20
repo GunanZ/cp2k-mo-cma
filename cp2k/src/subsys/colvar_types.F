@@ -12,25 +12,12 @@
 ! *****************************************************************************
 MODULE colvar_types
   USE f77_blas
-  USE input_constants,                 ONLY: do_clv_fix_point,&
-                                             do_clv_geo_center,&
-                                             do_clv_xyz,&
-                                             plane_def_atoms,&
-                                             plane_def_vec,&
-                                             rmsd_all,&
-                                             rmsd_list
-  USE input_section_types,             ONLY: section_vals_get,&
-                                             section_vals_get_subs_vals,&
-                                             section_vals_type,&
-                                             section_vals_val_get
+  USE input_section_types,             ONLY: section_vals_type
   USE kinds,                           ONLY: default_path_length,&
                                              default_string_length,&
                                              dp
-  USE memory_utilities,                ONLY: reallocate
   USE particle_types,                  ONLY: particle_type
-  USE rmsd,                            ONLY: rmsd3
-  USE string_utilities,                ONLY: uppercase
-#include "./common/cp_common_uses.f90"
+#include "../common/cp_common_uses.f90"
 
   IMPLICIT NONE
 
@@ -38,6 +25,18 @@ MODULE colvar_types
 
   CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'colvar_types'
 
+  INTEGER, PARAMETER, PUBLIC               :: plane_def_atoms=0,&
+                                              plane_def_vec=1
+
+  INTEGER, PARAMETER, PUBLIC               :: do_clv_geo_center=0,&
+                                              do_clv_fix_point =1,&
+                                              do_clv_xyz       =0,&
+                                              do_clv_x         =1,&
+                                              do_clv_y         =2,&
+                                              do_clv_z         =3,&
+                                              do_clv_xy        =4,&
+                                              do_clv_xz        =5,&
+                                              do_clv_yz        =6
   PUBLIC :: colvar_type,&
             colvar_p_type,&
             colvar_p_reallocate,&
@@ -47,11 +46,9 @@ MODULE colvar_types
             colvar_setup,&
             colvar_release,&
             colvar_counters,&
-            colvar_check_points,&
             eval_point_der,&
             eval_point_pos,&
             eval_point_mass,&
-            post_process_colvar,&
             diff_colvar
 
   INTEGER, PARAMETER, PUBLIC :: no_colvar_id                  = -2,&
@@ -508,87 +505,6 @@ CONTAINS
     END IF
 
   END SUBROUTINE colvar_create
-
-! *****************************************************************************
-!> \brief Check and setup about the use of geometrical points instead of atoms
-!> \param colvar the colvat to initialize
-!> \param section ...
-!> \param error variable to control error logging, stopping,...
-!>        see module cp_error_handling
-!> \author Teodoro Laino, [teo] 03.2007
-! *****************************************************************************
-  SUBROUTINE  colvar_check_points(colvar, section, error)
-    TYPE(colvar_type), POINTER               :: colvar
-    TYPE(section_vals_type), POINTER         :: section
-    TYPE(cp_error_type), INTENT(inout)       :: error
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'colvar_check_points', &
-      routineP = moduleN//':'//routineN
-
-    INTEGER                                  :: i, irep, natoms, npoints, &
-                                                nrep, nweights, stat
-    INTEGER, DIMENSION(:), POINTER           :: atoms
-    LOGICAL                                  :: explicit, failure
-    REAL(KIND=dp), DIMENSION(:), POINTER     :: r, weights
-    TYPE(section_vals_type), POINTER         :: point_sections
-
-    failure=.FALSE.
-    NULLIFY(point_sections)
-    NULLIFY(atoms)
-    NULLIFY(weights)
-    CPPostcondition(ASSOCIATED(colvar),cp_warning_level,routineP,error,failure)
-    point_sections => section_vals_get_subs_vals(section,"POINT",error=error)
-    CALL section_vals_get(point_sections, explicit=explicit, error=error)
-    IF (explicit) THEN
-       colvar%use_points = .TRUE.
-       CALL section_vals_get(point_sections,n_repetition=npoints,error=error)
-       ALLOCATE(colvar%points(npoints),stat=stat)
-       CPPostcondition(stat==0,cp_failure_level,routineP,error,failure)
-       ! Read points definition
-       DO i = 1, npoints
-          natoms = 0
-          nweights = 0
-          NULLIFY(colvar%points(i)%atoms)
-          NULLIFY(colvar%points(i)%weights)
-          CALL section_vals_val_get(point_sections,"TYPE",i_rep_section=i,i_val=colvar%points(i)%type_id,error=error)
-          SELECT CASE(colvar%points(i)%type_id)
-          CASE(do_clv_geo_center)
-             ! Define a point through a list of atoms..
-             CALL section_vals_val_get(point_sections,"ATOMS",i_rep_section=i,n_rep_val=nrep,i_vals=atoms,error=error)
-             DO irep=1,nrep
-               CALL section_vals_val_get(point_sections,"ATOMS",i_rep_section=i,i_rep_val=irep,i_vals=atoms,error=error)
-               natoms = natoms + SIZE(atoms)
-             END DO
-             ALLOCATE(colvar%points(i)%atoms(natoms),stat=stat)
-             CPPostcondition(stat==0,cp_failure_level,routineP,error,failure)
-             natoms = 0
-             DO irep=1,nrep
-               CALL section_vals_val_get(point_sections,"ATOMS",i_rep_section=i,i_rep_val=irep,i_vals=atoms,error=error)
-               colvar%points(i)%atoms(natoms+1:) = atoms(:)
-               natoms = natoms + SIZE(atoms)
-             END DO
-             ! Define weights of the list
-             ALLOCATE(colvar%points(i)%weights(natoms),stat=stat)
-             CPPostcondition(stat==0,cp_failure_level,routineP,error,failure)
-             colvar%points(i)%weights = 1.0_dp/REAL(natoms,KIND=dp)
-             CALL section_vals_val_get(point_sections,"WEIGHTS",i_rep_section=i,n_rep_val=nrep,error=error)
-             IF (nrep/=0) THEN
-                DO irep=1,nrep
-                   CALL section_vals_val_get(point_sections,"WEIGHTS",i_rep_section=i,i_rep_val=irep,&
-                        r_vals=weights,error=error)
-                   colvar%points(i)%weights(nweights+1:) = weights(:)
-                   nweights = nweights + SIZE(weights)
-                END DO
-                CPPostcondition(natoms==nweights,cp_failure_level,routineP,error,failure)
-             END IF
-          CASE(do_clv_fix_point )
-             ! Define the point as a fixed point in space..
-             CALL section_vals_val_get(point_sections,"XYZ",i_rep_section=i,r_vals=r,error=error)
-             colvar%points(i)%r = r
-          END SELECT
-       END DO
-    END IF
-  END SUBROUTINE colvar_check_points
 
 ! *****************************************************************************
 !> \brief Finalize the setup of the collective variable
@@ -1996,241 +1912,6 @@ CPSourceFileRef)
     END SELECT
 
   END SUBROUTINE eval_point_der
-
-! *****************************************************************************
-!> \brief Complete the description of the COORDINATION colvar when
-!>      defined using KINDS
-!> \param colvar ...
-!> \param particles ...
-!> \param error ...
-!> \par History
-!>      1.2009 Fabio Sterpone : Added a part for population
-!> \author Teodoro Laino - 07.2007
-! *****************************************************************************
-  SUBROUTINE post_process_colvar(colvar, particles, error)
-    TYPE(colvar_type), POINTER               :: colvar
-    TYPE(particle_type), DIMENSION(:), &
-      OPTIONAL, POINTER                      :: particles
-    TYPE(cp_error_type), INTENT(inout)       :: error
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'post_process_colvar', &
-      routineP = moduleN//':'//routineN
-
-    CHARACTER(len=3)                         :: name_kind
-    INTEGER                                  :: i, ii, j, natoms, nkinds, &
-                                                nr_frame, stat
-    LOGICAL                                  :: failure
-
-    failure = .FALSE.
-    natoms = SIZE(particles)
-    IF (colvar%type_id == coord_colvar_id) THEN
-       IF (colvar%coord_param%use_kinds_from.OR.colvar%coord_param%use_kinds_to) THEN
-          ! Atoms from
-          IF (colvar%coord_param%use_kinds_from) THEN
-             colvar%coord_param%use_kinds_from = .FALSE.
-             nkinds = SIZE(colvar%coord_param%c_kinds_from)
-             DO i = 1, natoms
-                DO j = 1 , nkinds
-                  name_kind = TRIM(particles(i)%atomic_kind%name)
-                  CALL uppercase(name_kind)
-                   IF (TRIM(colvar%coord_param%c_kinds_from(j))==name_kind) THEN
-                      CALL reallocate(colvar%coord_param%i_at_from, 1, colvar%coord_param%n_atoms_from+1)
-                      colvar%coord_param%n_atoms_from = colvar%coord_param%n_atoms_from + 1
-                      colvar%coord_param%i_at_from(colvar%coord_param%n_atoms_from) = i
-                   END IF
-                END DO
-             END DO
-             stat=colvar%coord_param%n_atoms_from
-             CPPostcondition(stat/=0,cp_failure_level,routineP,error,failure)
-          END IF
-          ! Atoms to
-          IF (colvar%coord_param%use_kinds_to) THEN
-             colvar%coord_param%use_kinds_to = .FALSE.
-             nkinds = SIZE(colvar%coord_param%c_kinds_to)
-             DO i = 1, natoms
-                DO j = 1 , nkinds
-                   name_kind = TRIM(particles(i)%atomic_kind%name)
-                   CALL uppercase(name_kind)
-                   IF (TRIM(colvar%coord_param%c_kinds_to(j))==name_kind) THEN
-                      CALL reallocate(colvar%coord_param%i_at_to, 1, colvar%coord_param%n_atoms_to+1)
-                      colvar%coord_param%n_atoms_to = colvar%coord_param%n_atoms_to + 1
-                      colvar%coord_param%i_at_to(colvar%coord_param%n_atoms_to) = i
-                   END IF
-                END DO
-             END DO
-             stat=colvar%coord_param%n_atoms_to
-             CPPostcondition(stat/=0,cp_failure_level,routineP,error,failure)
-          END IF
-          ! Atoms to b
-          IF (colvar%coord_param%use_kinds_to_b) THEN
-             colvar%coord_param%use_kinds_to_b = .FALSE.
-             nkinds = SIZE(colvar%coord_param%c_kinds_to_b)
-             DO i = 1, natoms
-                DO j = 1 , nkinds
-                  name_kind = TRIM(particles(i)%atomic_kind%name)
-                  CALL uppercase(name_kind)
-                   IF (TRIM(colvar%coord_param%c_kinds_to_b(j))==name_kind) THEN
-                      CALL reallocate(colvar%coord_param%i_at_to_b, 1, colvar%coord_param%n_atoms_to_b+1)
-                      colvar%coord_param%n_atoms_to_b = colvar%coord_param%n_atoms_to_b + 1
-                      colvar%coord_param%i_at_to_b(colvar%coord_param%n_atoms_to_b) = i
-                   END IF
-                END DO
-             END DO
-             stat=colvar%coord_param%n_atoms_to_b
-             CPPostcondition(stat/=0,cp_failure_level,routineP,error,failure)
-          END IF
-
-          ! Setup the colvar
-          CALL colvar_setup(colvar, error)
-       END IF
-    END IF
-
-    IF (colvar%type_id == mindist_colvar_id) THEN
-       IF (colvar%mindist_param%use_kinds_from.OR.colvar%mindist_param%use_kinds_to) THEN
-          ! Atoms from
-          IF (colvar%mindist_param%use_kinds_from) THEN
-             colvar%mindist_param%use_kinds_from = .FALSE.
-             nkinds = SIZE(colvar%mindist_param%k_coord_from)
-             DO i = 1, natoms
-                DO j = 1 , nkinds
-                  name_kind = TRIM(particles(i)%atomic_kind%name)
-                  CALL uppercase(name_kind)
-                   IF (TRIM(colvar%mindist_param%k_coord_from(j))==name_kind) THEN
-                      CALL reallocate(colvar%mindist_param%i_coord_from, 1, colvar%mindist_param%n_coord_from+1)
-                      colvar%mindist_param%n_coord_from = colvar%mindist_param%n_coord_from + 1
-                      colvar%mindist_param%i_coord_from(colvar%mindist_param%n_coord_from) = i
-                   END IF
-                END DO
-             END DO
-             stat=colvar%mindist_param%n_coord_from
-             CPPostcondition(stat/=0,cp_failure_level,routineP,error,failure)
-          END IF
-          ! Atoms to
-          IF (colvar%mindist_param%use_kinds_to) THEN
-             colvar%mindist_param%use_kinds_to = .FALSE.
-             nkinds = SIZE(colvar%mindist_param%k_coord_to)
-             DO i = 1, natoms
-                DO j = 1 , nkinds
-                   name_kind = TRIM(particles(i)%atomic_kind%name)
-                   CALL uppercase(name_kind)
-                   IF (TRIM(colvar%mindist_param%k_coord_to(j))==name_kind) THEN
-                      CALL reallocate(colvar%mindist_param%i_coord_to, 1, colvar%mindist_param%n_coord_to+1)
-                      colvar%mindist_param%n_coord_to = colvar%mindist_param%n_coord_to + 1
-                      colvar%mindist_param%i_coord_to(colvar%mindist_param%n_coord_to) = i
-                   END IF
-                END DO
-             END DO
-             stat=colvar%mindist_param%n_coord_to
-             CPPostcondition(stat/=0,cp_failure_level,routineP,error,failure)
-          END IF
-          ! Setup the colvar
-          CALL colvar_setup(colvar, error)
-       END IF
-    END IF
-
-    IF (colvar%type_id == population_colvar_id) THEN
-
-       IF (colvar%population_param%use_kinds_from.OR.colvar%population_param%use_kinds_to) THEN
-          ! Atoms from
-          IF (colvar%population_param%use_kinds_from) THEN
-             colvar%population_param%use_kinds_from = .FALSE.
-             nkinds = SIZE(colvar%population_param%c_kinds_from)
-             DO i = 1, natoms
-                DO j = 1 , nkinds
-                  name_kind = TRIM(particles(i)%atomic_kind%name)
-                  CALL uppercase(name_kind)
-                   IF (TRIM(colvar%population_param%c_kinds_from(j))==name_kind) THEN
-                      CALL reallocate(colvar%population_param%i_at_from, 1, colvar%population_param%n_atoms_from+1)
-                      colvar%population_param%n_atoms_from = colvar%population_param%n_atoms_from + 1
-                      colvar%population_param%i_at_from(colvar%population_param%n_atoms_from) = i
-                   END IF
-                END DO
-             END DO
-             stat=colvar%population_param%n_atoms_from
-             CPPostcondition(stat/=0,cp_failure_level,routineP,error,failure)
-          END IF
-          ! Atoms to
-          IF (colvar%population_param%use_kinds_to) THEN
-             colvar%population_param%use_kinds_to = .FALSE.
-             nkinds = SIZE(colvar%population_param%c_kinds_to)
-             DO i = 1, natoms
-                DO j = 1 , nkinds
-                  name_kind = TRIM(particles(i)%atomic_kind%name)
-                  CALL uppercase(name_kind)
-                   IF (TRIM(colvar%population_param%c_kinds_to(j))==name_kind) THEN
-                      CALL reallocate(colvar%population_param%i_at_to, 1, colvar%population_param%n_atoms_to+1)
-                      colvar%population_param%n_atoms_to = colvar%population_param%n_atoms_to + 1
-                      colvar%population_param%i_at_to(colvar%population_param%n_atoms_to) = i
-                   END IF
-                END DO
-             END DO
-             stat=colvar%population_param%n_atoms_to
-             CPPostcondition(stat/=0,cp_failure_level,routineP,error,failure)
-          END IF
-          ! Setup the colvar
-          CALL colvar_setup(colvar, error)
-       END IF
-
-    END IF
-
-    IF (colvar%type_id == gyration_colvar_id) THEN
-
-       IF (colvar%gyration_param%use_kinds) THEN
-          ! Atoms from
-          IF (colvar%gyration_param%use_kinds) THEN
-             colvar%gyration_param%use_kinds = .FALSE.
-             nkinds = SIZE(colvar%gyration_param%c_kinds)
-             DO i = 1, natoms
-                DO j = 1 , nkinds
-                  name_kind = TRIM(particles(i)%atomic_kind%name)
-                  CALL uppercase(name_kind)
-                   IF (TRIM(colvar%gyration_param%c_kinds(j))==name_kind) THEN
-                      CALL reallocate(colvar%gyration_param%i_at, 1, colvar%gyration_param%n_atoms+1)
-                      colvar%gyration_param%n_atoms = colvar%gyration_param%n_atoms + 1
-                      colvar%gyration_param%i_at(colvar%gyration_param%n_atoms) = i
-                   END IF
-                END DO
-             END DO
-             stat=colvar%gyration_param%n_atoms
-             CPPostcondition(stat/=0,cp_failure_level,routineP,error,failure)
-          END IF
-          ! Setup the colvar
-          CALL colvar_setup(colvar, error)
-       END IF
-    END IF
-
-    IF (colvar%type_id == rmsd_colvar_id) THEN
-      IF(colvar%rmsd_param%subset==rmsd_all .OR. colvar%rmsd_param%subset==rmsd_list) THEN
-         ! weights are masses
-         DO i=1,SIZE(colvar%rmsd_param%i_rmsd)
-           ii = colvar%rmsd_param%i_rmsd(i)
-           colvar%rmsd_param%weights(ii) = particles(ii)%atomic_kind%mass
-         END DO
-      END IF
-
-      IF(colvar%rmsd_param%align_frames) THEN
-        nr_frame = SIZE(colvar%rmsd_param%r_ref,2)
-        DO i = 2,nr_frame
-          CALL rmsd3(particles, colvar%rmsd_param%r_ref(:,i), colvar%rmsd_param%r_ref(:,1), -1,&
-                     rotate=.TRUE., error=error)
-        END DO
-      END IF
-
-    END IF
-
-    IF (colvar%type_id == distance_from_path_colvar_id .OR. colvar%type_id == reaction_path_colvar_id) THEN
-      IF(colvar%reaction_path_param%dist_rmsd .OR. colvar%reaction_path_param%rmsd) THEN
-         IF(colvar%reaction_path_param%align_frames) THEN
-           nr_frame = colvar%reaction_path_param%nr_frames
-           DO i = 2,nr_frame
-             CALL rmsd3(particles, colvar%reaction_path_param%r_ref(:,i), colvar%reaction_path_param%r_ref(:,1), -1,&
-                     rotate=.TRUE., error=error)
-            END DO
-         END IF
-      END IF
-    END IF
-
-  END SUBROUTINE post_process_colvar
 
 ! *****************************************************************************
 !> \brief subtract b from the ss value of a colvar: general function for handling

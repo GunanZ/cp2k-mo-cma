@@ -9,7 +9,7 @@
 !> \author Teodoro Laino
 ! *****************************************************************************
 MODULE qmmm_util
-  USE cell_methods,                    ONLY: cell_copy,&
+  USE cell_types,                      ONLY: cell_copy,&
                                              cell_type
   USE cp_subsys_types,                 ONLY: cp_subsys_type
   USE f77_blas
@@ -25,9 +25,9 @@ MODULE qmmm_util
                                              section_vals_val_get
   USE kinds,                           ONLY: dp
   USE mathconstants,                   ONLY: pi
-  USE particle_types,                  ONLY: particle_type,&
-                                             write_fist_particle_coordinates,&
+  USE particle_methods,                ONLY: write_fist_particle_coordinates,&
                                              write_qs_particle_coordinates
+  USE particle_types,                  ONLY: particle_type
   USE qmmm_types,                      ONLY: fist_subsys,&
                                              force_mixing_core_subsys,&
                                              force_mixing_extended_subsys,&

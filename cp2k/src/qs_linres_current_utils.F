@@ -19,7 +19,7 @@
 ! *****************************************************************************
 MODULE qs_linres_current_utils
   USE atomic_kind_types,               ONLY: atomic_kind_type
-  USE cell_methods,                    ONLY: cell_type,&
+  USE cell_types,                      ONLY: cell_type,&
                                              pbc
   USE cp_array_i_utils,                ONLY: cp_2d_i_p_type
   USE cp_array_r_utils,                ONLY: cp_2d_r_p_type
@@ -64,8 +64,8 @@ MODULE qs_linres_current_utils
   USE kinds,                           ONLY: default_path_length,&
                                              dp
   USE memory_utilities,                ONLY: reallocate
-  USE particle_types,                  ONLY: get_particle_set,&
-                                             particle_type
+  USE particle_methods,                ONLY: get_particle_set
+  USE particle_types,                  ONLY: particle_type
   USE pw_env_types,                    ONLY: pw_env_get,&
                                              pw_env_type
   USE pw_methods,                      ONLY: pw_zero

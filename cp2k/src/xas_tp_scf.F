@@ -13,9 +13,10 @@
 MODULE xas_tp_scf
   USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                              get_atomic_kind
-  USE cell_methods,                    ONLY: cell_type,&
+  USE cell_types,                      ONLY: cell_type,&
                                              pbc
   USE cp_array_r_utils,                ONLY: cp_2d_r_p_type
+  USE cp_blacs_env,                    ONLY: cp_blacs_env_type
   USE cp_control_types,                ONLY: dft_control_type
   USE cp_dbcsr_interface,              ONLY: cp_dbcsr_copy,&
                                              cp_dbcsr_p_type
@@ -44,8 +45,8 @@ MODULE xas_tp_scf
   USE machine,                         ONLY: m_flush,&
                                              m_walltime
   USE message_passing,                 ONLY: mp_sync
-  USE particle_types,                  ONLY: get_particle_set,&
-                                             particle_type
+  USE particle_methods,                ONLY: get_particle_set
+  USE particle_types,                  ONLY: particle_type
   USE preconditioner,                  ONLY: make_preconditioner
   USE preconditioner_types,            ONLY: destroy_preconditioner,&
                                              init_preconditioner,&
@@ -226,8 +227,7 @@ CONTAINS
 
        ! ** here qs_env%rho%rho_r and qs_env%rho%rho_g should be up to date
 
-       CALL qs_ks_update_qs_env(ks_env,qs_env=qs_env,error=error,&
-            calculate_forces=.FALSE.,just_energy=energy_only)
+       CALL qs_ks_update_qs_env(qs_env, calculate_forces=.FALSE., just_energy=energy_only, error=error)
 
        scf_env%mixing_store%alpha =  xas_env%mixing_store%alpha
        scf_env%mixing_store%iter_method = xas_env%mixing_store%iter_method
@@ -323,7 +323,7 @@ CONTAINS
        ! ** update qs_env%rho
        CALL qs_rho_update_rho(rho, qs_env=qs_env, error=error)
        IF(xas_env%mixing_method>=gspace_mixing_nr) THEN
-          CALL gspace_mixing(qs_env, scf_env, xas_env%mixing_store, rho, qs_env%para_env, error=error)
+          CALL gspace_mixing(qs_env, scf_env, xas_env%mixing_store, rho, para_env, error=error)
        END IF
 
        CALL qs_ks_did_change(ks_env,rho_changed=.TRUE.,error=error)
@@ -337,12 +337,12 @@ CONTAINS
        CALL m_flush(output_unit)
     END IF
 
-    CALL mp_sync(qs_env%para_env%group)
+    CALL mp_sync(para_env%group)
     CALL qs_ks_did_change(ks_env,rho_changed=.TRUE.,error=error)
 
     CALL cls_prepare_states(xas_control,xas_env,qs_env,iatom,xas_section,output_unit,error=error)
 
-    CALL mp_sync(qs_env%para_env%group)
+    CALL mp_sync(para_env%group)
 
     CALL cp_print_key_finished_output(output_unit,logger,xas_section,&
          "PRINT%PROGRAM_RUN_INFO", error=error)
@@ -395,11 +395,13 @@ CONTAINS
     TYPE(cell_type), POINTER                 :: cell
     TYPE(cp_2d_r_p_type), DIMENSION(:), &
       POINTER                                :: stogto_overlap
+    TYPE(cp_blacs_env_type), POINTER         :: blacs_env
     TYPE(cp_dbcsr_p_type), DIMENSION(:), &
       POINTER                                :: kinetic, matrix_ks, matrix_s
     TYPE(cp_fm_type), POINTER                :: all_vectors, excvec_coeff, &
                                                 excvec_overlap, mo_coeff, &
                                                 uno_orbs
+    TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(dft_control_type), POINTER          :: dft_control
     TYPE(localized_wfn_control_type), &
       POINTER                                :: localized_wfn_control
@@ -419,7 +421,7 @@ CONTAINS
     NULLIFY(cell,particle_set,local_preconditioner,vecbuffer,vecbuffer2)
     NULLIFY(dft_control,loc_section,mos,mo_coeff,eigenvalues)
     NULLIFY(centers_wfn,mykind_of_kind,qs_loc_env,localized_wfn_control,stogto_overlap)
-    NULLIFY(all_evals,all_vectors,excvec_coeff,excvec_overlap,uno_evals)
+    NULLIFY(all_evals,all_vectors,excvec_coeff,excvec_overlap,uno_evals,para_env,blacs_env)
 
     failure=.FALSE.
 
@@ -434,6 +436,8 @@ CONTAINS
                     mos=mos,&
                     particle_set=particle_set,&
                     qs_kind_set=qs_kind_set,&
+                    para_env=para_env,&
+                    blacs_env=blacs_env,&
                     error=error)
 
     ! Some elements from the xas_env
@@ -539,7 +543,7 @@ CONTAINS
        !
     END IF
 
-    CALL mp_sync(qs_env%para_env%group)
+    CALL mp_sync(para_env%group)
     !Calculate the virtual states from the KS matrix matrix_ks(1)
     IF(nvirtual2 .GT. 0) THEN
        NULLIFY(mo_coeff)
@@ -553,8 +557,8 @@ CONTAINS
        NULLIFY(uno_orbs,uno_evals,local_preconditioner)
        ALLOCATE(local_preconditioner,STAT=istat)
        CPPostcondition(istat==0,cp_failure_level,routineP,error,failure)
-       CALL init_preconditioner(local_preconditioner,para_env=qs_env%para_env,&
-            blacs_env=qs_env%blacs_env,error=error)
+       CALL init_preconditioner(local_preconditioner,para_env=para_env,&
+                                blacs_env=blacs_env,error=error)
 
        CALL make_preconditioner(local_preconditioner, &
             precon_type=ot_precond_full_kinetic, &
@@ -582,7 +586,7 @@ CONTAINS
        CPPostcondition(istat==0,cp_failure_level,routineP,error,failure)
     END IF
 
-    CALL mp_sync(qs_env%para_env%group)
+    CALL mp_sync(para_env%group)
     ! Prapare arrays for the calculation of the spectrum
     IF(.NOT. xas_control%xas_method == xas_dscf) THEN
        ! Copy the final vectors in the array

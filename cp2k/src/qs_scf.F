@@ -84,7 +84,8 @@ MODULE qs_scf
   USE preconditioner,                  ONLY: prepare_preconditioner,&
                                              restart_preconditioner
   USE preconditioner_types,            ONLY: destroy_preconditioner
-  USE pw_env_types,                    ONLY: pw_env_get
+  USE pw_env_types,                    ONLY: pw_env_get,&
+                                             pw_env_type
   USE pw_pool_types,                   ONLY: pw_pool_give_back_pw,&
                                              pw_pool_type
   USE qs_block_davidson_types,         ONLY: block_davidson_deallocate
@@ -96,7 +97,8 @@ MODULE qs_scf
   USE qs_environment_types,            ONLY: get_qs_env,&
                                              qs_environment_type
   USE qs_kind_types,                   ONLY: qs_kind_type
-  USE qs_ks_methods,                   ONLY: qs_ks_did_change
+  USE qs_ks_methods,                   ONLY: qs_ks_did_change,&
+                                             qs_ks_update_qs_env
   USE qs_ks_types,                     ONLY: qs_ks_env_type
   USE qs_mo_io,                        ONLY: write_mo_set
   USE qs_mo_methods,                   ONLY: make_basis_simple,&
@@ -115,8 +117,8 @@ MODULE qs_scf
   USE qs_scf_loop_utils,               ONLY: &
        qs_scf_check_inner_exit, qs_scf_check_outer_exit, &
        qs_scf_density_mixing, qs_scf_harris_e_correct, qs_scf_inner_finalize, &
-       qs_scf_ks_updates, qs_scf_new_mos, qs_scf_new_mos_kp, &
-       qs_scf_rho_update, qs_scf_set_loop_flags
+       qs_scf_new_mos, qs_scf_new_mos_kp, qs_scf_rho_update, &
+       qs_scf_set_loop_flags
   USE qs_scf_output,                   ONLY: qs_scf_loop_info,&
                                              qs_scf_loop_print,&
                                              qs_scf_outer_loop_info,&
@@ -268,6 +270,7 @@ CONTAINS
       POINTER                                :: mos
     TYPE(particle_type), DIMENSION(:), &
       POINTER                                :: particle_set
+    TYPE(pw_env_type), POINTER               :: pw_env
     TYPE(pw_pool_type), POINTER              :: auxbas_pw_pool
     TYPE(qs_charges_type), POINTER           :: qs_charges
     TYPE(qs_energy_type), POINTER            :: energy
@@ -287,13 +290,12 @@ CONTAINS
     NULLIFY(dft_control,matrix_s,matrix_ks,rho,rho_xc,energy, &
             scf_control,logger,qs_charges,ks_env,mos,atomic_kind_set,qs_kind_set, &
             particle_set,harris_env,dft_section,input,&
-            scf_section, para_env, results, kpoints)
+            scf_section, para_env, results, kpoints, pw_env)
 
     CPPrecondition(ASSOCIATED(scf_env),cp_failure_level,routineP,error,failure)
     CPPrecondition(scf_env%ref_count>0,cp_failure_level,routineP,error,failure)
     CPPrecondition(ASSOCIATED(qs_env),cp_failure_level,routineP,error,failure)
     CPPrecondition(qs_env%ref_count>0,cp_failure_level,routineP,error,failure)
-    para_env=>qs_env%para_env
 
     logger => cp_error_get_logger(error)
     t1 = m_walltime()
@@ -311,6 +313,8 @@ CONTAINS
                     do_kpoints=do_kpoints,&
                     kpoints=kpoints,&
                     results=results,&
+                    pw_env=pw_env,&
+                    para_env=para_env,&
                     error=error)
 
     ! Defining SCP logicals
@@ -394,7 +398,8 @@ CONTAINS
           total_steps = total_steps + 1
           just_energy = energy_only
  
-          CALL qs_scf_ks_updates(qs_env,ks_env,just_energy,calculate_forces=.FALSE.,error=error)
+          CALL qs_ks_update_qs_env(qs_env, just_energy=just_energy,&
+                                   calculate_forces=.FALSE., error=error)
 
           ! print 'heavy weight' or relatively expensive quantities
           CALL qs_scf_loop_print(qs_env,scf_env,para_env,error)
@@ -511,11 +516,11 @@ CONTAINS
     ENDDO!fm -> dbcsr
 
 
-    IF(qs_env%dft_control%qs_control%becke_restraint)THEN
-       CALL pw_env_get(qs_env%pw_env,auxbas_pw_pool=auxbas_pw_pool,error=error)
+    IF(dft_control%qs_control%becke_restraint)THEN
+       CALL pw_env_get(pw_env,auxbas_pw_pool=auxbas_pw_pool,error=error)
        CALL pw_pool_give_back_pw(auxbas_pw_pool,&
-            qs_env%dft_control%qs_control%becke_control%becke_pot%pw,error=error)
-       qs_env%dft_control%qs_control%becke_control%need_pot=.TRUE.
+            dft_control%qs_control%becke_control%becke_pot%pw,error=error)
+       dft_control%qs_control%becke_control%need_pot=.TRUE.
     END IF
     CALL cp_rm_iter_level(logger%iter_info,level_name="QS_SCF",error=error)
     CALL timestop(handle)
@@ -688,8 +693,8 @@ CPSourceFileRef)
           ENDIF
 
           ! might need the KS matrix to init properly
-          CALL qs_scf_ks_updates(qs_env,qs_env%ks_env,just_energy=.FALSE.,&
-                                 calculate_forces=.FALSE., error=error)
+          CALL qs_ks_update_qs_env(qs_env, just_energy=.FALSE.,&
+                                   calculate_forces=.FALSE., error=error)
 
           ! if an old preconditioner is still around (i.e. outer SCF is active),
           ! remove it if this could be worthwhile

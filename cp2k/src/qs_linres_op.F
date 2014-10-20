@@ -14,7 +14,7 @@
 !> \author MI
 ! *****************************************************************************
 MODULE qs_linres_op
-  USE cell_methods,                    ONLY: cell_type,&
+  USE cell_types,                      ONLY: cell_type,&
                                              pbc
   USE cp_array_i_utils,                ONLY: cp_2d_i_p_type
   USE cp_array_r_utils,                ONLY: cp_2d_r_p_type
@@ -53,8 +53,8 @@ MODULE qs_linres_op
   USE kinds,                           ONLY: dp
   USE mathconstants,                   ONLY: twopi
   USE orbital_pointers,                ONLY: coset
-  USE particle_types,                  ONLY: get_particle_set,&
-                                             particle_type
+  USE particle_methods,                ONLY: get_particle_set
+  USE particle_types,                  ONLY: particle_type
   USE qs_elec_field,                   ONLY: build_efg_matrix
   USE qs_environment_types,            ONLY: get_qs_env,&
                                              qs_environment_type

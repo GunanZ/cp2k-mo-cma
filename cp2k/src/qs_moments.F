@@ -19,7 +19,7 @@ MODULE qs_moments
   USE basis_set_types,                 ONLY: gto_basis_set_p_type,&
                                              gto_basis_set_type
   USE block_p_types,                   ONLY: block_p_type
-  USE cell_methods,                    ONLY: cell_type,&
+  USE cell_types,                      ONLY: cell_type,&
                                              pbc
   USE cp_cfm_basic_linalg,             ONLY: cp_cfm_lu_decompose
   USE cp_cfm_types,                    ONLY: cp_cfm_create,&
@@ -900,14 +900,20 @@ CONTAINS
           mmom = 0._dp
        END IF
 
-       para_env => qs_env%para_env
-       NULLIFY ( dft_control, rho, cell, particle_set, results )
-       CALL get_qs_env ( qs_env, dft_control=dft_control, rho=rho, cell=cell, results=results,&
-                         particle_set=particle_set, qs_kind_set=qs_kind_set, error=error)
-       NULLIFY ( local_particles )
-       CALL get_qs_env ( qs_env, local_particles=local_particles, error=error)
-       NULLIFY ( matrix_s, mos )
-       CALL get_qs_env(qs_env=qs_env, matrix_s=matrix_s, mos=mos, error=error)
+       NULLIFY (dft_control,rho,cell,particle_set,results,para_env,&
+                local_particles,matrix_s,mos )
+
+       CALL get_qs_env(qs_env,&
+                       dft_control=dft_control,&
+                       rho=rho, cell=cell,&
+                       results=results,&
+                       particle_set=particle_set,&
+                       qs_kind_set=qs_kind_set,&
+                       para_env=para_env,&
+                       local_particles=local_particles,&
+                       matrix_s=matrix_s,&
+                       mos=mos,&
+                       error=error)
 
        NULLIFY ( cosmat, sinmat )
        ALLOCATE(cosmat, sinmat)
@@ -1448,12 +1454,18 @@ CONTAINS
        ! electronic contribution
        NULLIFY ( moments )
        CALL build_local_moment_matrix(qs_env,moments,nmom,ref_point=rcc,error=error)
-       NULLIFY ( dft_control, rho, cell, particle_set, qs_kind_set, results )
-       CALL get_qs_env ( qs_env, dft_control=dft_control, rho=rho, cell=cell, results=results,&
-                         particle_set=particle_set, qs_kind_set=qs_kind_set, error=error)
-       para_env => qs_env%para_env
-       NULLIFY ( matrix_s )
-       CALL get_qs_env(qs_env=qs_env, matrix_s=matrix_s,error=error)
+
+       NULLIFY (dft_control,rho,cell,particle_set,qs_kind_set,results,para_env,matrix_s)
+       CALL get_qs_env(qs_env,&
+                       dft_control=dft_control,&
+                       rho=rho,&
+                       cell=cell,&
+                       results=results,&
+                       particle_set=particle_set,&
+                       qs_kind_set=qs_kind_set,&
+                       para_env=para_env,&
+                       matrix_s=matrix_s,&
+                       error=error)
 
        nm = SIZE(moments)
        ALLOCATE (rmom(nm+1,3),STAT=istat)

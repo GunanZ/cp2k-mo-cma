@@ -17,12 +17,12 @@ MODULE qs_scf_post_gpw
   USE atom_kind_orbitals,              ONLY: calculate_atomic_density
   USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                              get_atomic_kind
-  USE cell_methods,                    ONLY: cell_type,&
+  USE cell_types,                      ONLY: cell_type,&
                                              get_cell,&
                                              pbc
   USE cp_array_r_utils,                ONLY: cp_1d_r_p_type
-  USE cp_control_types,                ONLY: dft_control_type,&
-                                             tddfpt_control_type
+  USE cp_blacs_env,                    ONLY: cp_blacs_env_type
+  USE cp_control_types,                ONLY: dft_control_type
   USE cp_dbcsr_interface,              ONLY: cp_dbcsr_p_type,&
                                              cp_dbcsr_type
   USE cp_dbcsr_operations,             ONLY: copy_dbcsr_to_fm
@@ -228,7 +228,6 @@ CONTAINS
       unoccupied_orbs, unoccupied_orbs_stm
     TYPE(cp_fm_type), POINTER                :: mo_coeff
     TYPE(cp_logger_type), POINTER            :: logger
-    TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(dft_control_type), POINTER          :: dft_control
     TYPE(mo_set_p_type), DIMENSION(:), &
       POINTER                                :: mos
@@ -251,12 +250,10 @@ CONTAINS
     TYPE(section_vals_type), POINTER         :: input, loc_print_section, &
                                                 localize_section, print_key, &
                                                 stm_section
-    TYPE(tddfpt_control_type), POINTER       :: tddfpt_control
 
     CALL timeset(routineN,handle)
 
     ! Writes the data that is already available in qs_env
-    para_env=>qs_env%para_env
     CALL write_available_results(qs_env,scf_env,error)
 
     failure=.FALSE.
@@ -264,7 +261,7 @@ CONTAINS
     NULLIFY(admm_env, dft_control, pw_env, auxbas_pw_pool, pw_pools, mos, rho, &
          mo_coeff, ks_rmpv, matrix_s, qs_loc_env_homo,qs_loc_env_lumo, scf_control, &
          unoccupied_orbs,unoccupied_orbs_stm,  mo_eigenvalues, unoccupied_evals, unoccupied_evals_stm,  molecule_set, mo_derivs,&
-         tddfpt_control, subsys, particles, input, print_key, kinetic_m,marked_states)
+         subsys, particles, input, print_key, kinetic_m,marked_states)
     NULLIFY(homo_localized, lumo_localized,lumo_ptr)
 
     has_homo=.FALSE.
@@ -284,7 +281,7 @@ CONTAINS
     IF (.NOT. failure) THEN
        CALL get_qs_env(qs_env,dft_control=dft_control,molecule_set=molecule_set, &
             mos=mos,rho=rho,matrix_ks=ks_rmpv,scf_control=scf_control,matrix_s=matrix_s, &
-            input=input, subsys=subsys, tddfpt_control=tddfpt_control, pw_env=pw_env,&
+            input=input, subsys=subsys, pw_env=pw_env,&
             particle_set=particle_set, atomic_kind_set=atomic_kind_set, &
             qs_kind_set=qs_kind_set, error=error)
        CALL qs_subsys_get(subsys,particles=particles,error=error)
@@ -428,7 +425,7 @@ CONTAINS
        !  - Possibly gets wannier functions
        !  - Possibly gets molecular states
        IF (p_loc_homo) THEN
-          IF (qs_env%dft_control%restricted) THEN
+          IF (dft_control%restricted) THEN
              IF (output_unit>0) WRITE(output_unit,*) &
                   " Unclear how we define MOs / localization in the restricted case ... skipping"
           ELSE
@@ -542,12 +539,12 @@ CONTAINS
 
           ! Save the info for tddfpt calculation
           IF (dft_control%do_tddfpt_calculation) THEN
-             ALLOCATE(tddfpt_control%lumos_eigenvalues(nlumos,dft_control%nspins),stat=istat)
+             ALLOCATE(dft_control%tddfpt_control%lumos_eigenvalues(nlumos,dft_control%nspins),stat=istat)
              DO ispin=1, dft_control%nspins
-                tddfpt_control%lumos_eigenvalues(1:nlumos,ispin) = &
+                dft_control%tddfpt_control%lumos_eigenvalues(1:nlumos,ispin) = &
                      unoccupied_evals(ispin)%array(1:nlumos)
              END DO
-             tddfpt_control%lumos => unoccupied_orbs
+             dft_control%tddfpt_control%lumos => unoccupied_orbs
           END IF
 
           IF(p_loc_lumo)THEN
@@ -848,11 +845,13 @@ CONTAINS
                                                 n, nao, nmo, output_unit
     LOGICAL                                  :: failure
     TYPE(admm_type), POINTER                 :: admm_env
+    TYPE(cp_blacs_env_type), POINTER         :: blacs_env
     TYPE(cp_dbcsr_p_type), DIMENSION(:), &
       POINTER                                :: ks_rmpv, matrix_s
     TYPE(cp_fm_struct_type), POINTER         :: fm_struct_tmp
     TYPE(cp_fm_type), POINTER                :: mo_coeff
     TYPE(cp_logger_type), POINTER            :: logger
+    TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(dft_control_type), POINTER          :: dft_control
     TYPE(mo_set_p_type), DIMENSION(:), &
       POINTER                                :: mos
@@ -861,10 +860,18 @@ CONTAINS
 
     CALL timeset(routineN,handle)
 
-    NULLIFY(mos,ks_rmpv,scf_control,dft_control,admm_env)
-    CALL get_qs_env(qs_env,mos=mos,matrix_ks=ks_rmpv,scf_control=scf_control,&
-                    dft_control=dft_control,matrix_s=matrix_s,admm_env=admm_env,&
+    NULLIFY(mos,ks_rmpv,scf_control,dft_control,admm_env,para_env,blacs_env)
+    CALL get_qs_env(qs_env,&
+                    mos=mos,&
+                    matrix_ks=ks_rmpv,&
+                    scf_control=scf_control,&
+                    dft_control=dft_control,&
+                    matrix_s=matrix_s,&
+                    admm_env=admm_env,&
+                    para_env=para_env,&
+                    blacs_env=blacs_env,&
                     error=error)
+
     logger => cp_error_get_logger(error)
     output_unit= cp_logger_get_default_io_unit(logger)
 
@@ -881,7 +888,7 @@ CONTAINS
        IF (nlumo==-1) nlumos=nao-nmo
        ALLOCATE(unoccupied_evals(ispin)%array(nlumos),stat=istat)
        CPPrecondition(istat==0,cp_failure_level,routineP,error,failure)
-       CALL cp_fm_struct_create(fm_struct_tmp,para_env=qs_env%para_env,context=qs_env%blacs_env, &
+       CALL cp_fm_struct_create(fm_struct_tmp,para_env=para_env,context=blacs_env, &
             nrow_global=n,ncol_global=nlumos,error=error)
        CALL cp_fm_create(unoccupied_orbs(ispin)%matrix, fm_struct_tmp,name="lumos",error=error)
        CALL cp_fm_struct_release(fm_struct_tmp,error=error)
@@ -2163,7 +2170,6 @@ CONTAINS
     TYPE(cp_dbcsr_type), POINTER             :: mo_coeff_deriv
     TYPE(cp_fm_type), POINTER                :: mo_coeff
     TYPE(cp_logger_type), POINTER            :: logger
-    TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(dft_control_type), POINTER          :: dft_control
     TYPE(mo_set_p_type), DIMENSION(:), &
       POINTER                                :: mos
@@ -2190,18 +2196,27 @@ CONTAINS
          mo_coeff_deriv, mo_eigenvalues, mos, atomic_kind_set, qs_kind_set,&
          particle_set, rho, ks_rmpv, matrix_s, scf_control, dft_section, &
          molecule_set, input, particles, subsys)
-    para_env=>qs_env%para_env
+
     logger => cp_error_get_logger(error)
     output_unit= cp_logger_get_default_io_unit(logger)
 
     CPPrecondition(ASSOCIATED(qs_env),cp_failure_level,routineP,error,failure)
     IF (.NOT. failure) THEN
-       CALL get_qs_env(qs_env,dft_control=dft_control,molecule_set=molecule_set, &
-            mos=mos,atomic_kind_set=atomic_kind_set,particle_set=particle_set,&
-            qs_kind_set=qs_kind_set,&
-            rho=rho,matrix_ks=ks_rmpv,admm_env=admm_env,&
-            scf_control=scf_control,matrix_s=matrix_s,&
-            input=input,cell=cell,subsys=subsys,error=error)
+       CALL get_qs_env(qs_env,&
+                       dft_control=dft_control,&
+                       molecule_set=molecule_set, &
+                       mos=mos,&
+                       atomic_kind_set=atomic_kind_set,&
+                       particle_set=particle_set,&
+                       qs_kind_set=qs_kind_set,&
+                       rho=rho,matrix_ks=ks_rmpv,&
+                       admm_env=admm_env,&
+                       scf_control=scf_control,&
+                       matrix_s=matrix_s,&
+                       input=input,&
+                       cell=cell,&
+                       subsys=subsys,&
+                       error=error)
        CALL qs_subsys_get(subsys,particles=particles,error=error)
 
        ! *** if the dft_section tells you to do so, write last wavefunction to screen
@@ -2862,8 +2877,8 @@ CONTAINS
        IF (write_ks .OR. write_xc) THEN
           IF (write_xc) qs_env%requires_matrix_vxc=.TRUE.
           CALL qs_ks_did_change(qs_env%ks_env,rho_changed=.TRUE.,error=error)
-          CALL qs_ks_update_qs_env(qs_env%ks_env,qs_env=qs_env,error=error,&
-                                    calculate_forces=.FALSE.,just_energy=.FALSE.)
+          CALL qs_ks_update_qs_env(qs_env, calculate_forces=.FALSE.,&
+                                   just_energy=.FALSE., error=error)
           IF (write_xc) qs_env%requires_matrix_vxc=.FALSE.
        END IF
 

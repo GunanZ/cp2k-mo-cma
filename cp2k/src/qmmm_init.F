@@ -14,8 +14,9 @@ MODULE qmmm_init
   USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                              get_atomic_kind,&
                                              set_atomic_kind
-  USE cell_methods,                    ONLY: cell_type,&
-                                             read_cell
+  USE cell_methods,                    ONLY: read_cell
+  USE cell_types,                      ONLY: cell_type
+  USE cp_control_types,                ONLY: dft_control_type
   USE cp_output_handling,              ONLY: cp_print_key_finished_output,&
                                              cp_print_key_unit_nr
   USE cp_para_types,                   ONLY: cp_para_env_type
@@ -49,6 +50,7 @@ MODULE qmmm_init
   USE pair_potential_types,            ONLY: pair_potential_reallocate
   USE particle_list_types,             ONLY: particle_list_type
   USE particle_types,                  ONLY: particle_type
+  USE pw_env_types,                    ONLY: pw_env_type
   USE qmmm_elpot,                      ONLY: qmmm_potential_init
   USE qmmm_ff_fist,                    ONLY: qmmm_ff_precond_only_qm
   USE qmmm_gaussian_init,              ONLY: qmmm_gaussian_initialize
@@ -58,7 +60,8 @@ MODULE qmmm_init
                                              qmmm_env_mm_type,&
                                              qmmm_env_qm_type,&
                                              qmmm_links_type
-  USE qs_environment_types,            ONLY: qs_environment_type
+  USE qs_environment_types,            ONLY: get_qs_env,&
+                                             qs_environment_type
   USE termination,                     ONLY: stop_program
 #include "./common/cp_common_uses.f90"
 
@@ -332,17 +335,19 @@ CONTAINS
     LOGICAL                                  :: failure
     REAL(KIND=dp)                            :: maxchrg
     REAL(KIND=dp), DIMENSION(:), POINTER     :: maxradius, maxradius2
+    TYPE(pw_env_type), POINTER               :: pw_env
 
     failure=.FALSE.
     stat=0
-    NULLIFY(maxradius, maxradius2)
+    NULLIFY(maxradius, maxradius2, pw_env)
 
     maxchrg = MAXVAL(ABS(mm_atom_chrg(:)))
+    CALL get_qs_env(qs_env, pw_env=pw_env, error=error)
     IF (qmmm_env_qm%add_mm_charges) maxchrg=MAX(maxchrg,MAXVAL(ABS(added_charges%mm_atom_chrg(:))))
     CALL qmmm_gaussian_initialize(qmmm_gaussian_fns=qmmm_env_qm%pgfs,&
                                   qm_cell_small=qm_cell_small,&
                                   para_env=para_env,&
-                                  pw_env=qs_env%pw_env,&
+                                  pw_env=pw_env,&
                                   mm_el_pot_radius=qmmm_env_qm%mm_el_pot_radius,&
                                   mm_el_pot_radius_corr=qmmm_env_qm%mm_el_pot_radius_corr,&
                                   qmmm_coupl_type=qmmm_env_qm%qmmm_coupl_type,&
@@ -358,7 +363,7 @@ CONTAINS
        CALL qmmm_gaussian_initialize(qmmm_gaussian_fns=added_charges%pgfs,&
                                      qm_cell_small=qm_cell_small,&
                                      para_env=para_env,&
-                                     pw_env=qs_env%pw_env,&
+                                     pw_env=pw_env,&
                                      mm_el_pot_radius=added_charges%mm_el_pot_radius,&
                                      mm_el_pot_radius_corr=added_charges%mm_el_pot_radius_corr,&
                                      qmmm_coupl_type=qmmm_env_qm%qmmm_coupl_type,&
@@ -467,10 +472,13 @@ CONTAINS
 
     LOGICAL                                  :: check
     REAL(KIND=dp)                            :: maxchrg
+    TYPE(dft_control_type), POINTER          :: dft_control
+
+   NULLIFY(dft_control)
 
    IF (.NOT.qmmm_env_qm%periodic) RETURN
-   check=(qs_env%dft_control%qs_control%semi_empirical.OR.&
-          qs_env%dft_control%qs_control%dftb)
+   CALL get_qs_env(qs_env, dft_control=dft_control, error=error)
+   check=(dft_control%qs_control%semi_empirical.OR.dft_control%qs_control%dftb)
 
    CALL cp_assert(.NOT.check,cp_failure_level,cp_assertion_failed,routineP,&
            " QM/MM periodic calculations possible only with GPW. Not yet implemented for "//&

@@ -13,7 +13,7 @@ MODULE mp2_ri_grad
   USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                              get_atomic_kind_set
   USE basis_set_types,                 ONLY: gto_basis_set_type
-  USE cell_methods,                    ONLY: cell_type,&
+  USE cell_types,                      ONLY: cell_type,&
                                              pbc
   USE cp_blacs_env,                    ONLY: cp_blacs_env_type
   USE cp_control_types,                ONLY: dft_control_type
@@ -504,7 +504,7 @@ MODULE mp2_ri_grad
                                                o1=na1-1,&
                                                o2=0,&
                                                map_consistent=.TRUE.,&
-                                               eps_gvg_rspace=qs_env%dft_control%qs_control%eps_gvg_rspace,&
+                                               eps_gvg_rspace=dft_control%qs_control%eps_gvg_rspace,&
                                                calculate_forces=.TRUE.,&
                                                force_a=force_a, force_b=force_b, &
                                                use_virial=use_virial,my_virial_a=my_virial_a,my_virial_b=my_virial_b,&
@@ -767,7 +767,7 @@ MODULE mp2_ri_grad
                                                o1=na1-1,&
                                                o2=0,&
                                                map_consistent=.TRUE.,&
-                                               eps_gvg_rspace=qs_env%dft_control%qs_control%eps_gvg_rspace,&
+                                               eps_gvg_rspace=dft_control%qs_control%eps_gvg_rspace,&
                                                calculate_forces=.TRUE.,&
                                                force_a=force_a, force_b=force_b, &
                                                use_virial=use_virial,my_virial_a=my_virial_a,my_virial_b=my_virial_b,&
@@ -950,7 +950,8 @@ MODULE mp2_ri_grad
 
     ! create the globally distributed mixed lagrangian
     NULLIFY(blacs_env)
-    blacs_env => qs_env%blacs_env
+    CALL get_qs_env(qs_env, blacs_env=blacs_env, error=error)
+
     NULLIFY(L_mu_q, fm_struct_tmp)
     CALL cp_fm_struct_create(fm_struct_tmp,para_env=para_env,context=blacs_env, &
                              nrow_global=dimen,ncol_global=dimen,error=error)

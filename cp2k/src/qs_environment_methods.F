@@ -12,7 +12,8 @@
 ! *****************************************************************************
 MODULE qs_environment_methods
   USE atomic_kind_types,               ONLY: atomic_kind_type
-  USE cell_methods,                    ONLY: cell_type
+  USE cell_types,                      ONLY: cell_type
+  USE cp_blacs_env,                    ONLY: cp_blacs_env_type
   USE cp_control_types,                ONLY: dft_control_type
   USE cp_dbcsr_interface,              ONLY: cp_dbcsr_deallocate_matrix_set,&
                                              cp_dbcsr_p_type,&
@@ -124,6 +125,7 @@ SUBROUTINE qs_env_setup(qs_env,error)
     TYPE(atomic_kind_type), DIMENSION(:), &
       POINTER                                :: atomic_kind_set
     TYPE(cell_type), POINTER                 :: cell
+    TYPE(cp_blacs_env_type), POINTER         :: blacs_env
     TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(dbcsr_distribution_obj), POINTER    :: dbcsr_dist
     TYPE(dft_control_type), POINTER          :: dft_control
@@ -137,6 +139,7 @@ SUBROUTINE qs_env_setup(qs_env,error)
     TYPE(qs_charges_type), POINTER           :: qs_charges
     TYPE(qs_kind_type), DIMENSION(:), &
       POINTER                                :: qs_kind_set
+    TYPE(qs_ks_env_type), POINTER            :: ks_env
     TYPE(scf_control_type), POINTER          :: scf_control
     TYPE(scp_environment_type), POINTER      :: scp_env
 
@@ -145,7 +148,8 @@ SUBROUTINE qs_env_setup(qs_env,error)
     failure = .FALSE.
 
     NULLIFY(qs_kind_set, atomic_kind_set, dft_control, scf_control, qs_charges, para_env,&
-         distribution_2d, molecule_kind_set, molecule_set, particle_set, scp_env, cell)
+            distribution_2d, molecule_kind_set, molecule_set, particle_set, scp_env, cell, &
+            ks_env, blacs_env)
 
     CALL get_qs_env(qs_env=qs_env,&
                     qs_kind_set=qs_kind_set,&
@@ -156,8 +160,11 @@ SUBROUTINE qs_env_setup(qs_env,error)
                     particle_set=particle_set,&
                     scf_control=scf_control,&
                     para_env=para_env,&
+                    blacs_env=blacs_env,&
                     cell=cell,&
+                    ks_env=ks_env,&
                     error=error)
+
     CPPrecondition(ASSOCIATED(qs_kind_set),cp_failure_level,routineP,error,failure)
     CPPrecondition(ASSOCIATED(atomic_kind_set),cp_failure_level,routineP,error,failure)
     CPPrecondition(ASSOCIATED(dft_control),cp_failure_level,routineP,error,failure)
@@ -187,16 +194,16 @@ SUBROUTINE qs_env_setup(qs_env,error)
        ! XXXX should get rid of the mpools
        IF (ASSOCIATED(qs_env%mos)) THEN
            CALL mpools_rebuild_fm_pools(qs_env%mpools,mos=qs_env%mos,&
-                  blacs_env=qs_env%blacs_env, para_env=para_env,&
+                  blacs_env=blacs_env, para_env=para_env,&
                   error=error)
        ENDIF
 
        ! If we use auxiliary density matrix methods rebuild fm_pools
-       IF( qs_env%dft_control%do_admm ) THEN
+       IF(dft_control%do_admm) THEN
          CALL get_qs_kind_set(qs_kind_set, nsgf=n_ao_aux_fit,&
                                   basis_set_id=use_aux_fit_basis_set)
          CALL mpools_rebuild_fm_pools(qs_env%mpools_aux_fit,mos=qs_env%mos_aux_fit,&
-              blacs_env=qs_env%blacs_env, para_env=para_env,&
+              blacs_env=blacs_env, para_env=para_env,&
               error=error)
         END IF
 
@@ -209,16 +216,16 @@ SUBROUTINE qs_env_setup(qs_env,error)
                                     molecule_kind_set=molecule_kind_set,&
                                     molecule_set=molecule_set,&
                                     distribution_2d=distribution_2d,&
-                                    blacs_env=qs_env%blacs_env,&
+                                    blacs_env=blacs_env,&
                                     force_env_section=qs_env%input, error=error)
 
        ! and use it to create the dbcsr_dist, which should be the sole user of distribution_2d by now.
        ALLOCATE(dbcsr_dist)
-       CALL cp_dbcsr_dist2d_to_dist (distribution_2d, dbcsr_dist, error)
-       CALL set_qs_env(qs_env,dbcsr_dist=dbcsr_dist,error=error)
+       CALL cp_dbcsr_dist2d_to_dist(distribution_2d, dbcsr_dist, error)
+       CALL set_ks_env(ks_env, dbcsr_dist=dbcsr_dist, error=error)
 
        ! also keep distribution_2d in qs_env
-       CALL set_qs_env(qs_env,distribution_2d=distribution_2d,error=error)
+       CALL set_ks_env(ks_env, distribution_2d=distribution_2d, error=error)
        CALL distribution_2d_release(distribution_2d, error=error)
 
        ! SCP
@@ -263,6 +270,7 @@ SUBROUTINE qs_env_update_s_mstruct(qs_env,error)
     TYPE(distribution_2d_type), POINTER      :: distribution_2d
     TYPE(particle_type), DIMENSION(:), &
       POINTER                                :: particle_set
+    TYPE(pw_env_type), POINTER               :: pw_env
     TYPE(pw_p_type), POINTER                 :: rho_core, rho_nlcc, &
                                                 rho_nlcc_g, vppl
     TYPE(qs_ks_env_type), POINTER            :: ks_env
@@ -270,7 +278,7 @@ SUBROUTINE qs_env_update_s_mstruct(qs_env,error)
     CALL timeset(routineN,handle)
     failure=.FALSE.
     NULLIFY(para_env, dft_control,particle_set,distribution_2d, ks_env, &
-            rho_core, vppl, rho_nlcc, rho_nlcc_g)
+            rho_core, vppl, rho_nlcc, rho_nlcc_g, pw_env)
 
     CPPrecondition(ASSOCIATED(qs_env),cp_failure_level,routineP,error,failure)
 
@@ -286,6 +294,7 @@ SUBROUTINE qs_env_update_s_mstruct(qs_env,error)
                     vppl=vppl,&
                     rho_nlcc=rho_nlcc,&
                     rho_nlcc_g=rho_nlcc_g,&
+                    pw_env=pw_env,&
                     error=error)
 
     ! *** deallocate matrices that will have the wrong structure ***
@@ -304,8 +313,7 @@ SUBROUTINE qs_env_update_s_mstruct(qs_env,error)
       IF(dft_control%qs_control%gapw_control%nopaw_as_gpw) THEN
         ! *** updates rho core ***
         CPPrecondition(ASSOCIATED(rho_core),cp_failure_level,routineP,error,failure)
-        CPPrecondition(ASSOCIATED(qs_env%pw_env),cp_failure_level,routineP,error,failure)
-        CPPrecondition(qs_env%pw_env%ref_count>0,cp_failure_level,routineP,error,failure)
+        CPPrecondition(ASSOCIATED(pw_env),cp_failure_level,routineP,error,failure)
         IF (.NOT. failure) THEN
            CALL calculate_rho_core(rho_core, &
                 qs_env%qs_charges%total_rho_core_rspace,qs_env,only_nopaw=.TRUE.,error=error)
@@ -327,8 +335,7 @@ SUBROUTINE qs_env_update_s_mstruct(qs_env,error)
     ELSE
       ! *** updates rho core ***
       CPPrecondition(ASSOCIATED(rho_core),cp_failure_level,routineP,error,failure)
-      CPPrecondition(ASSOCIATED(qs_env%pw_env),cp_failure_level,routineP,error,failure)
-      CPPrecondition(qs_env%pw_env%ref_count>0,cp_failure_level,routineP,error,failure)
+      CPPrecondition(ASSOCIATED(pw_env),cp_failure_level,routineP,error,failure)
       IF (.NOT. failure) THEN
          CALL calculate_rho_core(rho_core, &
               qs_env%qs_charges%total_rho_core_rspace,qs_env,error=error)
@@ -339,8 +346,7 @@ SUBROUTINE qs_env_update_s_mstruct(qs_env,error)
     do_ppl = dft_control%qs_control%do_ppl_method==do_ppl_grid
     IF ( do_ppl ) THEN
       CPPrecondition(ASSOCIATED(vppl),cp_failure_level,routineP,error,failure)
-      CPPrecondition(ASSOCIATED(qs_env%pw_env),cp_failure_level,routineP,error,failure)
-      CPPrecondition(qs_env%pw_env%ref_count>0,cp_failure_level,routineP,error,failure)
+      CPPrecondition(ASSOCIATED(pw_env),cp_failure_level,routineP,error,failure)
       IF (.NOT. failure) THEN
          CALL calculate_ppl_grid(vppl,qs_env,error=error)
       END IF
@@ -350,8 +356,7 @@ SUBROUTINE qs_env_update_s_mstruct(qs_env,error)
     IF (ASSOCIATED(rho_nlcc)) THEN
       CPPrecondition(ASSOCIATED(rho_nlcc),cp_failure_level,routineP,error,failure)
       CPPrecondition(ASSOCIATED(rho_nlcc_g),cp_failure_level,routineP,error,failure)
-      CPPrecondition(ASSOCIATED(qs_env%pw_env),cp_failure_level,routineP,error,failure)
-      CPPrecondition(qs_env%pw_env%ref_count>0,cp_failure_level,routineP,error,failure)
+      CPPrecondition(ASSOCIATED(pw_env),cp_failure_level,routineP,error,failure)
       CALL calculate_rho_nlcc(rho_nlcc, qs_env,error=error)
       CALL pw_transfer(rho_nlcc%pw,rho_nlcc_g%pw,error=error)
     ENDIF
@@ -404,8 +409,8 @@ SUBROUTINE qs_create_task_list(qs_env, error)
 
     CALL timeset(routineN,handle)
     failure=.FALSE.
-
-    dft_control => qs_env%dft_control
+    NULLIFY(dft_control)
+    CALL get_qs_env(qs_env, dft_control=dft_control, error=error)
 
     skip_load_balance_distributed=dft_control%qs_control%skip_load_balance_distributed
     IF (.NOT. (dft_control%qs_control%semi_empirical .OR. dft_control%qs_control%dftb) ) THEN
@@ -516,7 +521,7 @@ SUBROUTINE qs_env_rebuild_pw_env(qs_env,error)
     CALL get_qs_env(qs_env, ks_env=ks_env, pw_env=new_pw_env, error=error)
     IF (.NOT.ASSOCIATED(new_pw_env)) THEN
        CALL pw_env_create(new_pw_env,error=error)
-       CALL set_qs_env(qs_env,pw_env=new_pw_env,error=error)
+       CALL set_ks_env(ks_env, pw_env=new_pw_env, error=error)
        CALL pw_env_release(new_pw_env,error=error)
     ENDIF
 

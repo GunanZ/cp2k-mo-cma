@@ -6,23 +6,58 @@
 ! *****************************************************************************
 !> \par History
 !>      11.2002 created [fawzi]
+!>      10.2014 Moved many components from qs_env to here [Ole Schuett]
 !> \author Fawzi Mohamed
 ! *****************************************************************************
 MODULE qs_ks_types
+  USE atomic_kind_types,               ONLY: atomic_kind_type
+  USE atprop_types,                    ONLY: atprop_type
+  USE cell_types,                      ONLY: cell_type
+  USE cp_blacs_env,                    ONLY: cp_blacs_env_release,&
+                                             cp_blacs_env_retain,&
+                                             cp_blacs_env_type
+  USE cp_control_types,                ONLY: dft_control_release,&
+                                             dft_control_retain,&
+                                             dft_control_type
   USE cp_dbcsr_interface,              ONLY: cp_dbcsr_deallocate_matrix_set,&
-                                             cp_dbcsr_p_type
+                                             cp_dbcsr_distribution_release,&
+                                             cp_dbcsr_p_type,&
+                                             dbcsr_distribution_obj
+  USE cp_para_env,                     ONLY: cp_para_env_release,&
+                                             cp_para_env_retain
+  USE cp_para_types,                   ONLY: cp_para_env_type
+  USE cp_result_types,                 ONLY: cp_result_type
+  USE cp_subsys_types,                 ONLY: cp_subsys_type
+  USE distribution_1d_types,           ONLY: distribution_1d_type
+  USE distribution_2d_types,           ONLY: distribution_2d_release,&
+                                             distribution_2d_retain,&
+                                             distribution_2d_type
   USE f77_blas
   USE kpoint_types,                    ONLY: kpoint_create,&
                                              kpoint_release,&
                                              kpoint_type
+  USE molecule_kind_types,             ONLY: molecule_kind_type
+  USE molecule_types_new,              ONLY: molecule_type
+  USE particle_types,                  ONLY: particle_type
+  USE pw_env_types,                    ONLY: pw_env_release,&
+                                             pw_env_retain,&
+                                             pw_env_type
   USE pw_types,                        ONLY: pw_p_type,&
                                              pw_release,&
                                              pw_type
+  USE qs_energy_types,                 ONLY: qs_energy_type
+  USE qs_force_types,                  ONLY: qs_force_type
+  USE qs_kind_types,                   ONLY: qs_kind_type
   USE qs_neighbor_list_types,          ONLY: deallocate_neighbor_list_set,&
                                              neighbor_list_set_p_type
   USE qs_rho_types,                    ONLY: qs_rho_create,&
                                              qs_rho_release,&
                                              qs_rho_type
+  USE qs_subsys_types,                 ONLY: qs_subsys_get,&
+                                             qs_subsys_release,&
+                                             qs_subsys_retain,&
+                                             qs_subsys_type
+  USE virial_types,                    ONLY: virial_type
 #include "./common/cp_common_uses.f90"
 
   IMPLICIT NONE
@@ -79,6 +114,10 @@ MODULE qs_ks_types
 !> \param sab_almo: neighbor lists to create ALMO delocalization template
 !>
 !> \param kpoints information on the kpoints used
+!> \param subsys the particles, molecules,... of this environment
+!> \param dft_control object that contains the values of various parameters
+!>        relevant to a dft calculation
+!> \param distribution_2d: distribution of the atom pairs between the processors
 !>
 !> \par History
 !>      04.2002 created [fawzi]
@@ -144,6 +183,13 @@ MODULE qs_ks_types
                                                              sab_almo => Null()
 
     TYPE(kpoint_type), POINTER                            :: kpoints => Null()
+    TYPE(qs_subsys_type), POINTER                         :: subsys => Null()
+    TYPE(dft_control_type), POINTER                       :: dft_control => Null()
+    TYPE(dbcsr_distribution_obj), POINTER                 :: dbcsr_dist => Null()
+    TYPE(distribution_2d_type), POINTER                   :: distribution_2d => Null()
+    TYPE(pw_env_type), POINTER                            :: pw_env => Null()
+    TYPE(cp_para_env_type), POINTER                       :: para_env => Null()
+    TYPE(cp_blacs_env_type), POINTER                      :: blacs_env => Null()
   END TYPE qs_ks_env_type
 
 ! *****************************************************************************
@@ -230,6 +276,33 @@ END SUBROUTINE qs_ks_env_create
 !> \param sab_almo ...
 !> \param kpoints ...
 !> \param do_kpoints ...
+!> \param atomic_kind_set ...
+!> \param qs_kind_set ...
+!> \param cell ...
+!> \param cell_ref ...
+!> \param use_ref_cell ...
+!> \param particle_set ...
+!> \param energy ...
+!> \param force ...
+!> \param local_particles ...
+!> \param local_molecules ...
+!> \param molecule_kind_set ...
+!> \param molecule_set ...
+!> \param subsys ...
+!> \param cp_subsys ...
+!> \param virial ...
+!> \param results ...
+!> \param atprop ...
+!> \param nkind ...
+!> \param natom ...
+!> \param dft_control ...
+!> \param dbcsr_dist ...
+!> \param distribution_2d ...
+!> \param pw_env ...
+!> \param para_env ...
+!> \param blacs_env ...
+!> \param nelectron_total ...
+!> \param nelectron_spin ...
 !> \param error ...
 ! *****************************************************************************
   SUBROUTINE get_ks_env(ks_env,v_hartree_rspace,&
@@ -245,6 +318,11 @@ END SUBROUTINE qs_ks_env_create
                         sab_aux_fit_vs_orb,sab_all,sac_ae,sac_ppl,sap_ppnl,sap_oce,sab_lrc,&
                         sab_se,sab_tbe,sab_core,sab_scp,sab_vdw,sab_almo,&
                         kpoints, do_kpoints,&
+                        atomic_kind_set,qs_kind_set,cell,cell_ref,use_ref_cell,&
+                        particle_set,energy,force,local_particles,local_molecules,&
+                        molecule_kind_set,molecule_set,subsys,cp_subsys,virial,results,atprop,&
+                        nkind, natom, dft_control,dbcsr_dist,distribution_2d,pw_env,&
+                        para_env,blacs_env, nelectron_total, nelectron_spin,&
                         error)
 
     TYPE(qs_ks_env_type), POINTER            :: ks_env
@@ -268,10 +346,48 @@ END SUBROUTINE qs_ks_env_create
       sab_scp, sab_vdw, sab_almo
     TYPE(kpoint_type), OPTIONAL, POINTER     :: kpoints
     LOGICAL, OPTIONAL                        :: do_kpoints
+    TYPE(atomic_kind_type), DIMENSION(:), &
+      OPTIONAL, POINTER                      :: atomic_kind_set
+    TYPE(qs_kind_type), DIMENSION(:), &
+      OPTIONAL, POINTER                      :: qs_kind_set
+    TYPE(cell_type), OPTIONAL, POINTER       :: cell, cell_ref
+    LOGICAL, OPTIONAL                        :: use_ref_cell
+    TYPE(particle_type), DIMENSION(:), &
+      OPTIONAL, POINTER                      :: particle_set
+    TYPE(qs_energy_type), OPTIONAL, POINTER  :: energy
+    TYPE(qs_force_type), DIMENSION(:), &
+      OPTIONAL, POINTER                      :: force
+    TYPE(distribution_1d_type), OPTIONAL, &
+      POINTER                                :: local_particles, &
+                                                local_molecules
+    TYPE(molecule_kind_type), DIMENSION(:), &
+      OPTIONAL, POINTER                      :: molecule_kind_set
+    TYPE(molecule_type), DIMENSION(:), &
+      OPTIONAL, POINTER                      :: molecule_set
+    TYPE(qs_subsys_type), OPTIONAL, POINTER  :: subsys
+    TYPE(cp_subsys_type), OPTIONAL, POINTER  :: cp_subsys
+    TYPE(virial_type), OPTIONAL, POINTER     :: virial
+    TYPE(cp_result_type), OPTIONAL, POINTER  :: results
+    TYPE(atprop_type), OPTIONAL, POINTER     :: atprop
+    INTEGER, OPTIONAL                        :: nkind, natom
+    TYPE(dft_control_type), OPTIONAL, &
+      POINTER                                :: dft_control
+    TYPE(dbcsr_distribution_obj), OPTIONAL, &
+      POINTER                                :: dbcsr_dist
+    TYPE(distribution_2d_type), OPTIONAL, &
+      POINTER                                :: distribution_2d
+    TYPE(pw_env_type), OPTIONAL, POINTER     :: pw_env
+    TYPE(cp_para_env_type), OPTIONAL, &
+      POINTER                                :: para_env
+    TYPE(cp_blacs_env_type), OPTIONAL, &
+      POINTER                                :: blacs_env
+    INTEGER, OPTIONAL                        :: nelectron_total
+    INTEGER, DIMENSION(2), OPTIONAL          :: nelectron_spin
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
      IF(.NOT. ASSOCIATED(ks_env)) STOP "get_ks_env: not associated"
      IF(ks_env%ref_count<1) STOP "get_ks_env: ks_env%ref_count<1"
+     IF(.NOT. ASSOCIATED(ks_env%subsys)) STOP "get_ks_env: subsys not associated"
 
      IF (PRESENT(s_mstruct_changed)) s_mstruct_changed = ks_env%s_mstruct_changed
      IF (PRESENT(rho_changed)) rho_changed = ks_env%rho_changed
@@ -317,11 +433,42 @@ END SUBROUTINE qs_ks_env_create
      IF (PRESENT(sab_tbe)) sab_tbe =>  ks_env%sab_tbe
      IF (PRESENT(sab_core)) sab_core =>  ks_env%sab_core
      IF (PRESENT(sab_almo)) sab_almo =>  ks_env%sab_almo
+     IF (PRESENT(dft_control)) dft_control => ks_env%dft_control
+     IF (PRESENT(dbcsr_dist)) dbcsr_dist => ks_env%dbcsr_dist
+     IF (PRESENT(distribution_2d)) distribution_2d => ks_env%distribution_2d
+     IF (PRESENT(pw_env)) pw_env => ks_env%pw_env
+     IF (PRESENT(para_env)) para_env => ks_env%para_env
+     IF (PRESENT(blacs_env)) blacs_env => ks_env%blacs_env
 
      IF (PRESENT(kpoints)) kpoints => ks_env%kpoints
      IF (PRESENT(do_kpoints)) THEN
        do_kpoints = (ks_env%kpoints%nkp > 0)
      END IF
+
+     IF (PRESENT(subsys)) subsys => ks_env%subsys
+     CALL qs_subsys_get(ks_env%subsys,&
+                        local_molecules_new=local_molecules,&
+                        local_particles=local_particles,&
+                        atprop=atprop,&
+                        virial=virial,&
+                        results=results,&
+                        cell=cell,&
+                        cell_ref=cell_ref,&
+                        use_ref_cell=use_ref_cell,&
+                        energy=energy,&
+                        force=force,&
+                        qs_kind_set=qs_kind_set,&
+                        cp_subsys=cp_subsys,&
+                        atomic_kind_set=atomic_kind_set,&
+                        particle_set=particle_set,&
+                        molecule_kind_set=molecule_kind_set,&
+                        molecule_set=molecule_set,&
+                        natom=natom,&
+                        nkind=nkind,&
+                        nelectron_total=nelectron_total,&
+                        nelectron_spin=nelectron_spin,&
+                        error=error)
+
   END SUBROUTINE get_ks_env
 
 
@@ -367,6 +514,13 @@ END SUBROUTINE qs_ks_env_create
 !> \param sab_scp ...
 !> \param sab_vdw ...
 !> \param sab_almo ...
+!> \param subsys ...
+!> \param dft_control ...
+!> \param dbcsr_dist ...
+!> \param distribution_2d ...
+!> \param pw_env ...
+!> \param para_env ...
+!> \param blacs_env ...
 !> \param error ...
 ! *****************************************************************************
   SUBROUTINE set_ks_env(ks_env,v_hartree_rspace,&
@@ -380,6 +534,8 @@ END SUBROUTINE qs_ks_env_create
                         sab_orb,sab_aux_fit,sab_aux_fit_asymm, &
                         sab_aux_fit_vs_orb,sab_all,sac_ae,sac_ppl,sap_ppnl,sap_oce,sab_lrc,&
                         sab_se,sab_tbe,sab_core,sab_scp,sab_vdw,sab_almo,&
+                        subsys,dft_control,dbcsr_dist,distribution_2d,pw_env,&
+                        para_env,blacs_env,&
                         error)
 
     TYPE(qs_ks_env_type), POINTER            :: ks_env
@@ -399,6 +555,18 @@ END SUBROUTINE qs_ks_env_create
       sab_orb, sab_aux_fit, sab_aux_fit_asymm, sab_aux_fit_vs_orb, sab_all, &
       sac_ae, sac_ppl, sap_ppnl, sap_oce, sab_lrc, sab_se, sab_tbe, sab_core, &
       sab_scp, sab_vdw, sab_almo
+    TYPE(qs_subsys_type), OPTIONAL, POINTER  :: subsys
+    TYPE(dft_control_type), OPTIONAL, &
+      POINTER                                :: dft_control
+    TYPE(dbcsr_distribution_obj), OPTIONAL, &
+      POINTER                                :: dbcsr_dist
+    TYPE(distribution_2d_type), OPTIONAL, &
+      POINTER                                :: distribution_2d
+    TYPE(pw_env_type), OPTIONAL, POINTER     :: pw_env
+    TYPE(cp_para_env_type), OPTIONAL, &
+      POINTER                                :: para_env
+    TYPE(cp_blacs_env_type), OPTIONAL, &
+      POINTER                                :: blacs_env
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
      IF(.NOT. ASSOCIATED(ks_env)) STOP "set_ks_env: not associated"
@@ -447,6 +615,43 @@ END SUBROUTINE qs_ks_env_create
      IF (PRESENT(sab_core)) ks_env%sab_core => sab_core
      IF (PRESENT(sab_almo)) ks_env%sab_almo => sab_almo
 
+     IF (PRESENT(subsys)) THEN
+       CALL qs_subsys_release(ks_env%subsys,error)
+       CALL qs_subsys_retain(subsys, error=error)
+       ks_env%subsys => subsys
+    END IF
+    IF (PRESENT(dft_control)) THEN
+       CALL dft_control_retain(dft_control, error=error)
+       CALL dft_control_release(ks_env%dft_control, error=error)
+       ks_env%dft_control => dft_control
+    END IF
+    IF (PRESENT(dbcsr_dist)) THEN
+       IF(ASSOCIATED(ks_env%dbcsr_dist)) THEN
+          CALL cp_dbcsr_distribution_release(ks_env%dbcsr_dist)
+          DEALLOCATE(ks_env%dbcsr_dist)
+       ENDIF
+       ks_env%dbcsr_dist => dbcsr_dist
+    ENDIF
+    IF (PRESENT(distribution_2d)) THEN
+       CALL distribution_2d_retain(distribution_2d,error=error)
+       CALL distribution_2d_release(ks_env%distribution_2d,error=error)
+       ks_env%distribution_2d => distribution_2d
+    ENDIF
+    IF (PRESENT(pw_env)) THEN
+      CALL pw_env_retain(pw_env,error=error)
+      CALL pw_env_release(ks_env%pw_env,error=error)
+      ks_env%pw_env => pw_env
+    END IF
+    IF (PRESENT(para_env)) THEN
+       CALL cp_para_env_retain(para_env,error=error)
+       CALL cp_para_env_release(ks_env%para_env,error=error)
+       ks_env%para_env => para_env
+    ENDIF
+    IF (PRESENT(blacs_env)) THEN
+       CALL cp_blacs_env_retain(blacs_env,error=error)
+       CALL cp_blacs_env_release(ks_env%blacs_env,error=error)
+       ks_env%blacs_env => blacs_env
+    ENDIF
   END SUBROUTINE set_ks_env
 
 ! *****************************************************************************
@@ -529,6 +734,13 @@ END SUBROUTINE qs_ks_env_create
              CALL pw_release(ks_env%vee%pw,error=error)
              DEALLOCATE(ks_env%vee)
           ENDIF
+          IF(ASSOCIATED(ks_env%dbcsr_dist)) THEN
+             CALL cp_dbcsr_distribution_release(ks_env%dbcsr_dist)
+             DEALLOCATE(ks_env%dbcsr_dist)
+          ENDIF
+          IF (ASSOCIATED(ks_env%distribution_2d)) THEN
+             CALL distribution_2d_release(ks_env%distribution_2d,error=error)
+          ENDIF
 
           CALL release_sab(ks_env%sab_orb)
           CALL release_sab(ks_env%sac_ae)
@@ -546,8 +758,12 @@ END SUBROUTINE qs_ks_env_create
           CALL release_sab(ks_env%sab_aux_fit_asymm)
           CALL release_sab(ks_env%sab_lrc)
           CALL release_sab(ks_env%sab_almo)
-
+          CALL dft_control_release(ks_env%dft_control, error=error)
           CALL kpoint_release(ks_env%kpoints,error=error)
+          CALL qs_subsys_release(ks_env%subsys,error=error)
+          CALL pw_env_release(ks_env%pw_env, error=error)
+          CALL cp_para_env_release(ks_env%para_env,error=error)
+          CALL cp_blacs_env_release(ks_env%blacs_env, error=error)
           DEALLOCATE(ks_env)
        END IF
     END IF

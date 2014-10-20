@@ -19,7 +19,7 @@ MODULE qs_loc_methods
   USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                              deallocate_atomic_kind_set,&
                                              set_atomic_kind
-  USE cell_methods,                    ONLY: cell_type,&
+  USE cell_types,                      ONLY: cell_type,&
                                              pbc
   USE cp_control_types,                ONLY: dft_control_type
   USE cp_dbcsr_interface,              ONLY: cp_dbcsr_p_type
@@ -63,11 +63,11 @@ MODULE qs_loc_methods
   USE memory_utilities,                ONLY: reallocate
   USE motion_utils,                    ONLY: get_output_format
   USE particle_list_types,             ONLY: particle_list_type
+  USE particle_methods,                ONLY: get_particle_set,&
+                                             write_particle_coordinates
   USE particle_types,                  ONLY: allocate_particle_set,&
                                              deallocate_particle_set,&
-                                             get_particle_set,&
-                                             particle_type,&
-                                             write_particle_coordinates
+                                             particle_type
   USE physcon,                         ONLY: angstrom
   USE pw_env_types,                    ONLY: pw_env_get,&
                                              pw_env_type

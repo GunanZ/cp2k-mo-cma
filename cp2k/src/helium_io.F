@@ -10,7 +10,7 @@
 ! *****************************************************************************
 MODULE helium_io
 
-  USE cell_methods,                    ONLY: get_cell
+  USE cell_types,                      ONLY: get_cell
   USE cp_output_handling,              ONLY: cp_p_file,&
                                              cp_print_key_finished_output,&
                                              cp_print_key_should_output,&
@@ -1151,11 +1151,10 @@ MODULE helium_io
 !> \param error ...
 !> \date   2010-01-29
 !> \author Lukasz Walewski
-!>
-!> \note UNKNOWN_COMMENT  Collects instantaneous helium forces from all processors on
-!> \note UNKNOWN_COMMENT  logger%para_env%source and writes them to files - one file per processor.
-!> \note UNKNOWN_COMMENT  This subroutine does message passing, frequent calls can slow down your
-!> \note UNKNOWN_COMMENT  code significantly.
+!> \note Collects instantaneous helium forces from all processors on
+!>         logger%para_env%source and writes them to files - one file per processor.
+!>         This subroutine does message passing, frequent calls can slow down your
+!>         code significantly.
 ! *****************************************************************************
   SUBROUTINE helium_write_force_inst( helium, error )
 

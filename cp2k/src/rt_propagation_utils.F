@@ -31,6 +31,7 @@ MODULE  rt_propagation_utils
                                              cp_fm_p_type,&
                                              cp_fm_set_all,&
                                              cp_fm_to_fm
+  USE cp_para_types,                   ONLY: cp_para_env_type
   USE input_constants,                 ONLY: use_orb_basis_set,&
                                              use_restart_wfn,&
                                              use_rt_restart
@@ -47,6 +48,7 @@ MODULE  rt_propagation_utils
                                              qs_environment_type
   USE qs_force_types,                  ONLY: qs_force_type
   USE qs_kind_types,                   ONLY: qs_kind_type
+  USE qs_ks_types,                     ONLY: qs_ks_env_type
   USE qs_mo_io,                        ONLY: read_mo_set,&
                                              read_rt_mos_from_restart
   USE qs_mo_methods,                   ONLY: calculate_density_matrix
@@ -106,12 +108,14 @@ MODULE  rt_propagation_utils
     TYPE(cp_dbcsr_p_type), DIMENSION(:), &
       POINTER                                :: C_mat, S_der, s_derivs
     TYPE(cp_dbcsr_type), POINTER             :: B_mat, tmp_mat, tmp_mat2
+    TYPE(dft_control_type), POINTER          :: dft_control
     TYPE(neighbor_list_set_p_type), &
       DIMENSION(:), POINTER                  :: sab_orb
     TYPE(particle_type), DIMENSION(:), &
       POINTER                                :: particle_set
     TYPE(qs_force_type), DIMENSION(:), &
       POINTER                                :: force
+    TYPE(qs_ks_env_type), POINTER            :: ks_env
     TYPE(rt_prop_type), POINTER              :: rtp
 
     failure = .FALSE.
@@ -124,6 +128,8 @@ MODULE  rt_propagation_utils
     NULLIFY (particle_set)
     NULLIFY (rtp)
     NULLIFY (s_derivs)
+    NULLIFY (dft_control)
+    NULLIFY (ks_env)
 
     CALL get_qs_env(qs_env=qs_env,&
                     rtp=rtp,&
@@ -132,6 +138,8 @@ MODULE  rt_propagation_utils
                     neighbor_list_id=neighbor_list_id,&
                     sab_orb=sab_orb,&
                     force=force,&
+                    dft_control=dft_control,&
+                    ks_env=ks_env,&
                     error=error)
 
     CALL get_rtp(rtp=rtp,B_mat=B_mat,C_mat=C_mat,S_der=S_der,error=error)
@@ -146,10 +154,10 @@ MODULE  rt_propagation_utils
 
     IF(rtp%iter<2) THEN
        ! calculate the overlap derivative matrices
-       IF(qs_env%dft_control%qs_control%dftb)THEN
+       IF(dft_control%qs_control%dftb)THEN
           CALL build_dftb_overlap(qs_env,nder,s_derivs,error)
        ELSE
-          CALL build_overlap_matrix(qs_env,nderivative=nder,matrix_s=s_derivs,&
+          CALL build_overlap_matrix(ks_env,nderivative=nder,matrix_s=s_derivs,&
                basis_set_id_a=use_orb_basis_set,&
                basis_set_id_b=use_orb_basis_set,sab_nl=sab_orb,error=error)
        END IF        
@@ -257,6 +265,7 @@ MODULE  rt_propagation_utils
     TYPE(cp_fm_p_type), DIMENSION(:), &
       POINTER                                :: mos_new, mos_old
     TYPE(cp_logger_type), POINTER            :: logger
+    TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(dft_control_type), POINTER          :: dft_control
     TYPE(mo_set_p_type), DIMENSION(:), &
       POINTER                                :: mo_array
@@ -268,13 +277,19 @@ MODULE  rt_propagation_utils
     TYPE(rt_prop_type), POINTER              :: rtp
     TYPE(section_vals_type), POINTER         :: dft_section, input
 
-    NULLIFY(atomic_kind_set,qs_kind_set,mo_array,particle_set,rho_struct)
+    NULLIFY(atomic_kind_set,qs_kind_set,mo_array,particle_set,rho_struct,para_env)
 
-    CALL get_qs_env(qs_env,qs_kind_set=qs_kind_set,&
-         atomic_kind_set=atomic_kind_set,&
-         particle_set=particle_set,mos=mo_array, &
-         input=input,rtp=rtp,dft_control=dft_control,rho=rho_struct,&
-         error=error)
+    CALL get_qs_env(qs_env,&
+                    qs_kind_set=qs_kind_set,&
+                    atomic_kind_set=atomic_kind_set,&
+                    particle_set=particle_set,&
+                    mos=mo_array,&
+                    input=input,&
+                    rtp=rtp,&
+                    dft_control=dft_control,&
+                    rho=rho_struct,&
+                    para_env=para_env,&
+                    error=error)
     logger => cp_error_get_logger(error)
     IF (logger%para_env%mepos==logger%para_env%source) THEN
        unit_nr=cp_logger_get_default_unit_nr(logger,local=.TRUE.)
@@ -288,7 +303,7 @@ MODULE  rt_propagation_utils
     dft_section =>  section_vals_get_subs_vals(input,"DFT",error=error)
     SELECT CASE(dft_control%rtp_control%initial_wfn)
     CASE(use_restart_wfn)
-       CALL read_mo_set(mo_array,atomic_kind_set,qs_kind_set,particle_set,qs_env%para_env,&
+       CALL read_mo_set(mo_array,atomic_kind_set,qs_kind_set,particle_set,para_env,&
             id_nr=id_nr,multiplicity=dft_control%multiplicity,dft_section=dft_section,&
             error=error)
        DO ispin=1,nspin
@@ -344,7 +359,7 @@ MODULE  rt_propagation_utils
           CALL calc_update_rho_sparse(qs_env,error)
        ELSE
           CALL get_rtp(rtp=rtp,mos_old=mos_old,mos_new=mos_new,error=error)
-          CALL read_rt_mos_from_restart(mo_array,mos_old,atomic_kind_set,qs_kind_set,particle_set,qs_env%para_env,&
+          CALL read_rt_mos_from_restart(mo_array,mos_old,atomic_kind_set,qs_kind_set,particle_set,para_env,&
                id_nr,dft_control%multiplicity,dft_section, error)
           DO ispin=1,nspin
              CALL calculate_density_matrix(mo_array(ispin)%mo_set,&
@@ -539,6 +554,7 @@ MODULE  rt_propagation_utils
                                                 SinvH
     TYPE(cp_dbcsr_type), POINTER             :: S_inv, S_minus_half, tmp, &
                                                 tmp2, tmp3
+    TYPE(dft_control_type), POINTER          :: dft_control
     TYPE(particle_type), DIMENSION(:), &
       POINTER                                :: particle_set
     TYPE(qs_force_type), DIMENSION(:), &
@@ -547,15 +563,18 @@ MODULE  rt_propagation_utils
     TYPE(rtp_control_type), POINTER          :: rtp_control
 
     CALL timeset(routineN,handle)
-
     failure=.FALSE.
+    NULLIFY(rtp,particle_set,atomic_kind_set,dft_control)
 
-    rtp_control=>qs_env%dft_control%rtp_control
+    CALL get_qs_env(qs_env,&
+                    rtp=rtp,&
+                    particle_set=particle_set,&
+                    atomic_kind_set=atomic_kind_set,&
+                    force=force,&
+                    dft_control=dft_control,&
+                    error=error)
 
-    NULLIFY(rtp,particle_set,atomic_kind_set)
-    CALL get_qs_env(qs_env=qs_env,rtp=rtp,particle_set=particle_set,&
-                 atomic_kind_set=atomic_kind_set,force=force,error=error)
-
+    rtp_control=>dft_control%rtp_control
     CALL get_rtp(rtp=rtp,C_mat=C_mat,S_der=S_der,S_inv=S_inv,&
                  SinvH=SinvH,SinvB=SinvB,error=error)
 

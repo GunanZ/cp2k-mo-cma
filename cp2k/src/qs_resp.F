@@ -15,8 +15,11 @@ MODULE qs_resp
   USE atomic_charges,                  ONLY: print_atomic_charges
   USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                              get_atomic_kind
-  USE cell_methods,                    ONLY: cell_type,&
-                                             pbc
+  USE cell_types,                      ONLY: cell_type,&
+                                             pbc,&
+                                             use_perd_none,&
+                                             use_perd_xyz
+  USE cp_control_types,                ONLY: dft_control_type
   USE cp_output_handling,              ONLY: cp_p_file,&
                                              cp_print_key_finished_output,&
                                              cp_print_key_generate_filename,&
@@ -32,9 +35,7 @@ MODULE qs_resp
                                              do_resp_minus_z_dir,&
                                              do_resp_x_dir,&
                                              do_resp_y_dir,&
-                                             do_resp_z_dir,&
-                                             use_perd_none,&
-                                             use_perd_xyz
+                                             do_resp_z_dir
   USE input_section_types,             ONLY: section_get_ivals,&
                                              section_get_lval,&
                                              section_vals_get,&
@@ -1379,12 +1380,15 @@ CPSourceFileRef,&
     REAL(KIND=dp)                            :: my_atom_coef(2), strength, &
                                                 TARGET
     REAL(KIND=dp), DIMENSION(:), POINTER     :: atom_coef
+    TYPE(dft_control_type), POINTER          :: dft_control
 
     CALL timeset(routineN,handle)
 
-    NULLIFY(atom_coef,atom_list_res,atom_list_cons)
+    NULLIFY(atom_coef,atom_list_res,atom_list_cons,dft_control)
     failure=.FALSE.
- 
+
+    CALL get_qs_env(qs_env, dft_control=dft_control, error=error)
+
     ! add the restraints
     DO i=1,resp_env%nrest_sec
        CALL section_vals_val_get(rest_section,"TARGET",i_rep_section=i,r_val=TARGET,error=error)
@@ -1435,7 +1439,7 @@ CPSourceFileRef,&
        ncons_v=ncons_v+1
        resp_env%matrix(1:natom,ncons_v)=1.0_dp
        resp_env%matrix(ncons_v,1:natom)=1.0_dp
-       resp_env%rhs(ncons_v)=qs_env%dft_control%charge
+       resp_env%rhs(ncons_v)=dft_control%charge
     ENDIF
 
     DO i=1,resp_env%ncons_sec

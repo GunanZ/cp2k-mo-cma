@@ -114,17 +114,24 @@ CONTAINS
 
     CALL timeset(routineN,handle)
     failure=.FALSE.
-    NULLIFY(dft_control, rho, ks_rmpv, input)
-    para_env=>qs_env%para_env
+    NULLIFY(dft_control, rho, ks_rmpv, input, para_env)
     logger => cp_error_get_logger(error)
     output_unit= cp_logger_get_default_io_unit(logger)
 
     CPPrecondition(ASSOCIATED(qs_env),cp_failure_level,routineP,error,failure)
     IF (.NOT. failure) THEN
-       CALL get_qs_env(qs_env,dft_control=dft_control, &
-            atomic_kind_set=atomic_kind_set,particle_set=particle_set,&
-            rho=rho,matrix_ks=ks_rmpv,&
-            matrix_s=matrix_s,input=input,cell=cell,subsys=subsys,error=error)
+       CALL get_qs_env(qs_env,&
+                       dft_control=dft_control, &
+                       atomic_kind_set=atomic_kind_set,&
+                       particle_set=particle_set,&
+                       rho=rho,&
+                       matrix_ks=ks_rmpv,&
+                       matrix_s=matrix_s,&
+                       input=input,&
+                       cell=cell,&
+                       subsys=subsys,&
+                       para_env=para_env,&
+                       error=error)
        dft_section => section_vals_get_subs_vals(input,"DFT",error=error)
        CALL qs_subsys_get(subsys,particles=particles,error=error)
 
@@ -189,8 +196,8 @@ CONTAINS
        IF (write_ks .OR. write_xc) THEN
           IF (write_xc) qs_env%requires_matrix_vxc=.TRUE.
           CALL qs_ks_did_change(qs_env%ks_env,rho_changed=.TRUE.,error=error)
-          CALL qs_ks_update_qs_env(qs_env%ks_env,qs_env=qs_env,error=error,&
-                                    calculate_forces=.FALSE.,just_energy=.FALSE.)
+          CALL qs_ks_update_qs_env(qs_env, calculate_forces=.FALSE.,&
+                                   just_energy=.FALSE., error=error)
           IF (write_xc) qs_env%requires_matrix_vxc=.FALSE.
        END IF
 

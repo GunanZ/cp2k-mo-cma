@@ -21,7 +21,7 @@ MODULE xas_methods
        allocate_sto_basis_set, create_gto_from_sto_basis, &
        deallocate_sto_basis_set, get_gto_basis_set, gto_basis_set_type, &
        init_orb_basis_set, set_sto_basis_set, srules, sto_basis_set_type
-  USE cell_methods,                    ONLY: cell_type,&
+  USE cell_types,                      ONLY: cell_type,&
                                              pbc
   USE cp_array_r_utils,                ONLY: cp_2d_r_p_type
   USE cp_control_types,                ONLY: dft_control_type
@@ -66,8 +66,8 @@ MODULE xas_methods
   USE mathconstants,                   ONLY: twopi
   USE memory_utilities,                ONLY: reallocate
   USE orbital_pointers,                ONLY: ncoset
-  USE particle_types,                  ONLY: get_particle_set,&
-                                             particle_type
+  USE particle_methods,                ONLY: get_particle_set
+  USE particle_types,                  ONLY: particle_type
   USE periodic_table,                  ONLY: ptable
   USE physcon,                         ONLY: evolt
   USE qs_density_mixing_types,         ONLY: direct_mixing_nr,&

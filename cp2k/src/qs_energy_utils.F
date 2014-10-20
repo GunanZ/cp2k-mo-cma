@@ -38,7 +38,8 @@ MODULE qs_energy_utils
   USE molecule_types_new,              ONLY: molecule_of_atom,&
                                              molecule_type
   USE mp2,                             ONLY: mp2_main
-  USE pw_env_types,                    ONLY: pw_env_get
+  USE pw_env_types,                    ONLY: pw_env_get,&
+                                             pw_env_type
   USE pw_pool_types,                   ONLY: pw_pool_give_back_pw,&
                                              pw_pool_type
   USE pw_types,                        ONLY: pw_p_type
@@ -191,14 +192,17 @@ CONTAINS
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: handle, isubset, natom
+    TYPE(cp_para_env_type), POINTER          :: para_env
+    TYPE(dft_control_type), POINTER          :: dft_control
     TYPE(molecule_type), DIMENSION(:), &
       POINTER                                :: molecule_set
 
     CALL timeset(routineN,handle)
-
+    NULLIFY(dft_control,para_env)
     molecule_only = .FALSE.
 
-    IF (qs_env%dft_control%qs_control%do_kg) THEN
+    CALL get_qs_env(qs_env, dft_control=dft_control, para_env=para_env, error=error)
+    IF (dft_control%qs_control%do_kg) THEN
 
       ! create neighbor lists with molecular blocks
       molecule_only = .TRUE.
@@ -225,7 +229,7 @@ CONTAINS
          ! allocate the subset list
          IF (.NOT.ASSOCIATED(qs_env%kg_env%subset_of_mol)) ALLOCATE(qs_env%kg_env%subset_of_mol(SIZE(molecule_set)))
 
-         CALL kg_build_subsets(qs_env%kg_env, qs_env%para_env, error)
+         CALL kg_build_subsets(qs_env%kg_env, para_env, error)
 
          DO isubset=1,qs_env%kg_env%nsubsets
            ! build the (new) molecular neighborlist of the current subset
@@ -286,7 +290,7 @@ CONTAINS
     ! create neighbor lists for standard use in QS
     CALL build_qs_neighbor_lists(qs_env,para_env,molecular=molecule_only,&
                                  force_env_section=input,error=error)
-    qs_env%dft_control%qs_control%becke_control%need_pot=.TRUE.
+    dft_control%qs_control%becke_control%need_pot=.TRUE.
 
     ! *** Calculate the overlap and the core Hamiltonian integral matrix ***
     IF ( dft_control%qs_control%semi_empirical ) THEN
@@ -388,6 +392,7 @@ CONTAINS
       POINTER                                :: matrix_ks, matrix_s, &
                                                 matrix_w, matrix_w_mp2, &
                                                 mo_derivs
+    TYPE(dft_control_type), POINTER          :: dft_control
     TYPE(mo_set_p_type), DIMENSION(:), &
       POINTER                                :: mos
     TYPE(mo_set_type), POINTER               :: mo_set
@@ -396,23 +401,28 @@ CONTAINS
     TYPE(scf_control_type), POINTER          :: scf_control
 
     CALL timeset(routineN,handle)
+    NULLIFY(dft_control)
 
     ! if calculate forces, time to compute the w matrix
-    CALL get_qs_env(qs_env=qs_env,has_unit_metric=has_unit_metric,matrix_w=matrix_w,error=error)
+    CALL get_qs_env(qs_env,&
+                    has_unit_metric=has_unit_metric,&
+                    matrix_w=matrix_w,&
+                    ks_env=ks_env,&
+                    matrix_ks=matrix_ks,&
+                    matrix_s=matrix_s,&
+                    matrix_w_mp2=matrix_w_mp2,&
+                    mo_derivs=mo_derivs,&
+                    scf_control=scf_control,&
+                    mos=mos,&
+                    rho=rho,&
+                    dft_control=dft_control,&
+                    error=error)
+
     IF (calc_forces.AND..NOT.has_unit_metric) THEN
-       CALL get_qs_env(qs_env=qs_env,&
-            ks_env=ks_env,&
-            matrix_ks=matrix_ks,&
-            matrix_s=matrix_s,&
-            matrix_w_mp2=matrix_w_mp2,&
-            mo_derivs=mo_derivs,&
-            scf_control=scf_control,&
-            mos=mos,&
-            rho=rho,error=error)
        nspin = SIZE(mos)
        DO ispin=1,nspin
           mo_set => mos(ispin)%mo_set
-          IF (qs_env%dft_control%roks) THEN
+          IF (dft_control%roks) THEN
              IF (scf_control%use_ot) THEN
                 IF (ispin > 1) THEN
                    ! not very elegant, indeed ...
@@ -467,12 +477,13 @@ CONTAINS
     LOGICAL                                  :: do_et
     TYPE(atprop_type), POINTER               :: atprop
     TYPE(dft_control_type), POINTER          :: dft_control
+    TYPE(pw_env_type), POINTER               :: pw_env
     TYPE(pw_p_type)                          :: v_hartree_rspace
     TYPE(pw_pool_type), POINTER              :: auxbas_pw_pool
     TYPE(qs_energy_type), POINTER            :: energy
     TYPE(section_vals_type), POINTER         :: input, rest_b_section
 
-    NULLIFY(atprop, energy)
+    NULLIFY(atprop, energy, pw_env)
     CALL timeset(routineN,handle)
 
     NULLIFY(v_hartree_rspace%pw)
@@ -484,6 +495,7 @@ CONTAINS
                    atprop=atprop,&
                    energy=energy,&
                    v_hartree_rspace=v_hartree_rspace%pw,&
+                   pw_env=pw_env,&
                    error=error)
     IF (atprop%energy) THEN
        CALL qs_energies_mulliken(qs_env,error)
@@ -509,18 +521,15 @@ CONTAINS
        qs_env%et_coupling%energy=energy%total
        qs_env%et_coupling%keep_matrix=.TRUE.
        qs_env%et_coupling%first_run=.TRUE.
-       CALL qs_ks_update_qs_env(ks_env=qs_env%ks_env, &
-                                qs_env=qs_env, &
-                                calculate_forces=.FALSE., &
-                                just_energy=.TRUE.,error=error)
+       CALL qs_ks_update_qs_env(qs_env, calculate_forces=.FALSE., just_energy=.TRUE., error=error)
        qs_env%et_coupling%first_run=.FALSE.
-       IF(qs_env%dft_control%qs_control%ddapc_restraint)THEN
+       IF(dft_control%qs_control%ddapc_restraint)THEN
           rest_b_section =>  section_vals_get_subs_vals(input,"PROPERTIES%ET_COUPLING%DDAPC_RESTRAINT_B",&
                                                         error=error)
           CALL read_ddapc_section(qs_control=dft_control%qs_control,&
                                   ddapc_restraint_section=rest_b_section,error=error)
        END IF
-       IF(qs_env%dft_control%qs_control%becke_restraint)THEN
+       IF(dft_control%qs_control%becke_restraint)THEN
           rest_b_section => section_vals_get_subs_vals(input,"PROPERTIES%ET_COUPLING%BECKE_RESTRAINT_B",&
                                                        error=error)
           CALL read_becke_section(qs_control=dft_control%qs_control,&
@@ -529,16 +538,13 @@ CONTAINS
        CALL scf(qs_env=qs_env, error=error)
        qs_env%et_coupling%keep_matrix=.TRUE.
 
-       CALL qs_ks_update_qs_env(ks_env=qs_env%ks_env, &
-                                qs_env=qs_env, &
-                                calculate_forces=.FALSE., &
-                                just_energy=.TRUE.,error=error)
+       CALL qs_ks_update_qs_env(qs_env, calculate_forces=.FALSE., just_energy=.TRUE., error=error)
        CALL calc_et_coupling(qs_env,error)
-       IF(qs_env%dft_control%qs_control%becke_restraint)THEN
-          CALL pw_env_get(qs_env%pw_env,auxbas_pw_pool=auxbas_pw_pool,error=error)
+       IF(dft_control%qs_control%becke_restraint)THEN
+          CALL pw_env_get(pw_env,auxbas_pw_pool=auxbas_pw_pool,error=error)
           CALL pw_pool_give_back_pw(auxbas_pw_pool,&
-               qs_env%dft_control%qs_control%becke_control%becke_pot%pw,error=error)
-          qs_env%dft_control%qs_control%becke_control%need_pot=.TRUE.
+               dft_control%qs_control%becke_control%becke_pot%pw,error=error)
+               dft_control%qs_control%becke_control%need_pot=.TRUE.
        END IF
     END IF
 

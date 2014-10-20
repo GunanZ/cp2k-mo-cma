@@ -12,7 +12,7 @@
 !>      09.10.05  MJM combined the two subroutines in this module into one
 ! *****************************************************************************
 MODULE mc_ensembles
-  USE cell_methods,                    ONLY: cell_p_type,&
+  USE cell_types,                      ONLY: cell_p_type,&
                                              get_cell
   USE cp_external_control,             ONLY: external_control
   USE cp_files,                        ONLY: close_file,&
@@ -78,7 +78,7 @@ MODULE mc_ensembles
                                              rng_stream_type
   USE particle_list_types,             ONLY: particle_list_p_type,&
                                              particle_list_type
-  USE particle_types,                  ONLY: write_particle_coordinates
+  USE particle_methods,                ONLY: write_particle_coordinates
   USE physcon,                         ONLY: angstrom,&
                                              boltzmann,&
                                              joule,&

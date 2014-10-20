@@ -13,7 +13,7 @@ MODULE gopt_f_methods
   USE atomic_kind_list_types,          ONLY: atomic_kind_list_type
   USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                              get_atomic_kind_set
-  USE cell_methods,                    ONLY: cell_copy,&
+  USE cell_types,                      ONLY: cell_copy,&
                                              cell_create,&
                                              cell_release,&
                                              cell_type,&
@@ -52,8 +52,8 @@ MODULE gopt_f_methods
                                              write_stress_tensor,&
                                              write_trajectory
   USE particle_list_types,             ONLY: particle_list_type
-  USE particle_types,                  ONLY: particle_type,&
-                                             write_structure_data
+  USE particle_methods,                ONLY: write_structure_data
+  USE particle_types,                  ONLY: particle_type
   USE qmmm_util,                       ONLY: apply_qmmm_translate
   USE virial_methods,                  ONLY: virial_evaluate
   USE virial_types,                    ONLY: virial_type

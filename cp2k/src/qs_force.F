@@ -157,7 +157,6 @@ CONTAINS
     failure = .FALSE.
     NULLIFY (logger)
     logger => cp_error_get_logger(error)
-    para_env=>qs_env%para_env
 
     NULLIFY (atomic_kind_set)
     NULLIFY (dft_control)
@@ -176,6 +175,7 @@ CONTAINS
     NULLIFY (admm_env)
     NULLIFY (matrix_s_aux_fit_vs_orb)
     NULLIFY (subsys)
+    NULLIFY (para_env)
 
     CALL get_qs_env(qs_env,&
                     atomic_kind_set=atomic_kind_set,&
@@ -188,10 +188,11 @@ CONTAINS
                     virial=virial,&
                     has_unit_metric=has_unit_metric,&
                     subsys=subsys,&
-                    energy=energy,&     
+                    energy=energy,&
                     matrix_p_mp2=matrix_p_mp2,&
                     matrix_ks_aux_fit=matrix_ks_aux_fit,&
                     matrix_w_mp2=matrix_w_mp2,&
+                    para_env=para_env,&
                     error=error)
 
     CALL qs_env_rebuild_pw_env(qs_env,error)
@@ -258,7 +259,7 @@ CONTAINS
        CALL set_ks_env(ks_env,matrix_w=matrix_w,error=error)
 
        CALL calc_c_mat_force(qs_env,error)
-       IF(qs_env%dft_control%do_admm)&
+       IF(dft_control%do_admm)&
           CALL rt_admm_force(qs_env,error)
     END IF
 
@@ -315,9 +316,7 @@ CONTAINS
        END IF
 
        ! Compute grid-based forces
-       CALL qs_ks_update_qs_env(ks_env=ks_env,&
-                                qs_env=qs_env,&
-                                calculate_forces=.TRUE.,error=error)
+       CALL qs_ks_update_qs_env(qs_env, calculate_forces=.TRUE., error=error)
 
        IF(ASSOCIATED(qs_env%mp2_env)) THEN
           CALL get_qs_env(qs_env,&
@@ -326,16 +325,14 @@ CONTAINS
                        error=error)
          ! with MP2 we have to recalculate the SCF energy with the
          ! correct density
-         DO ispin=1, qs_env%dft_control%nspins
+         DO ispin=1, dft_control%nspins
            CALL cp_dbcsr_add(rho%rho_ao(ispin)%matrix, matrix_p_mp2(ispin)%matrix, 1.0_dp,  -1.0_dp, error)
          END DO
          CALL qs_rho_update_rho(rho, qs_env=qs_env, error=error)
          CALL qs_ks_did_change(ks_env,rho_changed=.TRUE.,&
                                s_mstruct_changed=qs_env%mp2_env%ri_mp2%free_hfx_buffer,&
                                error=error)
-         CALL qs_ks_update_qs_env(ks_env=ks_env,&
-                                  qs_env=qs_env,&
-                                  just_energy=.TRUE.,error=error)
+         CALL qs_ks_update_qs_env(qs_env, just_energy=.TRUE., error=error)
          energy%total = energy%total + energy%mp2
          ! deallocate mp2_W 
          CALL cp_dbcsr_deallocate_matrix_set(matrix_w_mp2,error=error)
@@ -440,7 +437,7 @@ CONTAINS
           !  *** add the volume terms of the virial ***
           IF ((.NOT.virial%pv_numer) .AND. &
               (.NOT.(dft_control%qs_control%dftb .OR. &
-                     qs_env%dft_control%qs_control%scptb .OR. &
+                     dft_control%qs_control%scptb .OR. &
                      dft_control%qs_control%semi_empirical))) THEN
              DO dir=1, 3
                 virial%pv_virial(dir,dir) = virial%pv_virial(dir,dir) - energy%exc  &

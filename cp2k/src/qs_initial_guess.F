@@ -44,9 +44,8 @@ MODULE qs_initial_guess
                                              gth_potential_type
   USE f77_blas
   USE input_constants,                 ONLY: &
-       almo_scf_guess, atomic_guess, core_guess, densities_guess, &
-       history_guess, mopac_guess, no_guess, random_guess, restart_guess, &
-       sparse_guess
+       atomic_guess, core_guess, densities_guess, history_guess, mopac_guess, &
+       no_guess, random_guess, restart_guess, sparse_guess
   USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                              section_vals_type
   USE kinds,                           ONLY: default_path_length,&
@@ -54,8 +53,8 @@ MODULE qs_initial_guess
   USE kpoint_types,                    ONLY: kpoint_type
   USE message_passing,                 ONLY: mp_bcast,&
                                              mp_sum
-  USE particle_types,                  ONLY: get_particle_set,&
-                                             particle_type
+  USE particle_methods,                ONLY: get_particle_set
+  USE particle_types,                  ONLY: particle_type
   USE qs_collocate_density,            ONLY: collocate_atomic_charge_density
   USE qs_dftb_utils,                   ONLY: get_dftb_atom_param
   USE qs_environment_types,            ONLY: get_qs_env,&
@@ -164,6 +163,7 @@ CONTAINS
     TYPE(cp_fm_type), POINTER                :: mo_coeff, moa, mob, ortho, &
                                                 sv, work2
     TYPE(cp_logger_type), POINTER            :: logger
+    TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(dbcsr_distribution_obj)             :: dist
     TYPE(dft_control_type), POINTER          :: dft_control
     TYPE(gto_basis_set_type), POINTER        :: orb_basis_set
@@ -185,7 +185,7 @@ CONTAINS
     failure = .FALSE.
     NULLIFY(atomic_kind, qs_kind, mo_coeff, sv, orb_basis_set, atomic_kind_set,&
          qs_kind_set, particle_set, ortho, work2, work1, mo_array, s_sparse, &
-         scf_control, dft_control, p_rmpv, ortho, work2, work1, &
+         scf_control, dft_control, p_rmpv, ortho, work2, work1, para_env,&
          s_sparse, scf_control, dft_control, h_core_sparse, matrix_ks, rho)
     NULLIFY(dft_section, input, subsys_section)
     NULLIFY(moa,mob)
@@ -211,6 +211,7 @@ CONTAINS
                     kpoints=kpoints,&
                     matrix_ks=matrix_ks,&
                     rho=rho,&
+                    para_env=para_env,&
                     error=error)
 
     nspin=dft_control%nspins
@@ -239,7 +240,6 @@ CONTAINS
                (density_guess == atomic_guess).OR.&
                (density_guess == mopac_guess).OR.&
                (density_guess == sparse_guess).OR.&
-               (density_guess == almo_scf_guess).OR.&
                (((density_guess == restart_guess).OR.&
                 (density_guess == history_guess)).AND.&
                 (scf_control%level_shift == 0.0_dp))))) THEN
@@ -255,9 +255,9 @@ CONTAINS
         ! only check existence on I/O node, otherwise if file exists there but
         ! not on compute nodes, everything goes crazy even though only I/O
         ! node actually reads the file
-        IF (qs_env%para_env%ionode) &
+        IF (para_env%ionode) &
            CALL wfn_restart_file_name(file_name,exist,dft_section,logger,error=error)
-        CALL mp_bcast(exist, qs_env%para_env%source, qs_env%para_env%group)
+        CALL mp_bcast(exist, para_env%source, para_env%group)
         IF (.NOT.exist) THEN
            CALL cp_assert(.FALSE.,cp_warning_level,cp_assertion_failed,routineP,&
                 "User requested to restart the wavefunction from the file named: "//&
@@ -269,9 +269,9 @@ CPSourceFileRef,&
            density_guess = safe_density_guess
         END IF
     ELSE IF (density_guess == history_guess) THEN
-       IF (qs_env%para_env%ionode) &
+       IF (para_env%ionode) &
           CALL wfn_restart_file_name(file_name,exist,dft_section,logger,error=error)
-       CALL mp_bcast(exist, qs_env%para_env%source, qs_env%para_env%group)
+       CALL mp_bcast(exist, para_env%source, para_env%group)
        nvec = qs_env%wf_history%memory_depth
        not_read = nvec+1
        ! At this level we read the saved backup RESTART files..
@@ -279,9 +279,9 @@ CPSourceFileRef,&
           j = i - 1
           filename = TRIM(file_name)
           IF (j/=0) filename = TRIM(file_name)//".bak-"//ADJUSTL(cp_to_string(j))
-          IF (qs_env%para_env%ionode) &
+          IF (para_env%ionode) &
              INQUIRE(FILE=filename,exist=exist)
-          CALL mp_bcast(exist, qs_env%para_env%source, qs_env%para_env%group)
+          CALL mp_bcast(exist, para_env%source, para_env%group)
           IF ((.NOT. exist) .AND. (i < not_read)) THEN
              not_read = i
           END IF
@@ -289,9 +289,9 @@ CPSourceFileRef,&
        IF (not_read == 1) THEN
           density_guess = restart_guess
           filename = TRIM(file_name)
-          IF (qs_env%para_env%ionode) &
+          IF (para_env%ionode) &
              INQUIRE(FILE=filename,exist=exist)
-          CALL mp_bcast(exist, qs_env%para_env%source, qs_env%para_env%group)
+          CALL mp_bcast(exist, para_env%source, para_env%group)
           IF (.NOT. exist) THEN
              CALL cp_assert(.FALSE.,cp_warning_level,cp_assertion_failed,routineP,&
                   "User requested to restart the wavefunction from a series of restart files named: "//&
@@ -313,7 +313,7 @@ CPSourceFileRef,&
     IF (density_guess == restart_guess) THEN
 
        CALL get_atomic_kind_set(atomic_kind_set=atomic_kind_set)
-       CALL read_mo_set(mo_array,atomic_kind_set,qs_kind_set,particle_set,qs_env%para_env,&
+       CALL read_mo_set(mo_array,atomic_kind_set,qs_kind_set,particle_set,para_env,&
             id_nr=id_nr,multiplicity=dft_control%multiplicity,dft_section=dft_section,&
             natom_mismatch=natom_mismatch, kpoints=kpoints, error=error)
 
@@ -333,7 +333,7 @@ CPSourceFileRef,&
 
              IF(has_unit_metric) THEN
                CALL make_basis_simple(mo_coeff,nmo,error=error)
-             ELSEIF(qs_env%dft_control%smear)THEN
+             ELSEIF(dft_control%smear)THEN
                CALL make_basis_lowdin(vmatrix=mo_coeff,ncol=nmo,&
                     matrix_s=s_sparse(1)%matrix,error=error)
              ELSE
@@ -364,7 +364,7 @@ CPSourceFileRef,&
        IF (not_read > 1) THEN
           DO i=1, last_read
              j = last_read -i
-             CALL read_mo_set(mo_array,atomic_kind_set,qs_kind_set,particle_set,qs_env%para_env,&
+             CALL read_mo_set(mo_array,atomic_kind_set,qs_kind_set,particle_set,para_env,&
                   id_nr=j,multiplicity=dft_control%multiplicity,&
                   dft_section=dft_section, kpoints=kpoints, error=error)
 
@@ -496,22 +496,6 @@ CALL copy_fm_to_dbcsr(mo_array(ispin)%mo_set%mo_coeff,mo_array(ispin)%mo_set%mo_
 
        did_guess = .TRUE.
     END IF
-    IF (density_guess == almo_scf_guess) THEN
-   
-       !CALL almo_entry_scf(qs_env,error)
-       !DO ispin=1,nspin
-       !   !CALL copy_dbcsr_to_fm(mo_array(ispin)%mo_set%mo_coeff_b,&
-       !   !        mo_array(ispin)%mo_set%mo_coeff,&
-       !   !        error=error)
-       !   CALL set_mo_occupation(mo_set=mo_array(ispin)%mo_set,&
-       !           smear=qs_env%scf_control%smear,&
-       !           error=error)
-       !   CALL copy_fm_to_dbcsr(mo_array(ispin)%mo_set%mo_coeff,&
-       !           mo_array(ispin)%mo_set%mo_coeff_b,error=error)
-       !ENDDO
-       
-       !did_guess = .TRUE.
-    END IF 
     IF (density_guess == atomic_guess) THEN
 
        subsys_section => section_vals_get_subs_vals(input,"SUBSYS",error=error)
@@ -615,7 +599,7 @@ CALL copy_fm_to_dbcsr(mo_array(ispin)%mo_set%mo_coeff,mo_array(ispin)%mo_set%mo_
        eps = 1.0E-5_dp
 
        output_unit= cp_logger_get_default_io_unit(logger)
-       group = qs_env%para_env%group
+       group = para_env%group
        natoms = SIZE(particle_set)
        ALLOCATE (kind_of(natoms),STAT=istat)
        CPPostcondition(istat==0,cp_failure_level,routineP,error,failure)
@@ -884,8 +868,8 @@ CALL copy_fm_to_dbcsr(mo_array(ispin)%mo_set%mo_coeff,mo_array(ispin)%mo_set%mo_
 
           CALL get_mo_set(mo_set=mo_array(ispin)%mo_set, nelectron=nelectron)
 
-          CALL calculate_mopac_dm(p_rmpv(ispin)%matrix,s_sparse(1)%matrix, has_unit_metric, qs_env%dft_control,&
-                                  particle_set, atomic_kind_set, qs_kind_set, ispin, nspin, nelectron,  qs_env%para_env, error)
+          CALL calculate_mopac_dm(p_rmpv(ispin)%matrix,s_sparse(1)%matrix, has_unit_metric, dft_control,&
+                                  particle_set, atomic_kind_set, qs_kind_set, ispin, nspin, nelectron, para_env, error)
 
           ! The orbital transformation method (OT) requires not only an
           ! initial density matrix, but also an initial wavefunction (MO set)
@@ -944,11 +928,11 @@ CALL copy_fm_to_dbcsr(mo_array(ispin)%mo_set%mo_coeff,mo_array(ispin)%mo_set%mo_
 
        CALL qs_ks_did_change(ks_env=qs_env%ks_env, rho_changed=.TRUE., error=error)
 
-       CALL qs_ks_update_qs_env(ks_env=qs_env%ks_env, qs_env=qs_env, calculate_forces=.TRUE.,&
-            just_energy=.FALSE., error=error)
+       CALL qs_ks_update_qs_env(qs_env, calculate_forces=.TRUE.,&
+                                just_energy=.FALSE., error=error)
 
        ! diagonalization
-       DO ispin = 1,qs_env%dft_control%nspins
+       DO ispin=1, dft_control%nspins
           CALL copy_dbcsr_to_fm(matrix_ks(ispin)%matrix,&
                              qs_env%scf_env%scf_work1(ispin)%matrix,&
                              error=error)
@@ -957,7 +941,7 @@ CALL copy_fm_to_dbcsr(mo_array(ispin)%mo_set%mo_coeff,mo_array(ispin)%mo_set%mo_
        qs_env%scf_env%iter_method = "Mixing/Diag"
        qs_env%scf_env%iter_delta = 0.0_dp
 
-       DO ispin = 1,qs_env%dft_control%nspins
+       DO ispin=1, dft_control%nspins
          CALL eigensolver(matrix_ks_fm=qs_env%scf_env%scf_work1(ispin)%matrix, &
                           mo_set=mo_array(ispin)%mo_set,&
                           ortho=qs_env%scf_env%ortho, &
@@ -984,7 +968,7 @@ CALL copy_fm_to_dbcsr(mo_array(ispin)%mo_set%mo_coeff,mo_array(ispin)%mo_set%mo_
           ! copy gamma point density matrix guess
           p_rmpv => rho%rho_ao
           denmat => rho%rho_ao_kp
-          DO ispin = 1,qs_env%dft_control%nspins
+          DO ispin=1, dft_control%nspins
              DO ic=1,SIZE(denmat,2)
                 CALL cp_dbcsr_set(denmat(ispin,ic)%matrix,0.0_dp,error=error)
              END DO

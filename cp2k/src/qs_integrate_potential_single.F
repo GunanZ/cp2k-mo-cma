@@ -32,7 +32,7 @@ MODULE qs_integrate_potential_single
                                              atprop_type
   USE basis_set_types,                 ONLY: get_gto_basis_set,&
                                              gto_basis_set_type
-  USE cell_methods,                    ONLY: cell_type,&
+  USE cell_types,                      ONLY: cell_type,&
                                              pbc
   USE cp_control_types,                ONLY: dft_control_type
   USE cp_para_types,                   ONLY: cp_para_env_type
@@ -721,12 +721,14 @@ CONTAINS
     TYPE(virial_type), POINTER               :: virial
 
     CALL timeset(routineN,handle)
-    NULLIFY(virial, atprop)
+    NULLIFY(virial, atprop, dft_control)
+
+    CALL get_qs_env(qs_env=qs_env, dft_control=dft_control, error=error)
 
     !If gapw, check for gpw kinds
     skip_fcore = .FALSE.
-    IF(qs_env%dft_control%qs_control%gapw) THEN
-      IF(.NOT. qs_env%dft_control%qs_control%gapw_control%nopaw_as_gpw) skip_fcore = .TRUE.
+    IF(dft_control%qs_control%gapw) THEN
+      IF(.NOT. dft_control%qs_control%gapw_control%nopaw_as_gpw) skip_fcore = .TRUE.
     END IF
 
     failure = .FALSE.

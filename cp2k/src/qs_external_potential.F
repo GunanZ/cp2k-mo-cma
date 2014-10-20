@@ -10,8 +10,9 @@
 MODULE qs_external_potential
   USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                              get_atomic_kind
-  USE cell_methods,                    ONLY: cell_type,&
+  USE cell_types,                      ONLY: cell_type,&
                                              pbc
+  USE cp_control_types,                ONLY: dft_control_type
   USE f77_blas
   USE force_fields_util,               ONLY: get_generic_info
   USE fparser,                         ONLY: evalf,&
@@ -25,7 +26,6 @@ MODULE qs_external_potential
   USE kinds,                           ONLY: default_path_length,&
                                              default_string_length,&
                                              dp
-  USE particle_list_types,             ONLY: particle_list_type
   USE particle_types,                  ONLY: particle_type
   USE pw_types,                        ONLY: pw_p_type
   USE qs_energy_types,                 ONLY: qs_energy_type
@@ -34,7 +34,6 @@ MODULE qs_external_potential
   USE qs_force_types,                  ONLY: qs_force_type
   USE qs_kind_types,                   ONLY: get_qs_kind,&
                                              qs_kind_type
-  USE qs_subsys_types,                 ONLY: qs_subsys_get
   USE string_utilities,                ONLY: compress
   USE timings,                         ONLY: timeset,&
                                              timestop
@@ -72,21 +71,23 @@ CONTAINS
     LOGICAL                                  :: failure, static_potential
     REAL(kind=dp)                            :: dvol, efunc
     REAL(kind=dp), DIMENSION(3)              :: dr, grid_p
-    TYPE(cell_type), POINTER                 :: cell
-    TYPE(particle_list_type), POINTER        :: particles
+    TYPE(dft_control_type), POINTER          :: dft_control
     TYPE(pw_p_type), POINTER                 :: v_ee
     TYPE(section_vals_type), POINTER         :: ext_pot_section, input
 
     failure=.FALSE.
     CALL timeset(routineN,handle)
-    IF(qs_env%dft_control%apply_external_potential)THEN
-       NULLIFY(cell, particles, v_ee, input, ext_pot_section)
-       CALL qs_subsys_get(qs_env%subsys,particles=particles,error=error)
-       CALL get_qs_env(qs_env,cell=cell,vee=v_ee,input=input,error=error)
+    NULLIFY(v_ee, input, ext_pot_section, dft_control)
+    CALL get_qs_env(qs_env,&
+                    vee=v_ee,&
+                    input=input,&
+                    dft_control=dft_control,&
+                    error=error)
+    IF(dft_control%apply_external_potential)THEN
        ext_pot_section => section_vals_get_subs_vals(input,"DFT%EXTERNAL_POTENTIAL",error=error)
        CALL section_vals_val_get(ext_pot_section,"STATIC",l_val=static_potential,error=error)
 
-       IF ((.NOT.static_potential).OR.qs_env%dft_control%eval_external_potential) THEN
+       IF ((.NOT.static_potential).OR.dft_control%eval_external_potential) THEN
           dr=v_ee%pw%pw_grid%dr
           dvol=v_ee%pw%pw_grid%dvol
           v_ee%pw%cr3d=0.0_dp
@@ -105,7 +106,7 @@ CONTAINS
                 END DO
              END DO
           END DO
-          qs_env%dft_control%eval_external_potential = .FALSE.
+          dft_control%eval_external_potential = .FALSE.
        END IF
     END IF
     CALL timestop(handle)
@@ -137,6 +138,7 @@ CONTAINS
     TYPE(atomic_kind_type), DIMENSION(:), &
       POINTER                                :: atomic_kind_set
     TYPE(cell_type), POINTER                 :: cell
+    TYPE(dft_control_type), POINTER          :: dft_control
     TYPE(particle_type), DIMENSION(:), &
       POINTER                                :: particle_set
     TYPE(qs_energy_type), POINTER            :: energy
@@ -148,18 +150,21 @@ CONTAINS
 
     failure=.FALSE.
     CALL timeset(routineN,handle)
-    IF(qs_env%dft_control%apply_external_potential)THEN
+    NULLIFY(dft_control)
+
+    CALL get_qs_env(qs_env=qs_env,&
+                    atomic_kind_set=atomic_kind_set,&
+                    qs_kind_set=qs_kind_set,&
+                    energy=energy,&
+                    particle_set=particle_set,&
+                    input=input,&
+                    cell=cell,&
+                    dft_control=dft_control,&
+                    error=error)
+
+    IF(dft_control%apply_external_potential)THEN
        my_force=.FALSE.
        IF(PRESENT(calculate_forces)) my_force=calculate_forces
-
-       CALL get_qs_env(qs_env=qs_env,&
-                       atomic_kind_set=atomic_kind_set,&
-                       qs_kind_set=qs_kind_set,&
-                       energy=energy,&
-                       particle_set=particle_set,&
-                       input=input,&
-                       cell=cell,&
-                       error=error)
        ext_pot_section => section_vals_get_subs_vals(input,"DFT%EXTERNAL_POTENTIAL",error=error)
        ee_core_ener=0.0_dp
        nkind = SIZE(atomic_kind_set)

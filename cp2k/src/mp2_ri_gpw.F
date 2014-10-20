@@ -14,7 +14,7 @@ MODULE mp2_ri_gpw
   USE basis_set_types,                 ONLY: gto_basis_set_type
   USE bibliography,                    ONLY: DelBen2013,&
                                              cite_reference
-  USE cell_methods,                    ONLY: cell_type,&
+  USE cell_types,                      ONLY: cell_type,&
                                              pbc
   USE cp_blacs_env,                    ONLY: cp_blacs_env_create,&
                                              cp_blacs_env_release,&
@@ -464,7 +464,7 @@ MODULE mp2_ri_gpw
       lll=itmp(2)-itmp(1)+1
       ALLOCATE(qs_env%mp2_env%ri_grad%PQ_half(lll,my_group_L_size),STAT=stat)
       CPPostcondition(stat==0,cp_failure_level,routineP,error,failure)
-      qs_env%mp2_env%ri_grad%PQ_half=my_Lrows(itmp(1):itmp(2),1:my_group_L_size)
+      qs_env%mp2_env%ri_grad%PQ_half(:,:)=my_Lrows(itmp(1):itmp(2),1:my_group_L_size)
     END IF
 
     IF (unit_nr>0) THEN
@@ -861,7 +861,7 @@ MODULE mp2_ri_gpw
                                                o1=na1-1,&
                                                o2=0,&
                                                map_consistent=.TRUE.,&
-                                               eps_gvg_rspace=qs_env%dft_control%qs_control%eps_gvg_rspace,&
+                                               eps_gvg_rspace=dft_control%qs_control%eps_gvg_rspace,&
                                                calculate_forces=.FALSE.,&
                                                error=error_sub)
            END DO
