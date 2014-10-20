@@ -13,9 +13,7 @@ MODULE swarm_input
                                              low_print_level
   USE glbopt_input,                    ONLY: glbopt_declare_input
   USE paramopt_input,                  ONLY: paramopt_declare_input
-  USE input_constants,                 ONLY: add_last_numeric,&
-                                             low_print_level,&
-                                             swarm_do_glbopt,&
+  USE input_constants,                 ONLY: swarm_do_glbopt,&
                                              swarm_do_paramopt
   USE input_constants,                 ONLY: swarm_do_glbopt
   USE input_keyword_types,             ONLY: keyword_create,&

@@ -9,9 +9,13 @@
 !> \author Ole
 ! *****************************************************************************
 MODULE paramopt_input
-  USE cp_output_handling,              ONLY: cp_print_key_section_create
-  USE input_constants,                 ONLY: add_last_numeric,&
+  USE bibliography,                    ONLY: Goedecker2004
+  USE cp_output_handling,              ONLY: cp_print_key_section_create,&
                                              low_print_level
+  USE input_constants,                 ONLY: paramopt_do_cma,&
+                                             paramopt_do_powell,&
+                                             paramopt_do_grid,&
+                                             paramopt_do_mocma
   USE input_keyword_types,             ONLY: keyword_create,&
                                              keyword_release,&
                                              keyword_type
@@ -43,8 +47,7 @@ MODULE paramopt_input
     USE input_constants,                 ONLY: paramopt_do_cma,&
                                                paramopt_do_powell,&
                                                paramopt_do_grid,&
-                                               paramopt_do_mocma,&
-                                               low_print_level
+                                               paramopt_do_mocma
     TYPE(section_type), POINTER              :: swarm_section
     TYPE(cp_error_type), INTENT(inout)       :: error
 
