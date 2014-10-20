@@ -186,7 +186,7 @@ MODULE paramopt_master
     !------------------------------------
     this%m = 2
     m = this%m
-    this%database = 1 ! 1 for the s22 and 2 for water_cluster and 3 for water27
+    this%database = 2 ! 1 for the s22 and 2 for water_cluster and 3 for water27
     if (.not. this%benchmark) then 
         if (this%database == 1) then
             this%num_ref_mol = 3*22
@@ -299,6 +299,7 @@ MODULE paramopt_master
                 endif
             end select
        CASE(paramopt_do_grid)
+            this%x(1,:) = var_back_trans(this%x(1,:),this%u_bound,this%l_bound)           
        CASE DEFAULT
         STOP "Unkown glbopt_method"
     END SELECT
@@ -358,6 +359,9 @@ SUBROUTINE do_grid_search(this,report,cmd,should_stop)
     INTEGER                                    :: iounit 
     INTEGER                                    :: id=1
     INTEGER,DIMENSION(3)                       :: ind
+    REAL(kind=dp),DIMENSION(:),ALLOCATABLE     :: func_array
+    REAL(kind=dp),DIMENSION(:),POINTER         :: func
+    allocate(func_array(size(this%energies,dim=2)))
           CALL swarm_message_get(report, "worker_id", wid)
           CALL swarm_message_get(report, "status", report_status)
           if (trim(report_status) .eq. "done") then
@@ -365,18 +369,22 @@ SUBROUTINE do_grid_search(this,report,cmd,should_stop)
             CALL swarm_message_get(report, "pop_id",id)
             CALL swarm_message_get(report, "inp_num",input)
             CALL index2grid(input,(/1,size(this%energies,dim=2),size(this%energies,dim=3)/),ind)
-            CALL swarm_message_get(report, "result", this%energies(id,ind(2),ind(3)))
+            CALL swarm_message_get(report, "result", func)
+            this%energies(id,ind(2),ind(3)) = func(1)
+            this%rmsd(id,ind(2),ind(3))     = func(2) 
             CALL swarm_message_get(report, "converged", this%converged(id,ind(2),ind(3)))
             if (this%num_input_rcvd .eq. this%num_ref_mol) then
-                CALL energy2function(this%energies(id,:,:),this%ref_matrix,this%database,myresult)
-                this%f = myresult
+                CALL energy2function(this%num_ref_mol,this%energies(1,:,:), &
+                                        this%ref_matrix,this%database,func_array)
+                this%f(1,1) = sum(func_array)
+                this%f(1,2) = sum(this%rmsd(1,:,:))
                 CALL open_file(file_name="output", file_status="UNKNOWN",&
                     file_action="WRITE", file_position="APPEND",unit_number=iounit)
-                    write(iounit,*) this%x(1,:),this%f(1,1)
+                    write(iounit,*) var_trans(this%x(1,:),this%u_bound,this%l_bound), &
+                                    this%f(1,:),func_array,this%rmsd(1,:,:)
                 CALL close_file(iounit)
-                this%x(1,:) = var_back_trans(this%x(1,:),this%u_bound,this%l_bound)
+                print *,'done writing file'
                 CALL grid_search(this) 
-                this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound) 
                 !---reset----------
                 this%current_inp = 0
                 this%num_input_rcvd = 0
@@ -406,12 +414,13 @@ SUBROUTINE do_grid_search(this,report,cmd,should_stop)
                 end select
             endif
             CALL swarm_message_add(cmd, "charge", charge)
-            CALL swarm_message_add(cmd, "x", this%x(1,:))
+            CALL swarm_message_add(cmd, "x",&
+            var_trans(this%x(1,:),this%u_bound,this%l_bound))
             this%current_inp = this%current_inp + 1
           else
             CALL swarm_message_add(cmd, "command", "wait")     
           endif
-
+    deallocate(func_array)
 END SUBROUTINE do_grid_search
 
 ! *****************************************************************************
@@ -436,10 +445,12 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
     INTEGER                                    :: popsize,offspringsize 
     REAL(kind=dp),DIMENSION(:),POINTER         :: func
     REAL(kind=dp)                              :: penalty
+    REAL(kind=dp),DIMENSION(:),ALLOCATABLE     :: func_array
     INTEGER                                    :: k,l  
     INTEGER,DIMENSION(3)                       :: ind
     popsize = size(this%population)
     offspringsize = int(0.5*popsize)
+    allocate(func_array(size(this%energies,dim=2)))
     if (this%benchmark) then
           CALL swarm_message_get(report, "worker_id", wid)
           CALL swarm_message_get(report, "status", report_status)
@@ -502,14 +513,14 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
             if (this%num_input_rcvd .eq. offspringsize*this%num_ref_mol) then
                 do i = 1,offspringsize
                     input = this%offspring_list(i)
-                    CALL energy2function(this%energies(input,:,:), &
-                                        this%ref_matrix,this%database,myresult)
-                    this%f(input,1) = myresult
+                    CALL energy2function(this%num_ref_mol,this%energies(input,:,:), &
+                                        this%ref_matrix,this%database,func_array)
+                    this%f(input,1) = sum(func_array)
                     this%f(input,2) = sum(this%rmsd(input,:,:))
                     CALL open_file(file_name="output", file_status="UNKNOWN",&
                         file_action="WRITE", file_position="APPEND",unit_number=iounit)
                     write(iounit,*) var_trans(this%x(input,:), &
-                                    this%u_bound,this%l_bound),this%f(input,:)
+                                    this%u_bound,this%l_bound),this%f(input,:),func_array,this%rmsd(input,:,:)
                     CALL close_file(iounit)
                 enddo
                     select type(mocmaes => this%population)
@@ -556,6 +567,7 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
           endif
 
       endif
+      deallocate(func_array)
 END SUBROUTINE do_mocma
 
 ! *****************************************************************************
@@ -636,7 +648,7 @@ SUBROUTINE do_optim(this,report,cmd,method,should_stop)
 !            if (this%converged(id,ind(2),ind(4)) .eq. 0) STOP "hm converged"
             !print *,'input',input,ind,this%num_input_rcvd
             if (this%num_input_rcvd .eq. this%num_ref_mol) then
-                CALL energy2function(this%energies(id,:,:),this%ref_matrix,this%database,myresult)
+!                CALL energy2function(this%energies(id,:,:),this%ref_matrix,this%database,myresult)
                 !penalty = 1e3*this%penalty**2
                 !this%f = myresult + penalty
                 this%f = myresult 
@@ -744,7 +756,7 @@ END SUBROUTINE do_optim
 !> \param this ...
 !> \author Ole Schuett
 ! *****************************************************************************
- SUBROUTINE energy2function(energies,ref_matrix,database,func)
+ SUBROUTINE energy2function(nref,energies,ref_matrix,database,func_array)
     REAL(KIND=dp),DIMENSION(:,:),INTENT(IN)         :: energies
     REAL(KIND=dp),DIMENSION(:,:),INTENT(IN)         :: ref_matrix
     INTEGER                                         :: database
@@ -752,21 +764,23 @@ END SUBROUTINE do_optim
     REAL(KIND=dp)                                   :: func
     REAL(KIND=dp)                                   :: kcalmol=6.27509468713739E+02_dp 
     INTEGER                                         :: i,k,n
+    INTEGER                                         :: nref    
     REAL(KIND=dp),DIMENSION(4)                      :: ref_ene
-    n=size(energies,dim=1)
     select case(database)
       case(1)
-        do i=1,size(energies,dim=1)
+        do i=1,nref
             func_array(i) = abs(energies(i,1)-(energies(i,2)+energies(i,3)))*kcalmol
-            print *,'dimer',energies(i,1),'monomer',energies(i,2),'monomer',energies(i,3),'f',func_array(i),'ref',ref_matrix(i,5)
             func_array(i) = abs(func_array(i) - ref_matrix(i,5))
+            print *,'dimer',energies(i,1),'monomer',energies(i,2),'monomer',energies(i,3),'f',func_array(i),'ref',ref_matrix(i,5)
         enddo
         func = sum(abs(func_array))
       case(2)
-        do i=1,size(energies,dim=1)-1
-            k = i + 1
-            func_array(i) = ref_matrix(k,2)*energies(1,1)-energies(k,1)
-            print *,'cluster',energies(k,1),'monomer',energies(1,1),'x * monomer',ref_matrix(k,2)*energies(1,1),'f',func_array(i)
+        print *,'nref',nref
+          do i=1,nref
+            func_array(i) = abs(ref_matrix(i,2)*energies(1,1)-energies(i,1))*kcalmol
+            func_array(i) = abs(func_array(i) - ref_matrix(i,5))
+            print *,'cluster',energies(i,1),'monomer',energies(1,1),'x',ref_matrix(i,2), &
+            ' * monomer',ref_matrix(i,2)*energies(1,1),'f',func_array(i)
         enddo
         func = sum(abs(func_array))
       case(3)
@@ -774,7 +788,7 @@ END SUBROUTINE do_optim
         ref_ene(2) = energies(16,1) !H3Op
         ref_ene(3) = energies(22,1) !OHm
         ref_ene(4) = energies(11,1) !H2O8s4
-        do i=1,size(energies,dim=1)
+        do i=1,nref
           func_array(i) = (ref_matrix(i,2)*energies(i,1) + dot_product(ref_matrix(i,3:6),ref_ene))*kcalmol-ref_matrix(i,7)
           print *,'cluster',energies(i,1),'x monomer',dot_product(ref_matrix(i,3:6),ref_ene),'f',func_array(i)
         enddo
@@ -998,11 +1012,11 @@ end subroutine penalty_fct
         REAL(KIND=dp),DIMENSION(size(xtrans))              :: x 
         REAL(KIND=dp),DIMENSION(:)                         :: l_bound
         REAL(KIND=dp),DIMENSION(:)                         :: u_bound 
-        if (any(xtrans .lt. 0)) then
+        if (any(xtrans .lt. 0._dp)) then
             print *,"var trans wrong xtrans lt",xtrans
             STOP
         endif
-        if (any(xtrans .gt. 1)) then
+        if (any(xtrans .gt. 1._dp)) then
             print *, "var trans wrong xtrans gt",xtrans
             STOP
         endif

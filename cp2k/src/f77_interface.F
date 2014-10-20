@@ -1683,5 +1683,61 @@ CPSourceFileRef,&
     END IF
     CALL f_env_rm_defaults(f_env,error,ierr)
   END SUBROUTINE do_shake
-
+! *****************************************************************************
+!> \brief updates the energy and the forces of given force_env
+!> \param env_id id of the force_env that you want to update
+!> \param calc_force if the forces should be updated, if false the forces
+!>        might be wrong.
+!> \param ierr will return a number different from 0 if there was an error
+!> \author fawzi
+! *****************************************************************************
+!  SUBROUTINE get_mcharge(env_id,mcharge,ierr)
+!
+!    INTEGER, INTENT(in)                      :: env_id
+!    LOGICAL, INTENT(in)                      :: calc_force
+!    INTEGER, INTENT(out)                     :: ierr
+!
+!    CHARACTER(len=*), PARAMETER :: routineN = 'get_mcharge', &
+!      routineP = moduleN//':'//routineN
+!
+!    REAL(KIND=dp), DIMENSION(:), POINTER     :: mcharge
+!    REAL(KIND=dp), DIMENSION(:, :), POINTER  :: charges
+!    LOGICAL                                  :: failure
+!    TYPE(cp_error_type)                      :: error
+!    TYPE(cp_logger_type), POINTER            :: logger
+!    TYPE(f_env_type), POINTER                :: f_env
+!
+!    failure = .FALSE.
+!    NULLIFY (f_env)
+!    CALL f_env_add_defaults(env_id,f_env,error,failure)
+!    IF (.NOT.failure) THEN
+!       logger => cp_error_get_logger(error)
+!       CALL cp_iterate(logger%iter_info,error=error) ! add one to the iteration count
+!       !-------------------do stuff here------------------------
+!       NULLIFY(dft_control,input,rho,para_env,matrix_s,matrix_p)
+!       CALL get_qs_env(qs_env,atomic_kind_set=atomic_kind_set,qs_kind_set=qs_kind_set,&
+!            dft_control=dft_control,input=input,rho=rho,&
+!            natom=natom,para_env=para_env,matrix_s=matrix_s,error=error)
+!       nspins = dft_control%nspins 
+!       matrix_p => rho%rho_ao
+!       ! Mulliken charges
+!       ALLOCATE(charges(natom,nspins),mcharge(natom),STAT=istat)
+!       CPPostcondition(istat==0,cp_failure_level,routineP,error,failure)
+!       !
+!       CALL mulliken_charges(matrix_p,matrix_s(1)%matrix,para_env,charges,error=error)
+!       !
+!       nkind = SIZE(atomic_kind_set)
+!       DO ikind=1,nkind
+!          CALL get_atomic_kind(atomic_kind_set(ikind), natom=nat)
+!          CALL get_qs_kind(qs_kind_set(ikind),dftb_parameter=dftb_kind)
+!          CALL get_dftb_atom_param(dftb_kind,zeff=zeff)
+!          DO iatom=1,nat
+!             iat = atomic_kind_set(ikind)%atom_list(iatom)
+!             mcharge(iat) = zeff - SUM(charges(iat,1:nspins))
+!          END DO
+!       END DO
+!    END IF
+!    CALL f_env_rm_defaults(f_env,error,ierr)
+!
+!  END SUBROUTINE get_mcharge 
 END MODULE f77_interface
