@@ -297,16 +297,17 @@ MODULE paramopt_worker
     !print *,'this is inp',this%inp_file
     !----for D3 optimization---------------------------
     allocate(d3_ptr(3)) !gets deallocated automatically ??? at least it seems
-    !this%D3 = (/1._dp,this%x(2:3)/)
-    !this%D3 = (/1._dp,this%x(1:2)/)
-    this%D3 = this%x(1:3) 
+    this%D3 = (/1._dp,this%x(2:3)/)
+!    this%D3 = (/1._dp,this%x(1:2)/)
+    !this%D3 = this%x(1:3) 
     d3_ptr = this%D3
     !----for dftb3 param optimization-----------------
 !    ! NEEDS TO BE ADJUSTED !!!!!!!!!!!!!!!!!
-!    allocate(dftb3_param(4))
-!    dftb3_param = this%x(4:7)
+!    !allocate(dftb3_param(4))
+!    allocate(dftb3_param(2))
+!    dftb3_param = this%x(3:4)
     !---for hb param optimization---------------------
-!    hb_para = this%x(1)
+    hb_para = this%x(1)
     !-------------------------------------------------
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%SUBSYS%TOPOLOGY%COORD_FILE_NAME", &
@@ -321,10 +322,10 @@ MODULE paramopt_worker
                               "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%D3_SCALING", &
                               r_vals_ptr=d3_ptr, error = this%error)
     
-!    CALL section_vals_val_set(this%root_section, &
-!                              "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%HB_SR_PARAM", &
-!                              r_val=hb_para, error = this%error)
-!    
+    CALL section_vals_val_set(this%root_section, &
+                              "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%HB_SR_PARAM", &
+                              r_val=hb_para, error = this%error)
+    
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%DFT%CHARGE", &
                               i_val=this%charge, error = this%error)

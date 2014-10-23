@@ -2480,7 +2480,10 @@ CONTAINS
     ! according to Elstner M, Theor. Chem. Acc. 2006, 116, 316-325,
     ! this should only be applied to a-b pairs involving hydrogen.
     IF (hb_para > 0.0_dp) THEN
-      gamma = gamma * EXP(-(0.5_dp*(ga+gb))**hb_para *r*r)
+      ! yannick's code again
+      gamma = gamma * (-0.3_dp*EXP(-(r-3.0)**2._dp/(hb_para)**2._dp)+1._dp)
+      !gamma = gamma * 1.0_dp/(1._dp + EXP((r-3.5_dp)/(hb_para)))
+      !gamma = gamma * EXP(-(0.5_dp*(ga+gb))**hb_para *r*r)
     END IF
   END FUNCTION gamma_rab_sr
 
