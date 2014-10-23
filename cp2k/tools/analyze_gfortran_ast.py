@@ -33,6 +33,8 @@ BANNED_CALL += ('SGEMM',  'DGEMM',  'CGEMM',  'ZGEMM',  'SSYMM',  'DSYMM',  'CSY
                 'CTRMM',  'ZTRMM',  'STRSM',  'DTRSM',  'CTRSM',  'ZTRSM',  'SDSDOT', 'DSDOT',
                 'DCABS1', 'LSAME',  'SCABS1')
 
+BANNED_CALL += ('CP_FM_GEMM', )
+
 # precompile regex
 re_procedure = re.compile(r"^\s*procedure name = (.*)$")
 re_symbol    = re.compile(r"^\s*symtree.* symbol: '([^']+)'.*$")
@@ -109,7 +111,7 @@ def process_log_file(fn):
             continue
 
         if(tokens and tokens[0]=="!$OMP"):
-            if("PARALLEL" in line and "DEFAULT(NONE)" not in line):
+            if("OMP PARALLEL" in line and "DEFAULT(NONE)" not in line):
                 issues.append(fn+': OMP PARALLEL without DEFAULT(NONE) found in "'+curr_procedure+'"')
 
     return(issues)

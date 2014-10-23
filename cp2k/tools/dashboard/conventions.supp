@@ -88,8 +88,8 @@ ai_spin_orbit.F.ast: Symbol "coset" in procedure "ai_spin_orbit" is IMPLICIT-SAV
 ai_spin_orbit.F.ast: Symbol "ncoset" in procedure "ai_spin_orbit" is IMPLICIT-SAVE
 ai_verfc.F.ast: Symbol "coset" in procedure "ai_verfc" is IMPLICIT-SAVE
 ai_verfc.F.ast: Symbol "ncoset" in procedure "ai_verfc" is IMPLICIT-SAVE
-almo_scf.F.ast: Found CLOSE statement in procedure "almo_scf_xalmo_pcg"
-almo_scf.F.ast: Found OPEN statement in procedure "almo_scf_xalmo_pcg"
+almo_scf_optimizer.F.ast: Found CLOSE statement in procedure "almo_scf_xalmo_pcg"
+almo_scf_optimizer.F.ast: Found OPEN statement in procedure "almo_scf_xalmo_pcg"
 ao_util.F.ast: Symbol "coset" in procedure "ao_util" is IMPLICIT-SAVE
 ao_util.F.ast: Symbol "indco" in procedure "ao_util" is IMPLICIT-SAVE
 ao_util.F.ast: Symbol "nco" in procedure "ao_util" is IMPLICIT-SAVE
@@ -761,6 +761,7 @@ qs_integrate_potential_single.F.ast: Symbol "nsoset" in procedure "qs_integrate_
 qs_integrate_potential_single.F.ast: Symbol "orbtramat" in procedure "qs_integrate_potential_single" is IMPLICIT-SAVE
 qs_kind_types.F.ast: Symbol "nco" in procedure "qs_kind_types" is IMPLICIT-SAVE
 qs_kind_types.F.ast: Symbol "ncoset" in procedure "qs_kind_types" is IMPLICIT-SAVE
+qs_kind_types.F.ast: Symbol "ptable" in procedure "qs_kind_types" is IMPLICIT-SAVE
 qs_kinetic.F.ast: Symbol "ncoset" in procedure "qs_kinetic" is IMPLICIT-SAVE
 qs_ks_atom.F.ast: Found CALL DGEMM in procedure "add_vhxca_forces"
 qs_ks_atom.F.ast: Found CALL DGEMM in procedure "add_vhxca_to_ks"
@@ -1111,3 +1112,6 @@ xyz_to_vab_optimised.F.ast: Symbol "real" in procedure "xyz_to_vab_4_1" is IMPLI
 xyz_to_vab_optimised.F.ast: Symbol "real" in procedure "xyz_to_vab_4_2" is IMPLICIT-TYPE
 xyz_to_vab_optimised.F.ast: Symbol "real" in procedure "xyz_to_vab_4_3" is IMPLICIT-TYPE
 xyz_to_vab_optimised.F.ast: Symbol "real" in procedure "xyz_to_vab_4_4" is IMPLICIT-TYPE
+cp_dbcsr_operations.F.ast: Found CALL CP_FM_GEMM in procedure "cp_dbcsr_plus_fm_fm_t_native"
+cp_fm_basic_linalg.F.ast: Found CALL CP_FM_GEMM in procedure "cp_complex_fm_gemm"
+cp_gemm_interface.F.ast: Found CALL CP_FM_GEMM in procedure "cp_gemm"
