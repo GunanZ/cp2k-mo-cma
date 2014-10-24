@@ -275,7 +275,7 @@ MODULE paramopt_worker
     REAL(KIND=dp),DIMENSION(:),POINTER       :: x => Null()
     REAL(KIND=dp),POINTER                    :: energy
     REAL(KIND=dp),POINTER                    :: rmsd
-    REAL(KIND=dp)                            :: hb_para
+    REAL(KIND=dp),DIMENSION(:),POINTER       :: hb_para => Null()
     REAL(KIND=dp),DIMENSION(:),POINTER       :: dftb3_param => Null()
     REAL(KIND=dp),DIMENSION(:),POINTER       :: d3_ptr => Null()
     REAL(KIND=dp),DIMENSION(:),ALLOCATABLE   :: pos,pos2
@@ -297,7 +297,7 @@ MODULE paramopt_worker
     !print *,'this is inp',this%inp_file
     !----for D3 optimization---------------------------
     allocate(d3_ptr(3)) !gets deallocated automatically ??? at least it seems
-    this%D3 = (/1._dp,this%x(2:3)/)
+    this%D3 = (/1._dp,this%x(1:2)/)
 !    this%D3 = (/1._dp,this%x(1:2)/)
     !this%D3 = this%x(1:3) 
     d3_ptr = this%D3
@@ -307,7 +307,10 @@ MODULE paramopt_worker
 !    allocate(dftb3_param(2))
 !    dftb3_param = this%x(3:4)
     !---for hb param optimization---------------------
-    hb_para = this%x(1)
+!    allocate(hb_para(3))
+!    hb_para = 0._dp
+!    hb_para(1) = this%x(1)
+!    hb_para(2) = this%x(2)
     !-------------------------------------------------
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%SUBSYS%TOPOLOGY%COORD_FILE_NAME", &
@@ -322,9 +325,9 @@ MODULE paramopt_worker
                               "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%D3_SCALING", &
                               r_vals_ptr=d3_ptr, error = this%error)
     
-    CALL section_vals_val_set(this%root_section, &
-                              "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%HB_SR_PARAM", &
-                              r_val=hb_para, error = this%error)
+!    CALL section_vals_val_set(this%root_section, &
+!                              "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%HB_SR_PARAM", &
+!                              r_vals_ptr=hb_para, error = this%error)
     
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%DFT%CHARGE", &

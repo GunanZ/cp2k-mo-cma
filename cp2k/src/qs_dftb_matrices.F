@@ -138,8 +138,9 @@ CONTAINS
                                                 use_virial
     REAL(KIND=dp)                            :: ddr, dgam, dgrd, dr, drm, &
                                                 drp, erep, erepij, f0, f1, &
-                                                foab, fow, ga, gb, hb_para, &
+                                                foab, fow, ga, gb, &
                                                 s_cut, urep_cut
+    REAL(KIND=dp), DIMENSION(3)              :: hb_para
     REAL(KIND=dp), DIMENSION(0:3)            :: eta_a, eta_b, skself
     REAL(KIND=dp), DIMENSION(10)             :: urep
     REAL(KIND=dp), DIMENSION(2)              :: surr
@@ -1449,9 +1450,10 @@ CONTAINS
     INTEGER                                  :: handle, Imm, Imp, IndMM, Ipot
     REAL(KIND=dp)                            :: dr, qeff, rt1, rt2, rt3, &
                                                 sph_chrg_factor, sr
-    REAL(KIND=dp), DIMENSION(3)              :: r_pbc, rij
+    REAL(KIND=dp), DIMENSION(3)              :: r_pbc, rij ,hb_para=0._dp
     TYPE(qmmm_pot_type), POINTER             :: Pot
-
+    
+    
     CALL timeset(routineN,handle)
     ! Loop Over MM atoms
     ! Loop over Pot stores atoms with the same charge
@@ -1475,7 +1477,7 @@ CONTAINS
           END IF
           IF (ABS(qeff)<=EPSILON(0.0_dp)) CYCLE
           IF(dr > rtiny) THEN
-             sr = gamma_rab_sr(dr,qm_alpha,eta_mm,0.0_dp)
+             sr = gamma_rab_sr(dr,qm_alpha,eta_mm,hb_para)
              qpot = qpot + qeff*(1.0_dp/dr - sr)
           END IF
        END DO LoopMM
@@ -1529,7 +1531,7 @@ CONTAINS
     INTEGER                                  :: handle, Imm, Imp, IndMM, Ipot
     REAL(KIND=dp)                            :: dr, drm, drp, dsr, fsr, qeff, &
                                                 rt1, rt2, rt3, sph_chrg_factor
-    REAL(KIND=dp), DIMENSION(3)              :: force_ab, r_pbc, rij
+    REAL(KIND=dp), DIMENSION(3)              :: force_ab, r_pbc, rij, hb_para=0._dp
     TYPE(qmmm_pot_type), POINTER             :: Pot
 
     CALL timeset(routineN,handle)
@@ -1557,8 +1559,8 @@ CONTAINS
           IF(dr > rtiny) THEN
             drp = dr + ddrmm
             drm = dr - ddrmm
-            dsr = 0.5_dp*(gamma_rab_sr(drp,qm_alpha,eta_mm,0.0_dp)-&
-                          gamma_rab_sr(drm,qm_alpha,eta_mm,0.0_dp))/ddrmm
+            dsr = 0.5_dp*(gamma_rab_sr(drp,qm_alpha,eta_mm,hb_para)-&
+                          gamma_rab_sr(drm,qm_alpha,eta_mm,hb_para))/ddrmm
             fsr = qeff*qcharge*(-1.0_dp/(dr*dr) - dsr)
             force_ab = fsr * rij/dr
           ELSE
@@ -2446,7 +2448,8 @@ CONTAINS
 !> \version 1.1
 ! *****************************************************************************
   FUNCTION gamma_rab_sr(r,ga,gb,hb_para) RESULT(gamma)
-    REAL(dp), INTENT(in)                     :: r, ga, gb, hb_para
+    REAL(dp), INTENT(in)                     :: r, ga, gb
+    REAL(dp), DIMENSION(3), INTENT(in)       :: hb_para
     REAL(dp)                                 :: gamma
 
     REAL(dp)                                 :: a, b, fac, g_sum
@@ -2479,9 +2482,9 @@ CONTAINS
     ! functional form from Hu H. et al., J. Phys. Chem. A 2007, 111, 5685-5691
     ! according to Elstner M, Theor. Chem. Acc. 2006, 116, 316-325,
     ! this should only be applied to a-b pairs involving hydrogen.
-    IF (hb_para > 0.0_dp) THEN
+    IF (hb_para(1) > 0.0_dp) THEN
       ! yannick's code again
-      gamma = gamma * (-0.3_dp*EXP(-(r-3.0)**2._dp/(hb_para)**2._dp)+1._dp)
+      gamma = gamma * (-hb_para(2)*EXP(-(r-3.0)**2._dp/(hb_para(1))**2._dp)+1._dp)
       !gamma = gamma * 1.0_dp/(1._dp + EXP((r-3.5_dp)/(hb_para)))
       !gamma = gamma * EXP(-(0.5_dp*(ga+gb))**hb_para *r*r)
     END IF
