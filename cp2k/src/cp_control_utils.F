@@ -471,6 +471,7 @@ CPSourceFileRef,&
     LOGICAL                                  :: explicit, failure, was_present
     REAL(dp)                                 :: tmp, tmpsqrt, value
     REAL(dp), POINTER                        :: scal(:)
+    REAL(dp), POINTER                        :: hb_para(:)
     TYPE(enumeration_type), POINTER          :: enum
     TYPE(keyword_type), POINTER              :: keyword
     TYPE(section_type), POINTER              :: section
@@ -891,7 +892,10 @@ CPSourceFileRef,&
        CALL section_vals_val_get(dftb_parameter,"PARAM_FILE_NAME",&
             c_val=qs_control%dftb_control%sk_file_list,error=error)
        CALL section_vals_val_get(dftb_parameter,"HB_SR_PARAM",&
-            r_val=qs_control%dftb_control%hb_sr_para,error=error)
+            r_vals=hb_para,error=error)
+            qs_control%dftb_control%hb_sr_para(1) = hb_para(1)
+            qs_control%dftb_control%hb_sr_para(2) = hb_para(2)
+            qs_control%dftb_control%hb_sr_para(3) = hb_para(3)
        CALL section_vals_val_get(dftb_parameter,"SK_FILE",n_rep_val=n_var,&
             error=error)
        ALLOCATE(qs_control%dftb_control%sk_pair_list(3,n_var),STAT=stat)

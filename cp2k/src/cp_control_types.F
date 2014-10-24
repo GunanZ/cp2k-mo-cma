@@ -73,7 +73,7 @@ MODULE cp_control_types
      INTEGER                              :: dispersion_type
      LOGICAL                              :: dftb3_diagonal
      LOGICAL                              :: hb_sr_damp
-     REAL(KIND = dp)                      :: hb_sr_para
+     REAL(KIND = dp), DIMENSION(3)        :: hb_sr_para
      REAL(KIND = dp)                      :: eps_disp
      REAL(KIND = dp)                      :: epscn
      REAL(KIND = dp)                      :: rcdisp
