@@ -2139,10 +2139,8 @@ CONTAINS
           END IF
           IF (ABS(qeff)<=qsmall) CYCLE
           IF(dr > rtiny) THEN
-<<<<<<< HEAD
              sr = gamma_rab_sr(dr,qm_alpha,eta_mm,hb_para)
              qpot = qpot + qeff*(1.0_dp/dr - sr)
-=======
              IF (pot_type==0) THEN
                 sr = gamma_rab_sr(dr,qm_alpha,eta_mm,0.0_dp)
                 qpot = qpot + qeff*(1.0_dp/dr - sr)
@@ -2155,7 +2153,6 @@ CONTAINS
              ELSE 
                 STOP
              END IF
->>>>>>> upstream/master
           END IF
        END DO LoopMM
     END DO MainLoopPot
