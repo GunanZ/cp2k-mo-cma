@@ -33,14 +33,10 @@ MODULE qmmm_init
                                              read_gp_section,&
                                              read_lj_section,&
                                              read_wl_section
-  USE input_constants,                 ONLY: RADIUS_QMMM_DEFAULT,&
-                                             do_qmmm_gauss,&
-                                             do_qmmm_image_calcmatrix,&
-                                             do_qmmm_image_iter,&
-                                             do_qmmm_link_gho,&
-                                             do_qmmm_link_imomm,&
-                                             do_qmmm_link_pseudo,&
-                                             do_qmmm_swave
+  USE input_constants,                 ONLY: &
+       RADIUS_QMMM_DEFAULT, do_qmmm_gauss, do_qmmm_image_calcmatrix, &
+       do_qmmm_image_iter, do_qmmm_link_gho, do_qmmm_link_imomm, &
+       do_qmmm_link_pseudo, do_qmmm_pcharge, do_qmmm_swave
   USE input_section_types,             ONLY: section_vals_get,&
                                              section_vals_get_subs_vals,&
                                              section_vals_type,&
@@ -375,11 +371,13 @@ CONTAINS
                                      qmmm_section=qmmm_section,&
                                      error=error)
 
-       IF ((qmmm_env_qm%qmmm_coupl_type == do_qmmm_gauss).OR.(qmmm_env_qm%qmmm_coupl_type == do_qmmm_swave)) THEN
+       SELECT CASE(qmmm_env_qm%qmmm_coupl_type)
+       CASE(do_qmmm_gauss,do_qmmm_swave,do_qmmm_pcharge)
           DO i = 1, SIZE(maxradius)
              maxradius(i) = MAX( maxradius(i), maxradius2(i))
           END DO
-       END IF
+       END SELECT
+
        IF (ASSOCIATED(maxradius2)) DEALLOCATE(maxradius2, stat=stat)
        CPPostcondition(stat==0,cp_failure_level,routineP,error,failure)
     END IF

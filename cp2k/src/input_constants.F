@@ -305,6 +305,7 @@ MODULE input_constants
                                               do_qmmm_coulomb=1,&
                                               do_qmmm_gauss=2,&
                                               do_qmmm_swave=3,&
+                                              do_qmmm_pcharge=4,&
                                               do_qmmm_link_imomm=1,&
                                               do_qmmm_link_gho=2,&
                                               do_qmmm_link_pseudo=3,&
@@ -583,9 +584,6 @@ MODULE input_constants
   INTEGER, PARAMETER, PUBLIC               :: model_block_count=453, &
                                               model_block_surface=454, &
                                               model_block_lmax=455
-  ! optimization targets for distribution 2d
-  INTEGER, PARAMETER, PUBLIC               :: opt_target_minimum=456, &
-                                              opt_target_median=457
 
   ! clustering methods
   INTEGER, PARAMETER, PUBLIC               :: clustering_none=0, &
