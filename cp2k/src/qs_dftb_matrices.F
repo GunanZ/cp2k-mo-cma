@@ -2139,13 +2139,11 @@ CONTAINS
           END IF
           IF (ABS(qeff)<=qsmall) CYCLE
           IF(dr > rtiny) THEN
-             sr = gamma_rab_sr(dr,qm_alpha,eta_mm,hb_para)
-             qpot = qpot + qeff*(1.0_dp/dr - sr)
              IF (pot_type==0) THEN
-                sr = gamma_rab_sr(dr,qm_alpha,eta_mm,0.0_dp)
+                sr = gamma_rab_sr(dr,qm_alpha,eta_mm,hb_para)
                 qpot = qpot + qeff*(1.0_dp/dr - sr)
              ELSE IF (pot_type==1) THEN
-                sr = gamma_rab_sr(dr,qm_alpha,eta_mm,0.0_dp)
+                sr = gamma_rab_sr(dr,qm_alpha,eta_mm,hb_para)
                 qpot = qpot - qeff*sr
              ELSE IF (pot_type==2) THEN
                 sr = erfc(qm_alpha*dr)/dr
@@ -2233,23 +2231,15 @@ CONTAINS
           END IF
           IF (ABS(qeff)<=qsmall) CYCLE
           IF(dr > rtiny) THEN
-<<<<<<< HEAD
-            drp = dr + ddrmm
-            drm = dr - ddrmm
-            dsr = 0.5_dp*(gamma_rab_sr(drp,qm_alpha,eta_mm,hb_para)-&
-                          gamma_rab_sr(drm,qm_alpha,eta_mm,hb_para))/ddrmm
-            fsr = qeff*qcharge*(-1.0_dp/(dr*dr) - dsr)
-            force_ab = fsr * rij/dr
-=======
              drp = dr + ddrmm
              drm = dr - ddrmm
              IF (pot_type==0) THEN
-                dsr = 0.5_dp*(gamma_rab_sr(drp,qm_alpha,eta_mm,0.0_dp)-&
-                              gamma_rab_sr(drm,qm_alpha,eta_mm,0.0_dp))/ddrmm
+                dsr = 0.5_dp*(gamma_rab_sr(drp,qm_alpha,eta_mm,hb_para)-&
+                              gamma_rab_sr(drm,qm_alpha,eta_mm,hb_para))/ddrmm
                 fsr = qeff*qcharge*(-1.0_dp/(dr*dr) - dsr)
              ELSE IF (pot_type==1) THEN
-                dsr = 0.5_dp*(gamma_rab_sr(drp,qm_alpha,eta_mm,0.0_dp)-&
-                              gamma_rab_sr(drm,qm_alpha,eta_mm,0.0_dp))/ddrmm
+                dsr = 0.5_dp*(gamma_rab_sr(drp,qm_alpha,eta_mm,hb_para)-&
+                              gamma_rab_sr(drm,qm_alpha,eta_mm,hb_para))/ddrmm
                 fsr = -qeff*qcharge*dsr
              ELSE IF (pot_type==2) THEN
                 dsr = 0.5_dp*(erfc(qm_alpha*drp)/drp-erfc(qm_alpha*drm)/drm)/ddrmm
@@ -2258,7 +2248,6 @@ CONTAINS
                 STOP
              END IF
              force_ab = fsr * rij/dr
->>>>>>> upstream/master
           ELSE
              force_ab = 0.0_dp
           END IF
