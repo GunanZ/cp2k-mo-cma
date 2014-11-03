@@ -301,17 +301,17 @@ MODULE paramopt_worker
 !    this%D3 = (/1._dp,this%x(1:2)/)
     !this%D3 = this%x(1:3) 
     d3_ptr = this%D3
-    !----for dftb3 param optimization-----------------
+!    !----for dftb3 param optimization-----------------
 !    ! NEEDS TO BE ADJUSTED !!!!!!!!!!!!!!!!!
 !    !allocate(dftb3_param(4))
 !    allocate(dftb3_param(2))
-!    dftb3_param = this%x(3:4)
-    !---for hb param optimization---------------------
+!    dftb3_param = this%x(1:2)
+!    !---for hb param optimization---------------------
 !    allocate(hb_para(3))
 !    hb_para = 0._dp
 !    hb_para(1) = this%x(1)
 !    hb_para(2) = this%x(2)
-    !-------------------------------------------------
+!    !-------------------------------------------------
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%SUBSYS%TOPOLOGY%COORD_FILE_NAME", &
                               c_val=this%inp_file, error = this%error)
@@ -328,7 +328,7 @@ MODULE paramopt_worker
 !    CALL section_vals_val_set(this%root_section, &
 !                              "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%HB_SR_PARAM", &
 !                              r_vals_ptr=hb_para, error = this%error)
-    
+!    
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%DFT%CHARGE", &
                               i_val=this%charge, error = this%error)
