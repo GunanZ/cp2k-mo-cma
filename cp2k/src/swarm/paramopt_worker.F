@@ -305,15 +305,6 @@ MODULE paramopt_worker
 !    ! NEEDS TO BE ADJUSTED !!!!!!!!!!!!!!!!!
 !    !allocate(dftb3_param(4))
 !    allocate(dftb3_param(2))
-<<<<<<< HEAD
-!    dftb3_param = this%x(1:2)
-!    !---for hb param optimization---------------------
-!    allocate(hb_para(3))
-!    hb_para = 0._dp
-!    hb_para(1) = this%x(1)
-!    hb_para(2) = this%x(2)
-!    !-------------------------------------------------
-=======
 !    dftb3_param = this%x(3:4)
     !---for hb param optimization---------------------
     allocate(hb_para(3))
@@ -321,31 +312,24 @@ MODULE paramopt_worker
     hb_para(1) = this%x(1)
     hb_para(2) = this%x(2)
    !-------------------------------------------------
->>>>>>> 36c046f26d2333b20b6fdf31b441f285959acf83
     CALL section_vals_val_set(this%root_section, &
-                              "FORCE_EVAL%SUBSYS%TOPOLOGY%COORD_FILE_NAME", &
-                              c_val=this%inp_file, error = this%error)
+                                  "FORCE_EVAL%SUBSYS%TOPOLOGY%COORD_FILE_NAME",&
+                                  c_val=this%inp_file,error=this%error)
 !    do i=1,size(dftb3_param)
-!        CALL section_vals_val_set(this%root_section, &
-!                                  i_rep_section=i,&
-!                                  keyword_name="FORCE_EVAL%SUBSYS%KIND%DFTB3_PARAM", &
-!                                  r_val=dftb3_param(i), error = this%error)
+!       CALL section_vals_val_set(this%root_section, &
+!                                 i_rep_section=i,&
+!                                 keyword_name="FORCE_EVAL%SUBSYS%KIND%DFTB3_PARAM",&
+!                                 r_val=dftb3_param(i), error = this%error)
 !    enddo
     CALL section_vals_val_set(this%root_section, &
-                              "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%D3_SCALING", &
-                              r_vals_ptr=d3_ptr, error = this%error)
-    
-<<<<<<< HEAD
-!    CALL section_vals_val_set(this%root_section, &
-!                              "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%HB_SR_PARAM", &
-!                              r_vals_ptr=hb_para, error = this%error)
-!    
-=======
+                              "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%D3_SCALING",&
+                              r_vals_ptr=d3_ptr,error=this%error)
+                                                                    
+
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%HB_SR_PARAM", &
                               r_vals_ptr=hb_para, error = this%error)
     
->>>>>>> 36c046f26d2333b20b6fdf31b441f285959acf83
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%DFT%CHARGE", &
                               i_val=this%charge, error = this%error)
