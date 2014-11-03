@@ -10,7 +10,9 @@
 !> \author fawzi
 ! *****************************************************************************
 MODULE input_cp2k
-  USE cp_dbcsr_interface,              ONLY: dbcsr_type_complex_4,&
+  USE cp_dbcsr_interface,              ONLY: dbcsr_test_arnoldi,&
+                                             dbcsr_test_mm,&
+                                             dbcsr_type_complex_4,&
                                              dbcsr_type_complex_8,&
                                              dbcsr_type_real_4,&
                                              dbcsr_type_real_8
@@ -1147,6 +1149,19 @@ CONTAINS
          "Real (Double Precision)",&
          "Complex (Single Precision)",&
          "Complex (Double Precision)"),&
+         error=error)
+    CALL section_add_keyword(section,keyword,error=error)
+    CALL keyword_release(keyword,error=error)
+
+    CALL keyword_create(keyword, name="TEST_TYPE",&
+         description="Which part of DBCSR is tested",&
+         usage="TEST_TYPE MM",&
+         default_i_val=dbcsr_test_mm,&
+         enum_c_vals=s2a("MM", "ARNOLDI"),&
+         enum_i_vals=(/ dbcsr_test_mm, dbcsr_test_arnoldi/),&
+         enum_desc=s2a(&
+         "Run matrix multiplications",&
+         "Run the Arnoldi eigenvalue routines (acts as check for the matrix vector part as well)"),&
          error=error)
     CALL section_add_keyword(section,keyword,error=error)
     CALL keyword_release(keyword,error=error)
