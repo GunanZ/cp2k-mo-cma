@@ -11,6 +11,7 @@ import sys
 import os
 import urllib2
 import re
+import gzip
 from datetime import datetime, timedelta
 import subprocess
 import traceback
@@ -47,15 +48,21 @@ def main():
     threshold_rev = revs_beyond_threshold[0]
     print "threshold_rev: ", threshold_rev
 
-    output  = '<html>\n'
-    output += '<head><meta http-equiv="refresh" content="200"></head>\n'
-    output += '<body>\n'
+    output  = '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">\n'
+    output += '<html><head>\n'
+    output += '<meta http-equiv="Content-Type" content="text/html; charset=utf-8">\n'
+    output += '<meta http-equiv="refresh" content="200">\n'
+    output += '<title>CP2K Dashboard</title>\n'
+    output += '</head><body>\n'
     output += '<center><h1>CP2K DASHBOARD</h1>\n'
-    output += '<table border="1">\n'
+    output += '<table border="1" cellspacing="3" cellpadding="5">\n'
     output += '<tr><th>Name</th><th>Host</th><th>Status</th>'
-    output += '<th>Revision</th><th>Summary</th><th>Since</th></tr>\n\n'
+    output += '<th>Revision</th><th>Summary</th><th>Last OK</th></tr>\n\n'
 
-    for s in sorted(config.sections()):
+    def get_sortkey(s):
+        return config.getint(s, "sortkey")
+
+    for s in sorted(config.sections(), key=get_sortkey):
         print "Working on: "+s
         name        = config.get(s,"name")
         host        = config.get(s,"host")
@@ -76,8 +83,8 @@ def main():
             if(report['revision'] < threshold_rev):
                 report['status'] = "OUTDATED"
 
-            fn = outdir+"archive/%s/rev_%d.txt"%(s,report['revision'])
-            write_file(fn, report_txt)
+            fn = outdir+"archive/%s/rev_%d.txt.gz"%(s,report['revision'])
+            write_file(fn, report_txt, gz=True)
         except:
             print traceback.print_exc()
             report = dict()
@@ -98,7 +105,7 @@ def main():
             bgcolor = "#FF0000"
         else:
             bgcolor = "#d3d3d3"
-        output += '<td bgcolor=%s><a href="%s">%s</a></td>'%(bgcolor, report_url, report['status'])
+        output += '<td bgcolor="%s"><a href="%s">%s</a></td>'%(bgcolor, report_url, report['status'])
 
         #Revision
         if(report.has_key('revision')):
@@ -114,7 +121,7 @@ def main():
         #Since
         if(report['status'] != "OK"):
             if(last_ok.has_key(s)):
-                output += rev_link(last_ok[s]+1, trunk_revision)
+                output += rev_link(last_ok[s], trunk_revision)
             else:
                 output += '<td>N/A</td>'
         else:
@@ -130,12 +137,14 @@ def main():
     write_file(outdir+"index.html", output)
 
 #===============================================================================
-def write_file(fn, content):
+def write_file(fn, content, gz=False):
     d = path.dirname(fn)
     if(len(d) > 0 and not path.exists(d)):
         os.makedirs(d)
         print("Created dir: "+d)
-    open(fn, "w").write(content)
+    f = gzip.open(fn, 'wb') if(gz) else open(fn, "w")
+    f.write(content)
+    f.close()
     print("Wrote: "+fn)
 
 #===============================================================================
@@ -162,7 +171,7 @@ def rev_link(rev, trunk_rev):
 #===============================================================================
 def parse_regtest_report(report_txt):
     report = dict()
-    report['revision']  = int(re.search("revision (\d+)\.\n", report_txt).group(1))
+    report['revision']  = int(re.search("(revision|Revision:) (\d+)\.?\n", report_txt).group(2))
 
     m = re.search("\nGREPME (\d+) (\d+) (\d+) (\d+) (\d+) (.+)\n", report_txt)
     runtime_errors = int(m.group(1))
