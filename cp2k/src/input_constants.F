@@ -423,7 +423,8 @@ MODULE input_constants
                                               ot_precond_full_single_inverse=6
   INTEGER, PARAMETER, PUBLIC               :: ot_precond_solver_default=1,&
                                               ot_precond_solver_inv_chol=2,&
-                                              ot_precond_solver_direct=3
+                                              ot_precond_solver_direct=3,&
+                                              ot_precond_solver_update=4
 
   INTEGER, PARAMETER, PUBLIC               :: diag_standard=1,&
                                               diag_ot=2, diag_block_krylov=3,&
@@ -638,7 +639,9 @@ MODULE input_constants
                                               do_admm_purify_cauchy_subspace=3,&
                                               do_admm_purify_mo_diag=4,&
                                               do_admm_purify_mo_no_diag=5,&
-                                              do_admm_purify_mcweeny=6
+                                              do_admm_purify_mcweeny=6,&
+                                              do_admm_purify_none_dm=7
+
   ! This parameter defines when to use blocking
   INTEGER, PARAMETER, PUBLIC               :: do_admm_basis_projection=0,&
                                               do_admm_blocking_purify_full=1,&

@@ -23,8 +23,10 @@ MODULE ma_affinity
                                              int_4
   USE machine,                         ONLY: default_output_unit
   USE machine_architecture,            ONLY: &
-       ma_get_id, ma_get_mycore, ma_get_mynode, ma_get_ncores, ma_get_nnodes, &
-       ma_get_proc_core, ma_get_proc_node, ma_my_first_core, &
+       ma_get_core_node, ma_get_id, ma_get_mycore, ma_get_mynode, &
+       ma_get_ncores, ma_get_netDev, ma_get_nnetDev, ma_get_nnodes, &
+       ma_get_node_netDev, ma_get_proc_core, ma_get_proc_node, &
+       ma_get_thread_id, ma_hw_set_mempol, ma_my_first_core, &
        ma_set_proc_node, topology
   USE machine_architecture_types,      ONLY: &
        def, group, has_mpi, interleave, linear, local, ma_mp_type, &

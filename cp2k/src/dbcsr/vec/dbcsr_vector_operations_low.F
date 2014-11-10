@@ -40,19 +40,25 @@ MODULE dbcsr_vector_operations_low
                                              mp_sum
 ! types for mapping matrix blocks
 
+  !$ USE OMP_LIB
+
   IMPLICIT NONE
 
   TYPE block_ptr_d
     REAL(real_8), DIMENSION(:, :), POINTER          :: ptr =>NULL()
+    INTEGER                                         :: assigned_thread
   END TYPE
   TYPE block_ptr_s
     REAL(real_4), DIMENSION(:, :), POINTER          :: ptr =>NULL()
+    INTEGER                                         :: assigned_thread
   END TYPE
   TYPE block_ptr_c
     COMPLEX(real_4), DIMENSION(:, :), POINTER       :: ptr =>NULL()
+    INTEGER                                         :: assigned_thread
   END TYPE
   TYPE block_ptr_z
     COMPLEX(real_8), DIMENSION(:, :), POINTER       :: ptr =>NULL()
+    INTEGER                                         :: assigned_thread
   END TYPE
 
   PRIVATE
