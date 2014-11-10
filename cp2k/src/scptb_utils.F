@@ -131,7 +131,11 @@ CONTAINS
             ": No parameter xml given or element undefined. Using defaults."
         END IF
         !defaults, but undefined for most elements atm
-        CALL scptb_default_parameter(scptb_parameter,error) 
+        if (scptb_control%xopt(1) .gt. 0.) then
+          CALL scptb_default_parameter(scptb_parameter,error,scptb_control%xopt) 
+        else
+          CALL scptb_default_parameter(scptb_parameter,error)
+        endif
         CALL cp_print_key_finished_output(output_unit,logger,print_section,"KINDS",error=error)
       END IF
 

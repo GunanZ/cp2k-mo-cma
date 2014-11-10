@@ -43,11 +43,11 @@ CONTAINS
 !> \param param ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE scptb_default_parameter ( param, error)
+  SUBROUTINE scptb_default_parameter ( param, error, xopt)
     TYPE(scptb_parameter_type), &
-      INTENT(INOUT)                          :: param
-    TYPE(cp_error_type), INTENT(inout)       :: error
-
+      INTENT(INOUT)                             :: param
+    TYPE(cp_error_type), INTENT(inout)          :: error
+    REAL(kind=dp),DIMENSION(:),OPTIONAL         ::  xopt
     CHARACTER(len=*), PARAMETER :: routineN = 'scptb_default_parameter', &
       routineP = moduleN//':'//routineN
 
@@ -77,6 +77,13 @@ CONTAINS
        param%pol(1:3)              = (/1.0_dp,1.0_dp,1.0_dp/)
        param%ag                    = 4.0_dp
        param%energy                = -0.5_dp
+       IF (present(xopt)) then
+            param%energy = -1.2010034_dp
+            param%zeta(1,0) = 1.2619947_dp
+            param%hcore(1,0) = -0.991475_dp 
+            param%ag = 0.2363_dp 
+            param%crep(1:3) = xopt
+       endif
 !   CASE (2)
 !      !Helium
 !   CASE (3)
@@ -106,6 +113,15 @@ CONTAINS
        param%pol(1:3)              = (/1.0_dp,1.0_dp,1.0_dp/)
        param%ag                    = 1.0_dp
        param%energy                = -0.5_dp
+       IF (present(xopt)) then
+            param%energy = -27.3762533_dp 
+            param%zeta(1,0) = 2.1163084_dp
+            param%zeta(1,1) = 2.2871721_dp
+            param%hcore(1,0) = -2.6715280_dp
+            param%hcore(1,1) = -4.0763620_dp
+            param%ag = 0.24483_dp 
+            param%crep(1:3) = (/4.59,273.0,41.07/)
+       endif
     CASE ("F")
        !Fluorine
        param%defined               = .TRUE.
