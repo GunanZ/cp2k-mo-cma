@@ -27,7 +27,6 @@ MODULE qmmm_init
   USE external_potential_types,        ONLY: fist_potential_type,&
                                              get_potential,&
                                              set_potential
-  USE f77_blas
   USE force_field_types,               ONLY: input_info_type
   USE force_fields_input,              ONLY: read_gd_section,&
                                              read_gp_section,&
@@ -1506,7 +1505,7 @@ CPSourceFileRef,&
     ALLOCATE(qmmm_env%image_charge_pot%image_mm_list(num_image_mm_atom),stat=stat)
     CPPostcondition(stat==0,cp_failure_level,routineP,error,failure)
 
-    qmmm_env%image_charge_pot%image_mm_list=0.
+    qmmm_env%image_charge_pot%image_mm_list=0
     num_image_mm_atom=1
 
     DO i = 1, n_var

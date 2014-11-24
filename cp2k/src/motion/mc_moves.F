@@ -21,7 +21,6 @@ MODULE mc_moves
   USE cp_subsys_types,                 ONLY: cp_subsys_get,&
                                              cp_subsys_set,&
                                              cp_subsys_type
-  USE f77_blas
   USE force_env_methods,               ONLY: force_env_calc_energy_force
   USE force_env_types,                 ONLY: force_env_get,&
                                              force_env_type,&
@@ -569,7 +568,8 @@ END SUBROUTINE mc_conformation_change
 ! call a random number to figure out which direction we're moving
       IF(ionode) rand=next_random_number(rng_stream,error=error)
       CALL mp_bcast(rand,source,group)
-      move_direction=AINT(3*rand)+1
+      ! 1,2,3 with equal prob
+      move_direction=INT(3*rand)+1
 
 ! call a random number to figure out how far we're moving
       IF(ionode) rand=next_random_number(rng_stream,error=error)
@@ -817,7 +817,8 @@ END SUBROUTINE mc_conformation_change
       IF(ionode) rand=next_random_number(rng_stream,error=error)
 !      CALL RANDOM_NUMBER(rand)
       CALL mp_bcast(rand,source,group)
-      dir=AINT(3*rand)+1
+      ! 1,2,3 with equal prob
+      dir=INT(3*rand)+1
 
       IF (dir .EQ. 1) THEN
          lx = .TRUE.
@@ -1441,8 +1442,8 @@ END SUBROUTINE mc_conformation_change
       ALLOCATE(atom_b(1:natom),STAT=istat)
       IF (istat /= 0) CALL stop_memory(routineN,moduleN,__LINE__,&
                        "atom_b",natom)
-      connection(:,:)=0.0_dp
-      connectivity(:,:)=0.0_dp
+      connection(:,:)=0
+      connectivity(:,:)=0
       counter(:)=0
       atom_a(:)=0
       atom_b(:)=0
@@ -1638,8 +1639,8 @@ END SUBROUTINE mc_conformation_change
       ALLOCATE(atom_c(1:natom),STAT=istat)
       IF (istat /= 0) CALL stop_memory(routineN,moduleN,__LINE__,&
                        "atom_c",natom)
-      connection(:,:)=0.0_dp
-      connectivity(:,:)=0.0_dp
+      connection(:,:)=0
+      connectivity(:,:)=0
       counter(:)=0
       atom_a(:)=0
       atom_c(:)=0
@@ -1928,8 +1929,8 @@ END SUBROUTINE mc_conformation_change
       ALLOCATE(atom_d(1:natom),STAT=istat)
       IF (istat /= 0) CALL stop_memory(routineN,moduleN,__LINE__,&
                        "atom_d",natom)
-      connection(:,:)=0.0_dp
-      connectivity(:,:)=0.0_dp
+      connection(:,:)=0
+      connectivity(:,:)=0
       counter(:)=0
       atom_a(:)=0
       atom_d(:)=0

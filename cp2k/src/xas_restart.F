@@ -34,7 +34,6 @@ MODULE xas_restart
                                              cp_print_key_should_output,&
                                              cp_print_key_unit_nr
   USE cp_para_types,                   ONLY: cp_para_env_type
-  USE f77_blas
   USE input_section_types,             ONLY: section_vals_type
   USE kinds,                           ONLY: default_path_length,&
                                              default_string_length,&
@@ -50,7 +49,8 @@ MODULE xas_restart
                                              set_mo_occupation
   USE qs_rho_atom_types,               ONLY: rho_atom_type
   USE qs_rho_methods,                  ONLY: qs_rho_update_rho
-  USE qs_rho_types,                    ONLY: qs_rho_type
+  USE qs_rho_types,                    ONLY: qs_rho_get,&
+                                             qs_rho_type
   USE string_utilities,                ONLY: xstring
   USE timings,                         ONLY: timeset,&
                                              timestop
@@ -390,6 +390,8 @@ CPSourceFileRef,&
 
     INTEGER                                  :: handle, ispin
     LOGICAL                                  :: failure
+    TYPE(cp_dbcsr_p_type), DIMENSION(:), &
+      POINTER                                :: rho_ao
     TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(mo_set_p_type), DIMENSION(:), &
       POINTER                                :: mos
@@ -401,7 +403,7 @@ CPSourceFileRef,&
     CALL timeset(routineN,handle)
     failure=.FALSE.
 
-    NULLIFY(mos,rho,xas_env,para_env)
+    NULLIFY(mos,rho,xas_env,para_env,rho_ao)
 
     CALL get_qs_env(qs_env,&
                     mos=mos,&
@@ -410,6 +412,7 @@ CPSourceFileRef,&
                     para_env=para_env,&
                     error=error)
 
+    CALL qs_rho_get(rho, rho_ao=rho_ao, error=error)
     DO ispin=1,SIZE(mos)
        IF(ispin==1) THEN
          CALL set_mo_occupation(mo_set=qs_env%mos(ispin)%mo_set, smear=xas_env%smear,&
@@ -419,7 +422,7 @@ CPSourceFileRef,&
               error=error)
        END IF
        CALL calculate_density_matrix(mo_set=mos(ispin)%mo_set,&
-            density_matrix=rho%rho_ao(ispin)%matrix,error=error)
+            density_matrix=rho_ao(ispin)%matrix,error=error)
 
     END DO
 

@@ -16,7 +16,6 @@ MODULE topology_cp2k
                                              parser_create,&
                                              parser_release
   USE cp_units,                        ONLY: cp_unit_to_cp2k
-  USE f77_blas
   USE input_section_types,             ONLY: section_get_ival,&
                                              section_get_rval,&
                                              section_vals_get,&
@@ -141,7 +140,7 @@ CONTAINS
        IF (eof) EXIT
        natom = natom + 1
        IF (natom > SIZE(atom_info%id_atmname)) THEN
-          newsize = pfactor*natom
+          newsize = INT(pfactor*natom)
           CALL reallocate(atom_info%id_molname,1,newsize)
           CALL reallocate(atom_info%id_resname,1,newsize)
           CALL reallocate(atom_info%resid,1,newsize)

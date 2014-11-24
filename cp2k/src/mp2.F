@@ -39,7 +39,6 @@ MODULE mp2
   USE cp_para_env,                     ONLY: cp_para_env_create,&
                                              cp_para_env_release
   USE cp_para_types,                   ONLY: cp_para_env_type
-  USE f77_blas
   USE hfx_energy_potential,            ONLY: integrate_four_center
   USE hfx_types,                       ONLY: &
        alloc_containers, dealloc_containers, hfx_basis_info_type, &
@@ -81,7 +80,8 @@ MODULE mp2
                                              get_mo_set,&
                                              init_mo_set,&
                                              mo_set_p_type
-  USE qs_rho_types,                    ONLY: qs_rho_type
+  USE qs_rho_types,                    ONLY: qs_rho_get,&
+                                             qs_rho_type
   USE qs_scf_methods,                  ONLY: eigensolver
   USE qs_scf_types,                    ONLY: qs_scf_env_type
   USE timings,                         ONLY: timeset,&
@@ -971,7 +971,7 @@ MODULE mp2
                        (8*(2*dimen-occ_i)*INT(dimen,KIND=int_8)*my_J_batch_size/para_env_sub%num_pe))) &
                    ,my_I_batch_size)
     IF(max_batch_size<1) THEN
-       max_batch_size=(8*(occ_i+1)*INT(dimen,KIND=int_8)**2/para_env%num_pe)/1024**2
+       max_batch_size=INT((8*(occ_i+1)*INT(dimen,KIND=int_8)**2/para_env%num_pe)/1024**2)
        IF (unit_nr>0) WRITE(unit_nr,'(T3,A,T73,I6,A2)') 'More memory required, at least:',max_batch_size,'MB'
        max_batch_size=1
     END IF
@@ -1112,7 +1112,7 @@ MODULE mp2
     LOGICAL                                  :: failure
     REAL(KIND=dp)                            :: t1, t2
     TYPE(cp_dbcsr_p_type), DIMENSION(:), &
-      POINTER                                :: matrix_ks
+      POINTER                                :: matrix_ks, rho_ao
     TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(qs_energy_type), POINTER            :: energy
     TYPE(qs_rho_type), POINTER               :: rho
@@ -1123,7 +1123,7 @@ MODULE mp2
 
     t1=m_walltime()
 
-    NULLIFY(hfx_sections, input, para_env, matrix_ks, rho)
+    NULLIFY(hfx_sections, input, para_env, matrix_ks, rho, rho_ao)
 
     CALL get_qs_env(qs_env=qs_env, &
                     input=input, &
@@ -1132,6 +1132,7 @@ MODULE mp2
                     rho=rho, &
                     matrix_ks=matrix_ks, &
                     error=error)
+    CALL qs_rho_get(rho, rho_ao=rho_ao, error=error)
 
     hfx_sections => section_vals_get_subs_vals(input,"DFT%XC%WF_CORRELATION%RI_RPA%HF",error=error)
 
@@ -1150,7 +1151,7 @@ MODULE mp2
     energy%ex=0.0_dp
 
     DO irep = 1,n_rep_hf
-      CALL integrate_four_center(qs_env, matrix_ks, energy, rho%rho_ao, hfx_sections,&
+      CALL integrate_four_center(qs_env, matrix_ks, energy, rho_ao, hfx_sections,&
                                  para_env, .TRUE., irep, .TRUE.,&
                                  ispin=1, error=error, do_exx=.TRUE.)
     END DO

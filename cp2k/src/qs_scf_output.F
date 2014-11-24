@@ -13,7 +13,6 @@ MODULE qs_scf_output
                                              cp_print_key_should_output,&
                                              cp_print_key_unit_nr
   USE cp_para_types,                   ONLY: cp_para_env_type
-  USE f77_blas
   USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                              section_vals_type
   USE kahan_sum,                       ONLY: accurate_sum
@@ -33,7 +32,8 @@ MODULE qs_scf_output
                                              calculate_orthonormality
   USE qs_mo_types,                     ONLY: get_mo_set,&
                                              mo_set_p_type
-  USE qs_rho_types,                    ONLY: qs_rho_type
+  USE qs_rho_types,                    ONLY: qs_rho_get,&
+                                             qs_rho_type
   USE qs_scf_types,                    ONLY: qs_scf_env_type,&
                                              special_diag_method_nr
   USE scf_control_types,               ONLY: scf_control_type
@@ -297,16 +297,19 @@ CONTAINS
 
     INTEGER                                  :: handle, ispin
     REAL(kind=dp)                            :: tot1_h, tot1_s
+    REAL(KIND=dp), DIMENSION(:), POINTER     :: tot_rho_r
 
+     NULLIFY(tot_rho_r)
     CALL timeset(routineN,handle)
 
     IF (output_unit>0) THEN
+       CALL qs_rho_get(rho, tot_rho_r=tot_rho_r, error=error)
        IF(.NOT.(dft_control%qs_control%semi_empirical .OR. dft_control%qs_control%dftb .OR.&
                 dft_control%qs_control%scptb)) THEN
          WRITE (UNIT=output_unit,FMT="(/,(T3,A,T41,2F20.10))")&
            "Electronic density on regular grids: ",&
-            accurate_sum(rho%tot_rho_r),&
-            accurate_sum(rho%tot_rho_r) + nelectron_total ,&
+            accurate_sum(tot_rho_r),&
+            accurate_sum(tot_rho_r) + nelectron_total ,&
            "Core density on regular grids:",&
             qs_charges%total_rho_core_rspace,&
             qs_charges%total_rho_core_rspace - REAL(nelectron_total+dft_control%charge,dp)
@@ -322,16 +325,16 @@ CONTAINS
                   tot1_h, tot1_s
             WRITE (UNIT=output_unit,FMT="(T3,A,T41,F20.10)")&
                  "Total Rho_soft + Rho1_hard - Rho1_soft (r-space): ",&
-                 accurate_sum(rho%tot_rho_r)+ tot1_h - tot1_s ,&
+                 accurate_sum(tot_rho_r)+ tot1_h - tot1_s ,&
                  "Total charge density (r-space):      ",&
-                 accurate_sum(rho%tot_rho_r)+ tot1_h - tot1_s &
+                 accurate_sum(tot_rho_r)+ tot1_h - tot1_s &
                  + qs_charges%total_rho_core_rspace,&
                  "Total Rho_soft + Rho0_soft (g-space):",&
                  qs_charges%total_rho_gspace
          ELSE
            WRITE (UNIT=output_unit,FMT="(T3,A,T41,F20.10)")&
               "Total charge density on r-space grids:     ",&
-              accurate_sum(rho%tot_rho_r)+&
+              accurate_sum(tot_rho_r)+&
               qs_charges%total_rho_core_rspace,&
               "Total charge density g-space grids:     ",&
               qs_charges%total_rho_gspace
@@ -484,16 +487,13 @@ END SUBROUTINE qs_scf_print_scf_summary
     dft_section => section_vals_get_subs_vals(input,"DFT",error=error)
     scf_section => section_vals_get_subs_vals(dft_section,"SCF",error=error)
 
-    CALL get_qs_env(qs_env=qs_env, matrix_s=matrix_s, &
-                    matrix_ks=matrix_ks,rho=rho,mos=mos, &
-                    error=error)
-
-    matrix_p => rho%rho_ao
+    CALL get_qs_env(qs_env, rho=rho, mos=mos, error=error)
 
     DO ispin=1,dft_control%nspins
 
       IF (BTEST(cp_print_key_should_output(logger%iter_info,&
            dft_section,"PRINT%AO_MATRICES/DENSITY",error=error),cp_p_file)) THEN
+         CALL qs_rho_get(rho, rho_ao=matrix_p, error=error)
          iw = cp_print_key_unit_nr(logger,dft_section,"PRINT%AO_MATRICES/DENSITY",&
               extension=".Log",error=error)
          CALL cp_dbcsr_write_sparse_matrix(matrix_p(ispin)%matrix,4,6,qs_env,para_env,&
@@ -506,6 +506,7 @@ END SUBROUTINE qs_scf_print_scf_summary
            dft_section,"PRINT%AO_MATRICES/KOHN_SHAM_MATRIX",error=error),cp_p_file)) THEN
          iw = cp_print_key_unit_nr(logger,dft_section,"PRINT%AO_MATRICES/KOHN_SHAM_MATRIX",&
               extension=".Log",error=error)
+         CALL get_qs_env(qs_env=qs_env, matrix_ks=matrix_ks, error=error)
          IF (dft_control%qs_control%semi_empirical) THEN
             CALL cp_dbcsr_write_sparse_matrix(matrix_ks(ispin)%matrix,4,6,qs_env,para_env,&
                  scale=evolt,output_unit=iw,error=error)
@@ -524,6 +525,7 @@ END SUBROUTINE qs_scf_print_scf_summary
        IF(scf_env%method==special_diag_method_nr) THEN
          CALL calculate_orthonormality(orthonormality,mos,error=error)
        ELSE
+         CALL get_qs_env(qs_env=qs_env, matrix_s=matrix_s, error=error)
          CALL calculate_orthonormality(orthonormality,mos,matrix_s(1)%matrix,error=error)
        END IF
        iw=cp_print_key_unit_nr(logger,scf_section,"PRINT%MO_ORTHONORMALITY",&

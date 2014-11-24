@@ -31,8 +31,7 @@ MODULE dbcsr_dist_methods
                                              dbcsr_mp_nprows
   USE dbcsr_toollib,                   ONLY: sort
   USE dbcsr_types,                     ONLY: dbcsr_distribution_obj,&
-                                             dbcsr_mp_obj,&
-                                             dbcsr_obj
+                                             dbcsr_mp_obj
   USE kinds,                           ONLY: sp
   USE min_heap,                        ONLY: heap_fill,&
                                              heap_get_first,&
@@ -161,18 +160,6 @@ CONTAINS
   END SUBROUTINE dbcsr_distribution_new
 
 ! *****************************************************************************
-!> \brief ...
-!> \param matrix ...
-!> \retval distribution ...
-! *****************************************************************************
-  FUNCTION dbcsr_distribution (matrix) RESULT (distribution)
-    TYPE(dbcsr_obj), INTENT(IN)              :: matrix
-    TYPE(dbcsr_distribution_obj)             :: distribution
-
-    distribution = matrix%m%dist
-  END FUNCTION dbcsr_distribution
-
-! *****************************************************************************
 !> \brief Marks another use of the distribution
 !> \param dist ...
 ! *****************************************************************************
@@ -184,55 +171,6 @@ CONTAINS
 
     dist%d%refcount = dist%d%refcount + 1
   END SUBROUTINE dbcsr_distribution_hold
-
-! *****************************************************************************
-!> \brief ...
-!> \param dist ...
-!> \param row_map ...
-! *****************************************************************************
-  SUBROUTINE dbcsr_distribution_add_row_map (dist, row_map)
-    TYPE(dbcsr_distribution_obj), &
-      INTENT(INOUT)                          :: dist
-    TYPE(array_i1d_obj), INTENT(IN)          :: row_map
-
-    dist%d%row_map = row_map
-    CALL array_hold (dist%d%row_map)
-  END SUBROUTINE dbcsr_distribution_add_row_map
-! *****************************************************************************
-!> \brief ...
-!> \param dist ...
-!> \param col_map ...
-! *****************************************************************************
-  SUBROUTINE dbcsr_distribution_add_col_map (dist, col_map)
-    TYPE(dbcsr_distribution_obj), &
-      INTENT(INOUT)                          :: dist
-    TYPE(array_i1d_obj), INTENT(IN)          :: col_map
-
-    dist%d%col_map = col_map
-    CALL array_hold (dist%d%col_map)
-  END SUBROUTINE dbcsr_distribution_add_col_map
-! *****************************************************************************
-!> \brief ...
-!> \param dist ...
-! *****************************************************************************
-  SUBROUTINE dbcsr_distribution_del_row_map (dist)
-    TYPE(dbcsr_distribution_obj), &
-      INTENT(INOUT)                          :: dist
-
-    CALL array_release (dist%d%row_map)
-    CALL array_nullify (dist%d%row_map)
-  END SUBROUTINE dbcsr_distribution_del_row_map
-! *****************************************************************************
-!> \brief ...
-!> \param dist ...
-! *****************************************************************************
-  SUBROUTINE dbcsr_distribution_del_col_map (dist)
-    TYPE(dbcsr_distribution_obj), &
-      INTENT(INOUT)                          :: dist
-
-    CALL array_release (dist%d%col_map)
-    CALL array_nullify (dist%d%col_map)
-  END SUBROUTINE dbcsr_distribution_del_col_map
 
 ! *****************************************************************************
 !> \brief ...
@@ -544,8 +482,8 @@ CONTAINS
              END DO
 
              soft_thr = load_fraction + nthreads - 1
-             block_size0 = load_fraction*(group_size/soft_thr)
-             block_size = group_size/soft_thr
+             block_size0 = INT(load_fraction*(group_size/soft_thr))
+             block_size = INT(group_size/soft_thr)
 
              !blocks for master thread
              IF (block_size0 > 0) &

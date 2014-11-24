@@ -34,7 +34,6 @@ MODULE dbcsr_mp_methods
             dbcsr_mp_pgrid, dbcsr_mp_numnodes, dbcsr_mp_mynode, dbcsr_mp_group,&
             dbcsr_mp_new_transposed, dbcsr_mp_nprows, dbcsr_mp_npcols,&
             dbcsr_mp_myprow, dbcsr_mp_mypcol,&
-            dbcsr_mp_get_coordinates,&
             dbcsr_mp_my_row_group, dbcsr_mp_my_col_group,&
             dbcsr_mp_has_subgroups, dbcsr_mp_get_process,&
             dbcsr_mp_grid_setup, dbcsr_mp_grid_remove,&
@@ -52,18 +51,6 @@ CONTAINS
 
     NULLIFY (mp_env%mp)
   END SUBROUTINE dbcsr_mp_init
-
-! *****************************************************************************
-!> \brief Checks whether the message passing environment exists.
-!> \param mp_env ...
-!> \retval exists ...
-! *****************************************************************************
-  FUNCTION dbcsr_mp_exists (mp_env) RESULT (exists)
-    TYPE(dbcsr_mp_obj), INTENT(IN)           :: mp_env
-    LOGICAL                                  :: exists
-
-    exists = ASSOCIATED (mp_env%mp)
-  END FUNCTION dbcsr_mp_exists
 
 ! *****************************************************************************
 !> \brief Checks whether this process is part of the message passing environment
@@ -233,27 +220,6 @@ CONTAINS
 ! *****************************************************************************
 !> \brief ...
 !> \param mp_env ...
-!> \param node ...
-!> \param prow ...
-!> \param pcol ...
-! *****************************************************************************
-  PURE SUBROUTINE dbcsr_mp_get_coordinates(mp_env, node, prow, pcol)
-    TYPE(dbcsr_mp_obj), INTENT(IN)           :: mp_env
-    INTEGER, INTENT(IN)                      :: node
-    INTEGER, INTENT(OUT)                     :: prow, pcol
-
-    INTEGER                                  :: tmp
-
-    pcol = MOD (node, SIZE(mp_env%mp%pgrid,2))
-    prow = node / SIZE(mp_env%mp%pgrid,2)
-    IF (mp_env%mp%pgrid(prow, pcol) .NE. node) THEN
-       tmp = pcol ; pcol = prow ; prow = tmp
-    ENDIF
-  END SUBROUTINE dbcsr_mp_get_coordinates
-
-! *****************************************************************************
-!> \brief ...
-!> \param mp_env ...
 !> \retval pgrid ...
 ! *****************************************************************************
   FUNCTION dbcsr_mp_pgrid(mp_env) RESULT (pgrid)
@@ -372,31 +338,6 @@ CONTAINS
 
     col_group = mp_env%mp%pcol_group
   END FUNCTION dbcsr_mp_my_col_group
-! *****************************************************************************
-!> \brief ...
-!> \param mp_env1 ...
-!> \param mp_env2 ...
-!> \retval equal_pgrid ...
-! *****************************************************************************
-  FUNCTION dbcsr_mp_pgrid_equal(mp_env1, mp_env2) RESULT (equal_pgrid)
-    TYPE(dbcsr_mp_obj), INTENT(IN)           :: mp_env1, mp_env2
-    LOGICAL                                  :: equal_pgrid
-
-    INTEGER, DIMENSION(:, :), POINTER        :: pgrid1, pgrid2
-
-    IF (dbcsr_mp_nprows (mp_env1) .EQ. dbcsr_mp_nprows (mp_env2)&
-         .AND. dbcsr_mp_nprows (mp_env1) .EQ. dbcsr_mp_nprows (mp_env2)) THEN
-       pgrid1 => dbcsr_mp_pgrid (mp_env1)
-       pgrid2 => dbcsr_mp_pgrid (mp_env2)
-       IF (ALL (pgrid1 .EQ. pgrid2)) THEN
-          equal_pgrid = .TRUE.
-       ELSE
-          equal_pgrid = .FALSE.
-       ENDIF
-    ELSE
-       equal_pgrid = .FALSE.
-    ENDIF
-  END FUNCTION dbcsr_mp_pgrid_equal
 
 ! *****************************************************************************
 !> \brief Transposes a multiprocessor environment

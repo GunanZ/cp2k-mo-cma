@@ -7,6 +7,7 @@
 !> \par History
 !>      11.2002 created [fawzi]
 !>      10.2014 Moved many components from qs_env to here [Ole Schuett]
+!>      11.2014 unified k-point and gamma-point code [Ole Schuett]
 !> \author Fawzi Mohamed
 ! *****************************************************************************
 MODULE qs_ks_types
@@ -34,7 +35,12 @@ MODULE qs_ks_types
   USE distribution_2d_types,           ONLY: distribution_2d_release,&
                                              distribution_2d_retain,&
                                              distribution_2d_type
-  USE f77_blas
+  USE kpoint_transitional,             ONLY: get_1d_pointer,&
+                                             get_2d_pointer,&
+                                             kpoint_transitional_release,&
+                                             kpoint_transitional_type,&
+                                             set_1d_pointer,&
+                                             set_2d_pointer
   USE kpoint_types,                    ONLY: kpoint_create,&
                                              kpoint_release,&
                                              kpoint_type
@@ -132,33 +138,34 @@ MODULE qs_ks_types
 !> \author Fawzi Mohamed
 ! *****************************************************************************
   TYPE qs_ks_env_type
-     PRIVATE
-     LOGICAL                                               :: s_mstruct_changed = .TRUE.,&
-                                                              rho_changed = .TRUE.,&
-                                                              potential_changed = .TRUE.,&
-                                                              forces_up_to_date = .FALSE.
-     INTEGER                                               :: n_evals = 0,&
-                                                              id_nr = -1,&
-                                                              ref_count = 1
+    PRIVATE
+    LOGICAL                                               :: s_mstruct_changed = .TRUE.,&
+                                                             rho_changed = .TRUE.,&
+                                                             potential_changed = .TRUE.,&
+                                                             forces_up_to_date = .FALSE.
+    INTEGER                                               :: n_evals = 0,&
+                                                             id_nr = -1,&
+                                                             ref_count = 1
 
-     ! hartree is supposed to contain the hartree potential (for cube ouput)
-     ! ugly to keep it always around only for a cube output...
-     TYPE(pw_type), POINTER                                :: v_hartree_rspace => Null()
-     TYPE(cp_dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_h => Null(),&
-                                                              matrix_ks => Null(),&
-                                                              matrix_ks_im => Null(),&
-                                                              matrix_vxc => Null(),&
-                                                              matrix_s => Null(),&
-                                                              kinetic => Null(),&
-                                                              matrix_w => Null(),&
-                                                              matrix_w_mp2 => Null(),&
-                                                              matrix_p_mp2 => Null(),&
-                                                              gamma_matrix => Null(),&
-                                                              matrix_s_aux_fit => Null(),&
-                                                              matrix_s_aux_fit_vs_orb => Null(),&
-                                                              matrix_ks_aux_fit => Null(),&
-                                                              matrix_ks_aux_fit_im => Null()
+    ! hartree is supposed to contain the hartree potential (for cube ouput)
+    ! ugly to keep it always around only for a cube output...
+    TYPE(pw_type), POINTER                                :: v_hartree_rspace => Null()
 
+    TYPE(kpoint_transitional_type)                        :: matrix_ks,&
+                                                             matrix_s,&
+                                                             kinetic,&
+                                                             matrix_h,&
+                                                             matrix_vxc
+
+    TYPE(cp_dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_ks_im => Null(),&
+                                                             matrix_w => Null(),&
+                                                             matrix_w_mp2 => Null(),&
+                                                             matrix_p_mp2 => Null(),&
+                                                             gamma_matrix => Null(),&
+                                                             matrix_s_aux_fit => Null(),&
+                                                             matrix_s_aux_fit_vs_orb => Null(),&
+                                                             matrix_ks_aux_fit => Null(),&
+                                                             matrix_ks_aux_fit_im => Null()
 
     TYPE(qs_rho_type), POINTER                            :: rho => Null(),&
                                                              rho_buffer => Null(),&
@@ -261,6 +268,11 @@ END SUBROUTINE qs_ks_env_create
 !> \param matrix_w_mp2 ...
 !> \param matrix_p_mp2 ...
 !> \param gamma_matrix ...
+!> \param matrix_h_kp ...
+!> \param matrix_ks_kp ...
+!> \param matrix_vxc_kp ...
+!> \param kinetic_kp ...
+!> \param matrix_s_kp ...
 !> \param rho ...
 !> \param rho_aux_fit ...
 !> \param rho_buffer ...
@@ -329,6 +341,7 @@ END SUBROUTINE qs_ks_env_create
                         matrix_ks_aux_fit_im,&
                         kinetic,matrix_s,matrix_s_aux_fit,matrix_s_aux_fit_vs_orb,&
                         matrix_w,matrix_w_mp2,matrix_p_mp2,gamma_matrix,&
+                        matrix_h_kp, matrix_ks_kp, matrix_vxc_kp, kinetic_kp, matrix_s_kp,&
                         rho, rho_aux_fit, rho_buffer, rho_xc,&
                         vppl, rho_core, rho_nlcc, rho_nlcc_g, vee,&
                         neighbor_list_id,&
@@ -355,6 +368,10 @@ END SUBROUTINE qs_ks_env_create
       matrix_ks_aux_fit_im, kinetic, matrix_s, matrix_s_aux_fit, &
       matrix_s_aux_fit_vs_orb, matrix_w, matrix_w_mp2, matrix_p_mp2, &
       gamma_matrix
+    TYPE(cp_dbcsr_p_type), DIMENSION(:, :), &
+      OPTIONAL, POINTER                      :: matrix_h_kp, matrix_ks_kp, &
+                                                matrix_vxc_kp, kinetic_kp, &
+                                                matrix_s_kp
     TYPE(qs_rho_type), OPTIONAL, POINTER     :: rho, rho_aux_fit, rho_buffer, &
                                                 rho_xc
     TYPE(pw_p_type), OPTIONAL, POINTER       :: vppl, rho_core, rho_nlcc, &
@@ -417,14 +434,22 @@ END SUBROUTINE qs_ks_env_create
      IF (PRESENT(potential_changed)) potential_changed = ks_env%potential_changed
      IF (PRESENT(forces_up_to_date)) forces_up_to_date = ks_env%forces_up_to_date
      IF (PRESENT(v_hartree_rspace)) v_hartree_rspace => ks_env%v_hartree_rspace
-     IF (PRESENT(matrix_h)) matrix_h => ks_env%matrix_h
-     IF (PRESENT(matrix_ks)) matrix_ks => ks_env%matrix_ks
+
+     IF (PRESENT(matrix_ks)) matrix_ks         => get_1d_pointer(ks_env%matrix_ks)
+     IF (PRESENT(matrix_s)) matrix_s           => get_1d_pointer(ks_env%matrix_s)
+     IF (PRESENT(kinetic)) kinetic             => get_1d_pointer(ks_env%kinetic)
+     IF (PRESENT(matrix_h)) matrix_h           => get_1d_pointer(ks_env%matrix_h)
+     IF (PRESENT(matrix_vxc)) matrix_vxc       => get_1d_pointer(ks_env%matrix_vxc)
+
+     IF (PRESENT(matrix_ks_kp)) matrix_ks_kp   => get_2d_pointer(ks_env%matrix_ks)
+     IF (PRESENT(matrix_s_kp)) matrix_s_kp     => get_2d_pointer(ks_env%matrix_s)
+     IF (PRESENT(kinetic_kp)) kinetic_kp       => get_2d_pointer(ks_env%kinetic)
+     IF (PRESENT(matrix_h_kp)) matrix_h_kp     => get_2d_pointer(ks_env%matrix_h)
+     IF (PRESENT(matrix_vxc_kp)) matrix_vxc_kp => get_2d_pointer(ks_env%matrix_vxc)
+
      IF (PRESENT(matrix_ks_im)) matrix_ks_im => ks_env%matrix_ks_im
-     IF (PRESENT(matrix_vxc)) matrix_vxc => ks_env%matrix_vxc
      IF (PRESENT(matrix_ks_aux_fit)) matrix_ks_aux_fit => ks_env%matrix_ks_aux_fit
      IF (PRESENT(matrix_ks_aux_fit_im)) matrix_ks_aux_fit_im => ks_env%matrix_ks_aux_fit_im
-     IF (PRESENT(kinetic)) kinetic => ks_env%kinetic
-     IF (PRESENT(matrix_s)) matrix_s => ks_env%matrix_s
      IF (PRESENT(matrix_s_aux_fit)) matrix_s_aux_fit => ks_env%matrix_s_aux_fit
      IF (PRESENT(matrix_s_aux_fit_vs_orb)) matrix_s_aux_fit_vs_orb => ks_env%matrix_s_aux_fit_vs_orb
      IF (PRESENT(matrix_w)) matrix_w => ks_env%matrix_w
@@ -500,7 +525,6 @@ END SUBROUTINE qs_ks_env_create
 
   END SUBROUTINE get_ks_env
 
-
 ! *****************************************************************************
 !> \brief ...
 !> \param ks_env ...
@@ -523,6 +547,11 @@ END SUBROUTINE qs_ks_env_create
 !> \param matrix_w_mp2 ...
 !> \param matrix_p_mp2 ...
 !> \param gamma_matrix ...
+!> \param matrix_h_kp ...
+!> \param matrix_ks_kp ...
+!> \param matrix_vxc_kp ...
+!> \param kinetic_kp ...
+!> \param matrix_s_kp ...
 !> \param vppl ...
 !> \param rho_core ...
 !> \param rho_nlcc ...
@@ -564,6 +593,7 @@ END SUBROUTINE qs_ks_env_create
                         matrix_h,matrix_ks,matrix_ks_im,matrix_vxc,matrix_ks_aux_fit,matrix_ks_aux_fit_im,&
                         kinetic,matrix_s,matrix_s_aux_fit,matrix_s_aux_fit_vs_orb,&
                         matrix_w,matrix_w_mp2,matrix_p_mp2,gamma_matrix,&
+                        matrix_h_kp, matrix_ks_kp, matrix_vxc_kp, kinetic_kp, matrix_s_kp,&
                         vppl, rho_core, rho_nlcc, rho_nlcc_g, vee,&
                         neighbor_list_id,&
                         sab_orb,sab_aux_fit,sab_aux_fit_asymm, &
@@ -585,6 +615,10 @@ END SUBROUTINE qs_ks_env_create
       matrix_ks_aux_fit_im, kinetic, matrix_s, matrix_s_aux_fit, &
       matrix_s_aux_fit_vs_orb, matrix_w, matrix_w_mp2, matrix_p_mp2, &
       gamma_matrix
+    TYPE(cp_dbcsr_p_type), DIMENSION(:, :), &
+      OPTIONAL, POINTER                      :: matrix_h_kp, matrix_ks_kp, &
+                                                matrix_vxc_kp, kinetic_kp, &
+                                                matrix_s_kp
     TYPE(pw_p_type), OPTIONAL, POINTER       :: vppl, rho_core, rho_nlcc, &
                                                 rho_nlcc_g, vee
     INTEGER, OPTIONAL                        :: neighbor_list_id
@@ -619,20 +653,32 @@ END SUBROUTINE qs_ks_env_create
      IF (ks_env%s_mstruct_changed .OR. ks_env%potential_changed .OR. ks_env%rho_changed)&
           ks_env%forces_up_to_date=.FALSE.
      IF (PRESENT(v_hartree_rspace)) ks_env%v_hartree_rspace => v_hartree_rspace
-     IF (PRESENT(matrix_h)) ks_env%matrix_h => matrix_h
-     IF (PRESENT(matrix_ks)) ks_env%matrix_ks => matrix_ks
+
+     IF (PRESENT(matrix_h))    CALL set_1d_pointer(ks_env%matrix_h, matrix_h)
+     IF (PRESENT(matrix_h_kp)) CALL set_2d_pointer(ks_env%matrix_h, matrix_h_kp)
+
+     IF (PRESENT(matrix_ks))    CALL set_1d_pointer(ks_env%matrix_ks, matrix_ks)
+     IF (PRESENT(matrix_ks_kp)) CALL set_2d_pointer(ks_env%matrix_ks, matrix_ks_kp)
+
+     IF (PRESENT(matrix_vxc))    CALL set_1d_pointer(ks_env%matrix_vxc, matrix_vxc)
+     IF (PRESENT(matrix_vxc_kp)) CALL set_2d_pointer(ks_env%matrix_vxc, matrix_vxc_kp)
+
+     IF (PRESENT(matrix_s))    CALL set_1d_pointer(ks_env%matrix_s, matrix_s)
+     IF (PRESENT(matrix_s_kp)) CALL set_2d_pointer(ks_env%matrix_s, matrix_s_kp)
+
+     IF (PRESENT(kinetic))    CALL set_1d_pointer(ks_env%kinetic, kinetic)
+     IF (PRESENT(kinetic_kp)) CALL set_2d_pointer(ks_env%kinetic, kinetic_kp)
+
      IF (PRESENT(matrix_ks_im)) ks_env%matrix_ks_im => matrix_ks_im
-     IF (PRESENT(matrix_vxc)) ks_env%matrix_vxc => matrix_vxc
      IF (PRESENT(matrix_ks_aux_fit)) ks_env%matrix_ks_aux_fit => matrix_ks_aux_fit
      IF (PRESENT(matrix_ks_aux_fit_im)) ks_env%matrix_ks_aux_fit_im => matrix_ks_aux_fit_im
-     IF (PRESENT(matrix_s)) ks_env%matrix_s => matrix_s
+
      IF (PRESENT(matrix_s_aux_fit)) ks_env%matrix_s_aux_fit => matrix_s_aux_fit
      IF (PRESENT(matrix_s_aux_fit_vs_orb)) ks_env%matrix_s_aux_fit_vs_orb => matrix_s_aux_fit_vs_orb
      IF (PRESENT(matrix_w)) ks_env%matrix_w => matrix_w
      IF (PRESENT(matrix_w_mp2)) ks_env%matrix_w_mp2 => matrix_w_mp2
      IF (PRESENT(matrix_p_mp2)) ks_env%matrix_p_mp2 => matrix_p_mp2
      IF (PRESENT(gamma_matrix)) ks_env%gamma_matrix => gamma_matrix
-     IF (PRESENT(kinetic)) ks_env%kinetic => kinetic
      IF (PRESENT(rho_core)) ks_env%rho_core => rho_core
      IF (PRESENT(rho_nlcc)) ks_env%rho_nlcc => rho_nlcc
      IF (PRESENT(rho_nlcc_g)) ks_env%rho_nlcc_g => rho_nlcc_g
@@ -728,20 +774,19 @@ END SUBROUTINE qs_ks_env_create
        IF (ks_env%ref_count<1) THEN
           IF (ASSOCIATED(ks_env%v_hartree_rspace)) &
             CALL pw_release(ks_env%v_hartree_rspace,error=error)
-          IF (ASSOCIATED(ks_env%matrix_h)) &
-            CALL cp_dbcsr_deallocate_matrix_set(ks_env%matrix_h,error)
-          IF (ASSOCIATED(ks_env%matrix_ks)) &
-            CALL cp_dbcsr_deallocate_matrix_set(ks_env%matrix_ks,error)
           IF (ASSOCIATED(ks_env%matrix_ks_im)) &
             CALL cp_dbcsr_deallocate_matrix_set(ks_env%matrix_ks_im,error)
-          IF (ASSOCIATED(ks_env%matrix_vxc)) &
-            CALL cp_dbcsr_deallocate_matrix_set(ks_env%matrix_vxc,error)
+
+          CALL kpoint_transitional_release(ks_env%matrix_ks, error)
+          CALL kpoint_transitional_release(ks_env%matrix_h, error)
+          CALL kpoint_transitional_release(ks_env%matrix_vxc, error)
+          CALL kpoint_transitional_release(ks_env%matrix_s, error)
+          CALL kpoint_transitional_release(ks_env%kinetic, error)
+
           IF (ASSOCIATED(ks_env%matrix_ks_aux_fit)) &
             CALL cp_dbcsr_deallocate_matrix_set(ks_env%matrix_ks_aux_fit,error)
           IF (ASSOCIATED(ks_env%matrix_ks_aux_fit_im)) &
             CALL cp_dbcsr_deallocate_matrix_set(ks_env%matrix_ks_aux_fit_im,error)
-          IF (ASSOCIATED(ks_env%matrix_s)) &
-            CALL cp_dbcsr_deallocate_matrix_set(ks_env%matrix_s,error)
           IF (ASSOCIATED(ks_env%matrix_s_aux_fit)) &
             CALL cp_dbcsr_deallocate_matrix_set(ks_env%matrix_s_aux_fit,error)
           IF (ASSOCIATED(ks_env%matrix_s_aux_fit_vs_orb)) &
@@ -754,8 +799,6 @@ END SUBROUTINE qs_ks_env_create
             CALL cp_dbcsr_deallocate_matrix_set(ks_env%matrix_p_mp2,error)
           IF (ASSOCIATED(ks_env%gamma_matrix)) &
             CALL cp_dbcsr_deallocate_matrix_set(ks_env%gamma_matrix,error)
-          IF (ASSOCIATED(ks_env%kinetic))&
-            CALL cp_dbcsr_deallocate_matrix_set(ks_env%kinetic,error)
           IF(ASSOCIATED(ks_env%rho))&
             CALL qs_rho_release(ks_env%rho, error=error)
           IF(ASSOCIATED(ks_env%rho_buffer))&

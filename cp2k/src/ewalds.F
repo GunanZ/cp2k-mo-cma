@@ -23,7 +23,6 @@ MODULE ewalds
                                              ewald_environment_type
   USE ewald_pw_types,                  ONLY: ewald_pw_get,&
                                              ewald_pw_type
-  USE f77_blas
   USE kinds,                           ONLY: dp
   USE mathconstants,                   ONLY: fourpi,&
                                              oorootpi,&
@@ -184,7 +183,7 @@ CONTAINS
 
     summe ( : ) = CMPLX ( 0.0_dp, 0.0_dp,KIND=dp)
     ! looping over the positive g-vectors
-    DO gpt = 1, pw_grid % ngpts_cut
+    DO gpt = 1, pw_grid % ngpts_cut_local
 
        lp = pw_grid % mapl % pos ( pw_grid % g_hat ( 1, gpt ) )
        mp = pw_grid % mapm % pos ( pw_grid % g_hat ( 2, gpt ) )
@@ -207,7 +206,7 @@ CONTAINS
     pref = fourpi / pw_grid % vol
 
     ! looping over the positive g-vectors
-    DO gpt = 1, pw_grid % ngpts_cut
+    DO gpt = 1, pw_grid % ngpts_cut_local
        ! computing the potential energy
        lp = pw_grid % mapl % pos ( pw_grid % g_hat ( 1, gpt ) )
        mp = pw_grid % mapm % pos ( pw_grid % g_hat ( 2, gpt ) )

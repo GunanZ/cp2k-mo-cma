@@ -42,7 +42,6 @@ MODULE qs_initial_guess
   USE cp_para_types,                   ONLY: cp_para_env_type
   USE external_potential_types,        ONLY: all_potential_type,&
                                              gth_potential_type
-  USE f77_blas
   USE input_constants,                 ONLY: &
        atomic_guess, core_guess, densities_guess, history_guess, mopac_guess, &
        no_guess, random_guess, restart_guess, sparse_guess
@@ -75,7 +74,8 @@ MODULE qs_initial_guess
                                              mo_set_restrict,&
                                              set_mo_occupation
   USE qs_rho_methods,                  ONLY: qs_rho_update_rho
-  USE qs_rho_types,                    ONLY: qs_rho_type
+  USE qs_rho_types,                    ONLY: qs_rho_get,&
+                                             qs_rho_type
   USE qs_scf_methods,                  ONLY: eigensolver,&
                                              eigensolver_simple
   USE qs_scf_types,                    ONLY: block_davidson_diag_method_nr,&
@@ -156,7 +156,8 @@ CONTAINS
       POINTER                                :: h_core_sparse, matrix_ks, &
                                                 p_rmpv, s_sparse
     TYPE(cp_dbcsr_p_type), DIMENSION(:, :), &
-      POINTER                                :: denmat
+      POINTER                                :: matrix_h_kp, matrix_ks_kp, &
+                                                matrix_s_kp, rho_ao_kp
     TYPE(cp_dbcsr_type)                      :: mo_dbcsr, mo_tmp_dbcsr
     TYPE(cp_fm_p_type), DIMENSION(:), &
       POINTER                                :: work1
@@ -188,6 +189,7 @@ CONTAINS
          scf_control, dft_control, p_rmpv, ortho, work2, work1, para_env,&
          s_sparse, scf_control, dft_control, h_core_sparse, matrix_ks, rho)
     NULLIFY(dft_section, input, subsys_section)
+    NULLIFY(matrix_s_kp, matrix_h_kp, matrix_ks_kp, rho_ao_kp)
     NULLIFY(moa,mob)
     NULLIFY (atom_list, elec_conf, scp_env, kpoints)
     edftb = 0.0_dp
@@ -199,8 +201,9 @@ CONTAINS
                     qs_kind_set=qs_kind_set,&
                     particle_set=particle_set,&
                     mos=mo_array,&
-                    matrix_s=s_sparse,&
-                    matrix_h=h_core_sparse,&
+                    matrix_s_kp=matrix_s_kp,&
+                    matrix_h_kp=matrix_h_kp,&
+                    matrix_ks_kp=matrix_ks_kp,&
                     input=input,&
                     scp_env=scp_env,&
                     scf_control=scf_control,&
@@ -209,13 +212,22 @@ CONTAINS
                     has_unit_metric=has_unit_metric,&
                     do_kpoints=do_kpoints,&
                     kpoints=kpoints,&
-                    matrix_ks=matrix_ks,&
                     rho=rho,&
                     para_env=para_env,&
                     error=error)
 
-    nspin=dft_control%nspins
-    p_rmpv => rho%rho_ao
+    CALL qs_rho_get(rho, rho_ao_kp=rho_ao_kp, error=error)
+
+    ! just initialize the first image, the other density are set to zero
+    DO ispin=1, dft_control%nspins
+       DO ic=1,SIZE(rho_ao_kp,2)
+          CALL cp_dbcsr_set(rho_ao_kp(ispin,ic)%matrix, 0.0_dp,error=error)
+       END DO
+    END DO
+    s_sparse => matrix_s_kp(:,1)
+    h_core_sparse => matrix_h_kp(:,1)
+    matrix_ks => matrix_ks_kp(:,1)
+    p_rmpv => rho_ao_kp(:,1)
 
     work1 => scf_env%scf_work1
     work2 => scf_env%scf_work2
@@ -223,9 +235,13 @@ CONTAINS
 
     dft_section =>  section_vals_get_subs_vals(input,"DFT",error=error)
 
+    nspin = dft_control%nspins
     ofgpw = dft_control%qs_control%ofgpw
     density_guess=scf_control%density_guess
     do_std_diag = .FALSE.
+
+    IF(do_kpoints .AND. density_guess==restart_guess) &
+       STOP "calculate_first_density_matrix: restart not implemented for k-points"
 
     safe_density_guess = atomic_guess
     IF ( dft_control%qs_control%semi_empirical .OR. dft_control%qs_control%dftb .OR. &
@@ -258,6 +274,7 @@ CONTAINS
         IF (para_env%ionode) &
            CALL wfn_restart_file_name(file_name,exist,dft_section,logger,error=error)
         CALL mp_bcast(exist, para_env%source, para_env%group)
+        CALL mp_bcast(file_name, para_env%source, para_env%group)
         IF (.NOT.exist) THEN
            CALL cp_assert(.FALSE.,cp_warning_level,cp_assertion_failed,routineP,&
                 "User requested to restart the wavefunction from the file named: "//&
@@ -272,6 +289,7 @@ CPSourceFileRef,&
        IF (para_env%ionode) &
           CALL wfn_restart_file_name(file_name,exist,dft_section,logger,error=error)
        CALL mp_bcast(exist, para_env%source, para_env%group)
+       CALL mp_bcast(file_name, para_env%source, para_env%group)
        nvec = qs_env%wf_history%memory_depth
        not_read = nvec+1
        ! At this level we read the saved backup RESTART files..
@@ -953,28 +971,11 @@ CALL copy_fm_to_dbcsr(mo_array(ispin)%mo_set%mo_coeff,mo_array(ispin)%mo_set%mo_
                                 smear=scf_control%smear,&
                                 error=error)
          CALL calculate_density_matrix(mo_array(ispin)%mo_set,&
-                                       rho%rho_ao(ispin)%matrix,&
+                                       p_rmpv(ispin)%matrix,&
                                        error=error)
        END DO
 
        did_guess = .TRUE.
-    END IF
-
-    IF(do_kpoints) THEN
-       IF (density_guess == restart_guess) THEN
-          CALL cp_assert(.FALSE.,cp_failure_level,&
-               cp_assertion_failed,routineP,CPSourceFileRef)
-       ELSE
-          ! copy gamma point density matrix guess
-          p_rmpv => rho%rho_ao
-          denmat => rho%rho_ao_kp
-          DO ispin=1, dft_control%nspins
-             DO ic=1,SIZE(denmat,2)
-                CALL cp_dbcsr_set(denmat(ispin,ic)%matrix,0.0_dp,error=error)
-             END DO
-             CALL cp_dbcsr_copy(denmat(ispin,1)%matrix,p_rmpv(ispin)%matrix,error=error)
-          END DO
-       END IF
     END IF
 
     IF (density_guess == no_guess) THEN

@@ -48,7 +48,6 @@ MODULE qs_environment_types
   USE ewald_pw_types,                  ONLY: ewald_pw_release,&
                                              ewald_pw_retain,&
                                              ewald_pw_type
-  USE f77_blas
   USE fist_nonbond_env_types,          ONLY: fist_nonbond_env_release,&
                                              fist_nonbond_env_type
   USE ga_environment_types,            ONLY: ga_env_release,&
@@ -357,6 +356,11 @@ CONTAINS
 !> \param matrix_vxc ...
 !> \param run_rtp ...
 !> \param rtp ...
+!> \param matrix_h_kp ...
+!> \param matrix_ks_kp ...
+!> \param matrix_vxc_kp ...
+!> \param kinetic_kp ...
+!> \param matrix_s_kp ...
 !> \param matrix_ks_aux_fit ...
 !> \param matrix_ks_aux_fit_im ...
 !> \param matrix_s ...
@@ -472,6 +476,7 @@ CONTAINS
        sab_all,qmmm,qmmm_periodic,sac_ae,sac_ppl,sap_ppnl,sab_vdw,sab_scp,sap_oce,sab_lrc,&
        sab_se,sab_tbe,sab_core,sab_almo,particle_set,energy,force,harris_env,&
        matrix_h,matrix_ks,matrix_ks_im,matrix_vxc,run_rtp,rtp,&
+       matrix_h_kp, matrix_ks_kp, matrix_vxc_kp, kinetic_kp, matrix_s_kp,&
        matrix_ks_aux_fit,matrix_ks_aux_fit_im,matrix_s,matrix_s_aux_fit,matrix_s_aux_fit_vs_orb,matrix_w,matrix_w_mp2,matrix_p_mp2,&
        gamma_matrix, rho, rho_aux_fit,rho_buffer, rho_xc, pw_env, ewald_env, ewald_pw, &
        mpools,mpools_aux_fit,input, para_env, blacs_env, scf_control,rel_control,kinetic,qs_charges,&
@@ -518,6 +523,10 @@ CONTAINS
                                                 matrix_ks_im, matrix_vxc
     LOGICAL, OPTIONAL                        :: run_rtp
     TYPE(rt_prop_type), OPTIONAL, POINTER    :: rtp
+    TYPE(cp_dbcsr_p_type), DIMENSION(:, :), &
+      OPTIONAL, POINTER                      :: matrix_h_kp, matrix_ks_kp, &
+                                                matrix_vxc_kp, kinetic_kp, &
+                                                matrix_s_kp
     TYPE(cp_dbcsr_p_type), DIMENSION(:), OPTIONAL, POINTER :: &
       matrix_ks_aux_fit, matrix_ks_aux_fit_im, matrix_s, matrix_s_aux_fit, &
       matrix_s_aux_fit_vs_orb, matrix_w, matrix_w_mp2, matrix_p_mp2, &
@@ -765,6 +774,11 @@ CONTAINS
                     matrix_w_mp2=matrix_w_mp2,&
                     matrix_p_mp2=matrix_p_mp2,&
                     gamma_matrix=gamma_matrix,&
+                    matrix_h_kp=matrix_h_kp,&
+                    matrix_ks_kp=matrix_ks_kp,&
+                    matrix_vxc_kp=matrix_vxc_kp,&
+                    kinetic_kp=kinetic_kp,&
+                    matrix_s_kp=matrix_s_kp,&
                     rho=rho,&
                     rho_buffer=rho_buffer,&
                     rho_xc=rho_xc,&
@@ -1461,7 +1475,6 @@ CONTAINS
           ENDIF
           ! ZMP
           IF(ASSOCIATED(qs_env%rho_external)) THEN
-             NULLIFY(qs_env%rho_external%rho_ao)
              CALL qs_rho_release(qs_env%rho_external, error=error)
           END IF
           IF (ASSOCIATED(qs_env%external_vxc)) THEN

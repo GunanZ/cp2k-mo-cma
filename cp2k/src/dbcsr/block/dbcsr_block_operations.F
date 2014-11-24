@@ -49,9 +49,8 @@ MODULE dbcsr_block_operations
   PUBLIC :: set_block2d_diagonal, get_block2d_diagonal
   PUBLIC :: dbcsr_block_scale, dbcsr_block_conjg, dbcsr_block_real_neg
 
-  PUBLIC :: block_set, dbcsr_data_copy
+  PUBLIC :: dbcsr_data_copy
   PUBLIC :: block_add_on_diag
-  PUBLIC :: block_chol_inv
 
   PUBLIC :: block_add
 
@@ -124,12 +123,6 @@ MODULE dbcsr_block_operations
           dbcsr_data_set_ad, dbcsr_data_set_ac, dbcsr_data_set_az
   END INTERFACE
 
-
-  INTERFACE set_block_diagonal
-     MODULE PROCEDURE set_block_diagonal_s, set_block_diagonal_d,&
-          set_block_diagonal_c, set_block_diagonal_z
-  END INTERFACE
-
   INTERFACE get_block2d_diagonal
      MODULE PROCEDURE get_block2d_diagonal_a
      MODULE PROCEDURE get_block2d_diagonal_s, get_block2d_diagonal_d,&
@@ -142,33 +135,12 @@ MODULE dbcsr_block_operations
                       set_block2d_diagonal_c, set_block2d_diagonal_z
   END INTERFACE
 
-  INTERFACE block_set
-     MODULE PROCEDURE block_2d_set_d, block_2d_set_s,&
-                      block_2d_set_z, block_2d_set_c
-     MODULE PROCEDURE block_set_d, block_set_s,&
-                      block_set_z, block_set_c
-  END INTERFACE
-
   INTERFACE block_add_on_diag
      MODULE PROCEDURE block_add_on_diag_anytype
      MODULE PROCEDURE block_2d_add_on_diag_d, block_2d_add_on_diag_s,&
                       block_2d_add_on_diag_z, block_2d_add_on_diag_c
      MODULE PROCEDURE block_add_on_diag_d, block_add_on_diag_s,&
                       block_add_on_diag_z, block_add_on_diag_c
-  END INTERFACE
-
-  INTERFACE block_chol_inv
-     MODULE PROCEDURE block_2d_chol_inv_d, block_2d_chol_inv_s,&
-                      block_2d_chol_inv_z, block_2d_chol_inv_c
-     MODULE PROCEDURE block_chol_inv_d, block_chol_inv_s,&
-                      block_chol_inv_z, block_chol_inv_c
-  END INTERFACE
-
-
-  INTERFACE dbcsr_block_norm_frob
-     MODULE PROCEDURE block_norm_frob_anytype_s
-     MODULE PROCEDURE block_norm_frob_s_s, block_norm_frob_d_s,&
-                      block_norm_frob_c_s, block_norm_frob_z_s
   END INTERFACE
 
   INTERFACE block_add
@@ -1739,124 +1711,6 @@ CONTAINS
             routineN, "Invalid data type!",__LINE__,error)
     END SELECT
   END SUBROUTINE block_add_anytype
-
-
-
-! *****************************************************************************
-!> \brief Calculates frobenious norm of a block
-!>
-!> \param[in] area       encapsulated data area
-!> \param norm single-precision real frobenius norm
-!> \param[in,out] error  error
-! *****************************************************************************
-  SUBROUTINE block_norm_frob_anytype_s (area, norm, error)
-    TYPE(dbcsr_data_obj), INTENT(INOUT)      :: area
-    REAL(kind=sp), INTENT(OUT)               :: norm
-    TYPE(dbcsr_error_type), INTENT(inout)    :: error
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'block_norm_frob_anytype_s', &
-      routineP = moduleN//':'//routineN
-
-    INTEGER                                  :: error_handler
-
-!   ---------------------------------------------------------------------------
-
-    IF (careful_mod) CALL dbcsr_error_set(routineN, error_handler, error)
-
-    SELECT CASE (area%d%data_type)
-    CASE (dbcsr_type_real_8)
-       CALL block_norm_frob_d_s (SIZE(area%d%r_dp), area%d%r_dp, norm)
-    CASE (dbcsr_type_real_4)
-       CALL block_norm_frob_s_s (SIZE(area%d%r_sp), area%d%r_sp, norm)
-    CASE (dbcsr_type_complex_8)
-       CALL block_norm_frob_z_s (SIZE(area%d%c_dp), area%d%c_dp, norm)
-    CASE (dbcsr_type_complex_4)
-       CALL block_norm_frob_c_s (SIZE(area%d%c_sp), area%d%c_sp, norm)
-    CASE (dbcsr_type_real_8_2d)
-       CALL block_norm_frob_d_s (SIZE(area%d%r2_dp), area%d%r2_dp, norm)
-    CASE (dbcsr_type_real_4_2d)
-       CALL block_norm_frob_s_s (SIZE(area%d%r2_sp), area%d%r2_sp, norm)
-    CASE (dbcsr_type_complex_8_2d)
-       CALL block_norm_frob_z_s (SIZE(area%d%c2_dp), area%d%c2_dp, norm)
-    CASE (dbcsr_type_complex_4_2d)
-       CALL block_norm_frob_c_s (SIZE(area%d%c2_sp), area%d%c2_sp, norm)
-    CASE default
-       CALL dbcsr_assert (.FALSE., dbcsr_fatal_level, dbcsr_internal_error,&
-            routineN, "Invalid data type",__LINE__,error)
-    END SELECT
-    IF (careful_mod) CALL dbcsr_error_stop(error_handler, error)
-  END SUBROUTINE block_norm_frob_anytype_s
-
-! *****************************************************************************
-!> \brief ...
-!> \param m ...
-!> \param blk ...
-!> \param norm ...
-! *****************************************************************************
-  SUBROUTINE block_norm_frob_s_s (m, blk, norm)
-    INTEGER, INTENT(IN)                      :: m
-    REAL(KIND=real_4), DIMENSION(m), &
-      INTENT(IN)                             :: blk
-    REAL(KIND=real_4), INTENT(OUT)           :: norm
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'block_norm_frob_s_s', &
-      routineP = moduleN//':'//routineN
-
-    norm = SQRT (REAL (SUM (blk**2), KIND=real_4))
-  END SUBROUTINE block_norm_frob_s_s
-! *****************************************************************************
-!> \brief ...
-!> \param m ...
-!> \param blk ...
-!> \param norm ...
-! *****************************************************************************
-  SUBROUTINE block_norm_frob_d_s (m, blk, norm)
-    INTEGER, INTENT(IN)                      :: m
-    REAL(KIND=real_8), DIMENSION(m), &
-      INTENT(IN)                             :: blk
-    REAL(KIND=real_4), INTENT(OUT)           :: norm
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'block_norm_frob_d_s', &
-      routineP = moduleN//':'//routineN
-
-    norm = SQRT (REAL (SUM (blk**2), KIND=real_4))
-  END SUBROUTINE block_norm_frob_d_s
-! *****************************************************************************
-!> \brief ...
-!> \param m ...
-!> \param blk ...
-!> \param norm ...
-! *****************************************************************************
-  SUBROUTINE block_norm_frob_c_s (m, blk, norm)
-    INTEGER, INTENT(IN)                      :: m
-    COMPLEX(KIND=real_4), DIMENSION(m), &
-      INTENT(IN)                             :: blk
-    REAL(KIND=real_4), INTENT(OUT)           :: norm
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'block_norm_frob_c_s', &
-      routineP = moduleN//':'//routineN
-
-    norm = SQRT (REAL (SUM (CONJG(blk) * blk), KIND=real_4))
-  END SUBROUTINE block_norm_frob_c_s
-! *****************************************************************************
-!> \brief ...
-!> \param m ...
-!> \param blk ...
-!> \param norm ...
-! *****************************************************************************
-  SUBROUTINE block_norm_frob_z_s (m, blk, norm)
-    INTEGER, INTENT(IN)                      :: m
-    COMPLEX(KIND=real_8), DIMENSION(m), &
-      INTENT(IN)                             :: blk
-    REAL(KIND=real_4), INTENT(OUT)           :: norm
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'block_norm_frob_z_s', &
-      routineP = moduleN//':'//routineN
-
-    norm = SQRT (REAL (SUM (CONJG(blk)* blk), KIND=real_4))
-  END SUBROUTINE block_norm_frob_z_s
-
-
 
 #include "dbcsr_block_operations_d.f90"
 #include "dbcsr_block_operations_z.f90"

@@ -33,15 +33,10 @@ MODULE dbcsr_data_methods_low
   USE dbcsr_ptr_util,                  ONLY: memory_allocate,&
                                              memory_deallocate,&
                                              memory_zero,&
-                                             pointer_c_rank_remap2,&
-                                             pointer_d_rank_remap2,&
-                                             pointer_s_rank_remap2,&
-                                             pointer_z_rank_remap2
+                                             pointer_rank_remap2
   USE kinds,                           ONLY: dp,&
                                              real_4,&
-                                             real_4_size,&
-                                             real_8,&
-                                             real_8_size
+                                             real_8
 
   !$ USE OMP_LIB
 
@@ -62,8 +57,7 @@ MODULE dbcsr_data_methods_low
             dbcsr_data_get_size, dbcsr_data_get_type
   PUBLIC :: dbcsr_get_data,&
             dbcsr_data_set_pointer,&
-            dbcsr_data_clear_pointer, dbcsr_data_set_2d_pointer,&
-            dbcsr_data_clear_2d_pointer,&
+            dbcsr_data_clear_pointer,&
             dbcsr_data_get_sizes, dbcsr_data_verify_bounds,&
             dbcsr_data_exists, dbcsr_data_get_memory_type
   PUBLIC :: dbcsr_data_zero
@@ -115,13 +109,6 @@ MODULE dbcsr_data_methods_low
      MODULE PROCEDURE dbcsr_data_get_sizes_1, dbcsr_data_get_sizes_2
   END INTERFACE
 
-  INTERFACE dbcsr_data_query_type
-     MODULE PROCEDURE query_type_s_1d, query_type_d_1d,&
-                      query_type_c_1d, query_type_z_1d
-     MODULE PROCEDURE query_type_s_2d, query_type_d_2d,&
-                      query_type_c_2d, query_type_z_2d
-  END INTERFACE
-
   LOGICAL, PARAMETER :: careful_mod = .FALSE.
   LOGICAL, PARAMETER :: debug_mod = .FALSE.
 
@@ -151,27 +138,6 @@ MODULE dbcsr_data_methods_low
 
     memory_type = area%d%memory_type
   END FUNCTION dbcsr_data_get_memory_type
-
-! *****************************************************************************
-!> \brief Returns size in bytes used to store one data element
-!> \param[in] area         data area
-!> \retval type_size ...
-! *****************************************************************************
-  PURE FUNCTION dbcsr_data_get_type_size (area) RESULT (type_size)
-    TYPE(dbcsr_data_obj), INTENT(IN)         :: area
-    INTEGER                                  :: type_size
-
-    SELECT CASE (dbcsr_type_2d_to_1d(area%d%data_type))
-       CASE (dbcsr_type_real_4)
-          type_size = real_4_size
-       CASE (dbcsr_type_real_8)
-          type_size = real_8_size
-       CASE (dbcsr_type_complex_4)
-          type_size = 2*real_4_size
-       CASE (dbcsr_type_complex_8)
-          type_size = 2*real_8_size
-    END SELECT
-  END FUNCTION dbcsr_data_get_type_size
 
 ! *****************************************************************************
 !> \brief Initializes a data area
@@ -373,31 +339,6 @@ MODULE dbcsr_data_methods_low
   END SUBROUTINE dbcsr_data_clear_pointer
 
 ! *****************************************************************************
-!> \brief Clears pointers from the data area.
-!> \param[inout] area         data area
-!> \param new_type ...
-! *****************************************************************************
-  SUBROUTINE dbcsr_data_reset_type (area, new_type)
-    TYPE(dbcsr_data_obj), INTENT(INOUT)      :: area
-    INTEGER, INTENT(IN)                      :: new_type
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'dbcsr_data_reset_type', &
-      routineP = moduleN//':'//routineN
-
-    TYPE(dbcsr_error_type)                   :: error
-
-!   ---------------------------------------------------------------------------
-
-    IF (.NOT. ASSOCIATED (area%d)) THEN
-       CALL dbcsr_assert (ASSOCIATED (area%d), dbcsr_fatal_level,&
-            dbcsr_caller_error,&
-            routineN, "Data not initialized.",__LINE__,error)
-    ENDIF
-    CALL dbcsr_data_clear_pointer (area)
-    area%d%data_type = new_type
-  END SUBROUTINE dbcsr_data_reset_type
-
-! *****************************************************************************
 !> \brief Checks whether a data area is valid
 !> \param[in] area         data area
 !> \retval valid           whether the data area is valid
@@ -566,7 +507,7 @@ MODULE dbcsr_data_methods_low
     CASE (dbcsr_type_real_4)
        IF (rmp) THEN
           r_sp => dbcsr_get_data_p_s (pointee, bp, bp+nze-1)
-          CALL pointer_s_rank_remap2(area%d%r2_sp, rsize, csize,&
+          CALL pointer_rank_remap2(area%d%r2_sp, rsize, csize,&
                r_sp)
        ELSE
           area%d%r_sp => dbcsr_get_data_p_s (pointee, bp, bp+nze-1)
@@ -576,7 +517,7 @@ MODULE dbcsr_data_methods_low
     CASE (dbcsr_type_real_8)
        IF (rmp) THEN
           r_dp => dbcsr_get_data_p_d (pointee, bp, bp+nze-1)
-          CALL pointer_d_rank_remap2(area%d%r2_dp, rsize, csize,&
+          CALL pointer_rank_remap2(area%d%r2_dp, rsize, csize,&
                r_dp)
        ELSE
           area%d%r_dp => dbcsr_get_data_p_d (pointee, bp, bp+nze-1)
@@ -586,7 +527,7 @@ MODULE dbcsr_data_methods_low
     CASE (dbcsr_type_complex_4)
        IF (rmp) THEN
           c_sp => dbcsr_get_data_p_c (pointee, bp, bp+nze-1)
-          CALL pointer_c_rank_remap2(area%d%c2_sp, rsize, csize,&
+          CALL pointer_rank_remap2(area%d%c2_sp, rsize, csize,&
                c_sp)
        ELSE
           area%d%c_sp => dbcsr_get_data_p_c (pointee, bp, bp+nze-1)
@@ -596,7 +537,7 @@ MODULE dbcsr_data_methods_low
     CASE (dbcsr_type_complex_8)
        IF (rmp) THEN
           c_dp => dbcsr_get_data_p_z (pointee, bp, bp+nze-1)
-          CALL pointer_z_rank_remap2(area%d%c2_dp, rsize, csize,&
+          CALL pointer_rank_remap2(area%d%c2_dp, rsize, csize,&
                c_dp)
        ELSE
           area%d%c_dp => dbcsr_get_data_p_z (pointee, bp, bp+nze-1)
@@ -854,111 +795,6 @@ MODULE dbcsr_data_methods_low
     ENDIF
   END SUBROUTINE dbcsr_data_zero
 
-
-
-! *****************************************************************************
-!> \brief Points a 2-d pointer to current 1-d data
-!>
-!> \param[in,out] area         data area to work on
-!> \param[in] rowsize          row size of 2-d data
-!> \param[in] colsize          (optional) column size of 2-d data
-!> \param[in] offset           (optional) offset
-! *****************************************************************************
-  SUBROUTINE dbcsr_data_set_2d_pointer (area, rowsize, colsize, offset)
-    TYPE(dbcsr_data_obj), INTENT(INOUT)      :: area
-    INTEGER, INTENT(IN)                      :: rowsize
-    INTEGER, INTENT(IN), OPTIONAL            :: colsize, offset
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'dbcsr_data_set_2d_pointer', &
-      routineP = moduleN//':'//routineN
-
-    COMPLEX(KIND=real_4), DIMENSION(:), &
-      POINTER                                :: c_sp
-    COMPLEX(KIND=real_8), DIMENSION(:), &
-      POINTER                                :: c_dp
-    INTEGER                                  :: bp, csize, dt1, nze
-    LOGICAL                                  :: compatible
-    REAL(KIND=real_4), DIMENSION(:), POINTER :: r_sp
-    REAL(KIND=real_8), DIMENSION(:), POINTER :: r_dp
-    TYPE(dbcsr_error_type)                   :: error
-
-!   ---------------------------------------------------------------------------
-
-    dt1 = area%d%data_type
-    compatible = dt1 .EQ. dbcsr_type_real_4&
-            .OR. dt1 .EQ. dbcsr_type_real_8&
-            .OR. dt1 .EQ. dbcsr_type_complex_4&
-            .OR. dt1 .EQ. dbcsr_type_complex_8
-    CALL dbcsr_assert (compatible, dbcsr_fatal_level,&
-         dbcsr_wrong_args_error, routineN, "Must target 1-D data",__LINE__,error)
-    IF (PRESENT (offset)) THEN
-       bp = offset
-       nze = dbcsr_data_get_size (area) - offset + 1
-    ELSE
-       bp = 1
-       nze = dbcsr_data_get_size (area)
-    ENDIF
-    IF (PRESENT (colsize)) THEN
-       csize = colsize
-    ELSE
-       csize = nze / rowsize
-    ENDIF
-    SELECT CASE (dt1)
-    CASE (dbcsr_type_real_4)
-       r_sp => dbcsr_get_data_p_s (area, bp, bp+nze-1)
-       CALL pointer_s_rank_remap2(area%d%r2_sp, rowsize, csize,&
-            r_sp)
-    CASE (dbcsr_type_real_8)
-       r_dp => dbcsr_get_data_p_d (area, bp, bp+nze-1)
-       CALL pointer_d_rank_remap2(area%d%r2_dp, rowsize, csize,&
-            r_dp)
-    CASE (dbcsr_type_complex_4)
-       c_sp => dbcsr_get_data_p_c (area, bp, bp+nze-1)
-       CALL pointer_c_rank_remap2(area%d%c2_sp, rowsize, csize,&
-            c_sp)
-    CASE (dbcsr_type_complex_8)
-       c_dp => dbcsr_get_data_p_z (area, bp, bp+nze-1)
-       CALL pointer_z_rank_remap2(area%d%c2_dp, rowsize, csize,&
-            c_dp)
-    CASE default
-       CALL dbcsr_assert (.FALSE., dbcsr_fatal_level, dbcsr_internal_error,&
-            routineN, "Invalid data type",__LINE__,error)
-    END SELECT
-  END SUBROUTINE dbcsr_data_set_2d_pointer
-
-! *****************************************************************************
-!> \brief Nullifies a 2-d pointer to current 1-d data
-!>
-!> \param[in,out] area         data area to work on
-! *****************************************************************************
-  SUBROUTINE dbcsr_data_clear_2d_pointer (area)
-    TYPE(dbcsr_data_obj), INTENT(INOUT)      :: area
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'dbcsr_data_clear_2d_pointer', &
-      routineP = moduleN//':'//routineN
-
-    INTEGER                                  :: dt1
-    TYPE(dbcsr_error_type)                   :: error
-
-!   ---------------------------------------------------------------------------
-
-    dt1 = area%d%data_type
-    SELECT CASE (dt1)
-    CASE (dbcsr_type_real_4)
-       NULLIFY (area%d%r2_sp)
-    CASE (dbcsr_type_real_8)
-       NULLIFY (area%d%r2_dp)
-    CASE (dbcsr_type_complex_4)
-       NULLIFY (area%d%c2_sp)
-    CASE (dbcsr_type_complex_8)
-       NULLIFY (area%d%c2_dp)
-    CASE default
-       CALL dbcsr_assert (.FALSE., dbcsr_fatal_level, dbcsr_internal_error,&
-            routineN, "Invalid data type",__LINE__,error)
-    END SELECT
-  END SUBROUTINE dbcsr_data_clear_2d_pointer
-
-
 ! *****************************************************************************
 !> \brief Returns the allocated data size
 !> \param[in] area       data area to query for size
@@ -1109,55 +945,6 @@ MODULE dbcsr_data_methods_low
     ENDIF
     CALL dbcsr_error_stop(error_handler, error)
   END SUBROUTINE dbcsr_data_get_sizes_1
-
-
-! *****************************************************************************
-!> \brief Resizes the data stored in an object destructively.
-!> \param[in,out] area   data area to resize
-!> \param[in] sizes      array with the data sizes
-!> \param[in,out] error  error
-! *****************************************************************************
-  SUBROUTINE dbcsr_data_resize (area, sizes, error)
-    TYPE(dbcsr_data_obj), INTENT(INOUT)      :: area
-    INTEGER, DIMENSION(:), INTENT(IN)        :: sizes
-    TYPE(dbcsr_error_type), INTENT(INOUT)    :: error
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'dbcsr_data_resize', &
-      routineP = moduleN//':'//routineN
-
-    INTEGER                                  :: d, error_handler
-    INTEGER, DIMENSION(2)                    :: old_sizes
-    LOGICAL                                  :: old_valid
-
-!   ---------------------------------------------------------------------------
-
-    CALL dbcsr_error_set (routineN, error_handler, error)
-
-    CALL dbcsr_assert (ASSOCIATED (area%d), dbcsr_fatal_level,&
-         dbcsr_caller_error, routineN,&
-         "Invalid data area", __LINE__, error=error)
-    IF (dbcsr_type_is_2d (area%d%data_type)) THEN
-       d = 2
-       IF (careful_mod) &
-            CALL dbcsr_assert (SIZE(sizes), "EQ", 2, dbcsr_fatal_level,&
-            dbcsr_wrong_args_error, routineN,&
-            "Sizes must have 2 elements for 2-D data", __LINE__, error=error)
-    ELSE
-       d = 1
-       IF (careful_mod) &
-            CALL dbcsr_assert (SIZE(sizes), "EQ", 1, dbcsr_fatal_level,&
-            dbcsr_wrong_args_error, routineN,&
-            "Sizes must have 1 elements for 1-D data", __LINE__, error=error)
-    ENDIF
-
-    CALL dbcsr_data_get_sizes(area, old_sizes(1:d), old_valid, error=error)
-    IF (ANY(old_sizes(1:d) /= sizes(1:d))) THEN
-       IF(old_valid) &
-          CALL internal_data_deallocate(area%d, error=error)
-       CALL internal_data_allocate(area%d, sizes=sizes, error=error)
-    ENDIF
-    CALL dbcsr_error_stop(error_handler, error)
-  END SUBROUTINE dbcsr_data_resize
 
 
 ! *****************************************************************************

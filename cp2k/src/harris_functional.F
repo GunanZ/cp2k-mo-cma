@@ -14,7 +14,6 @@ MODULE harris_functional
   USE cp_dbcsr_interface,              ONLY: cp_dbcsr_p_type,&
                                              cp_dbcsr_trace
   USE cp_para_types,                   ONLY: cp_para_env_type
-  USE f77_blas
   USE harris_energy_types,             ONLY: harris_energy_type
   USE harris_env_types,                ONLY: harris_env_get,&
                                              harris_env_type
@@ -101,7 +100,8 @@ CONTAINS
     TYPE(harris_energy_type), POINTER        :: harris_energy
     TYPE(pw_env_type), POINTER               :: pw_env
     TYPE(pw_p_type)                          :: v_hartree_gspace
-    TYPE(pw_p_type), DIMENSION(:), POINTER   :: v_rspace_new, v_tau_rspace
+    TYPE(pw_p_type), DIMENSION(:), POINTER   :: rho_g, rho_r, v_rspace_new, &
+                                                v_tau_rspace
     TYPE(pw_p_type), POINTER                 :: rho_core
     TYPE(pw_poisson_type), POINTER           :: poisson_env
     TYPE(pw_pool_type), POINTER              :: auxbas_pw_pool
@@ -114,7 +114,7 @@ CONTAINS
 
     failure = .FALSE.
     NULLIFY(rho, pw_env, auxbas_pw_pool, v_rspace_new, v_tau_rspace, energy, ks_env,&
-            rho_core, rho, harris_energy, poisson_env, dft_control, input, xc_section)
+            rho_core, rho, rho_g, rho_r, harris_energy, poisson_env, dft_control, input, xc_section)
 
     CPPrecondition(ASSOCIATED(qs_env), cp_failure_level, routineP, error, failure)
     CPPrecondition(qs_env%ref_count>0, cp_failure_level, routineP, error, failure)
@@ -142,6 +142,7 @@ CONTAINS
                       ks_env=ks_env,&
                       error=error)
 
+      CALL qs_rho_get(rho, rho_g=rho_g, rho_r=rho_r, error=error)
       xc_section => section_vals_get_subs_vals(input, "DFT%XC", error=error)
       ! check for nonlocal vdW functional
       CALL section_vals_val_get(xc_section,"VDW_POTENTIAL%POTENTIAL_TYPE",i_val=vdw,error=error)
@@ -159,7 +160,7 @@ CONTAINS
                               in_space=RECIPROCALSPACE, error=error)
 
       DO ispin = 1,nspins
-        CALL pw_poisson_solve(poisson_env, rho%rho_g(ispin)%pw, &
+        CALL pw_poisson_solve(poisson_env, rho_g(ispin)%pw, &
                               ehartree=harris_energy%Ehartree_elec, &
                               vhartree=v_hartree_gspace%pw,error=error)
       END DO
@@ -178,7 +179,7 @@ CONTAINS
 
       DO ispin = 1,nspins
         harris_energy%integral_vxc = pw_integral_ab(v_rspace_new(ispin)%pw, &
-                                                    rho%rho_r(ispin)%pw,error=error)
+                                                    rho_r(ispin)%pw,error=error)
       END DO
 
       IF (ASSOCIATED(v_rspace_new)) THEN
@@ -418,7 +419,8 @@ CONTAINS
 
       nspins = dft_control%nspins
       DO ispin = 1,nspins
-        CALL cp_dbcsr_trace(matrix_ks(ispin)%matrix, scf_env%p_mix_new(ispin)%matrix, &
+        ! does not yet handle k-points
+        CALL cp_dbcsr_trace(matrix_ks(ispin)%matrix, scf_env%p_mix_new(ispin, 1)%matrix, &
                             trace=harris_energy%sum_of_eigenvalues, &
                             error=error)
       END DO

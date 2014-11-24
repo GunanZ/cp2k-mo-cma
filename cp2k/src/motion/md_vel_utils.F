@@ -29,7 +29,6 @@ MODULE md_vel_utils
                                              cp_subsys_type
   USE cp_units,                        ONLY: cp_unit_from_cp2k
   USE extended_system_types,           ONLY: npt_info_type
-  USE f77_blas
   USE force_env_methods,               ONLY: force_env_calc_energy_force
   USE force_env_types,                 ONLY: force_env_get,&
                                              force_env_type
@@ -1277,7 +1276,7 @@ CONTAINS
      DO ireg = 1,nregions
        NULLIFY(t_region)
        t_region => thermal_regions%thermal_region(ireg)
-       nfree = 3.0_dp*t_region%npart
+       nfree = 3*t_region%npart
        ekin = compute_ekin(part,ireg)
        IF(nfree > 0) t_region%temperature = 2.0_dp*ekin/REAL(nfree,KIND=dp)*kelvin
        temp_old(ireg) =  t_region%temperature

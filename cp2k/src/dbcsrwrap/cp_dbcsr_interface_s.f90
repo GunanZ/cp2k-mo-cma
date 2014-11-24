@@ -4,44 +4,6 @@
 !-----------------------------------------------------------------------------!
 
 ! *****************************************************************************
-!> \brief multiplies a dbcsr matrix with a column vector like dbcsr matrix.
-!>        v_out=beta*v_out+alpha*M*V
-!>        IMPORTANT: vector have to be created via the vec create routines:
-!>                   cp_dbcsr_create_col_vec_from_matrix,
-!>                   cp_dbcsr_create_row_vec_from_matrix,
-!>                   cp_dbcsr_create_rep_col_vec_from_matrix,
-!>                   cp_dbcsr_create_rep_row_vec_from_matrix
-!>        WARNING:   Do not filter the vectors as they are assumed to be non
-!>                   sparse in the underlying routines. If your vector is
-!>                   sparse, fill it!!!
-!> \param matrix a dbcsr matrix
-!> \param vec_in the vector to be multiplied (only available on proc_col 0)
-!> \param vec_out the result vector (only available on proc_col 0)
-!> \param alpha  as described in formula
-!> \param beta  as described in formula
-!> \param rep_row a work row vector replicated on all proc_cols. 
-!> \param rep_col a work col vector replicated on all proc_rows. 
-! *****************************************************************************
-   SUBROUTINE cp_dbcsr_matrix_colvec_multiply_s(matrix,vec_in,vec_out,alpha,beta,&
-                                                rep_row,rep_col,error)
-    TYPE(cp_dbcsr_type), INTENT(IN)          :: matrix
-    TYPE(cp_dbcsr_type), INTENT(IN)          :: vec_in
-    TYPE(cp_dbcsr_type), INTENT(INOUT)       :: vec_out
-    REAL(kind=real_4), INTENT(IN)                      :: alpha, beta
-    TYPE(cp_dbcsr_type), INTENT(INOUT)       :: rep_row, rep_col
-    TYPE(cp_error_type), INTENT(INOUT)       :: error
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'cp_dbcsr_matrix_colvec_mult_s', &
-      routineP = moduleN//':'//routineN
-
-    TYPE(dbcsr_error_type)                   :: dbcsr_error
-
-    CALL dbcsr_matrix_colvec_multiply(matrix%matrix,vec_in%matrix,vec_out%matrix,&
-                                  alpha,beta,rep_row%matrix,rep_col%matrix,dbcsr_error)
-
-   END SUBROUTINE cp_dbcsr_matrix_colvec_multiply_s
-
-! *****************************************************************************
 !> \brief Encapsulates a given scalar value and makes it conformant to the
 !>        type of the matrix.
 !> \param scalar ...
@@ -242,38 +204,6 @@
 !> \param row_size ...
 !> \param col_size ...
 ! *****************************************************************************
-  SUBROUTINE cp_dbcsr_get_block_s (matrix,row,col,block,found,&
-       row_size, col_size)
-    TYPE(cp_dbcsr_type), INTENT(IN)          :: matrix
-    INTEGER, INTENT(IN)                      :: row, col
-    REAL(kind=real_4), DIMENSION(:), INTENT(OUT)      :: block
-    LOGICAL, INTENT(OUT)                     :: found
-    INTEGER, INTENT(OUT), OPTIONAL           :: row_size, col_size
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'cp_dbcsr_get_block_s', &
-      routineP = moduleN//':'//routineN
-
-    LOGICAL                                  :: tr
-    TYPE(cp_error_type)                      :: error
-
-    CALL cp_error_init (error)
-    tr=.FALSE.
-    CALL dbcsr_get_block(matrix%matrix,row,col,block,tr,found,&
-       row_size, col_size)
-
-  END SUBROUTINE cp_dbcsr_get_block_s
-
-
-! *****************************************************************************
-!> \brief ...
-!> \param matrix ...
-!> \param row ...
-!> \param col ...
-!> \param block ...
-!> \param found ...
-!> \param row_size ...
-!> \param col_size ...
-! *****************************************************************************
   SUBROUTINE cp_dbcsr_get_2d_block_p_s (matrix,row,col,block,found,&
        row_size, col_size)
     TYPE(cp_dbcsr_type), INTENT(INOUT)       :: matrix
@@ -418,13 +348,10 @@
 
     CHARACTER(len=*), PARAMETER :: routineN = 'cp_dbcsr_multiply_s', &
       routineP = moduleN//':'//routineN
-    LOGICAL, PARAMETER                       :: prnt = .FALSE., &
-                                                verify = .FALSE.
 
     CHARACTER(LEN=1)                         :: shape_a, shape_b, trans_a, &
                                                 trans_b
     LOGICAL                                  :: new_a_is_new, new_b_is_new
-    REAL(kind=real_4)                       :: cs_b, cs_c
     TYPE(cp_dbcsr_type)                      :: new_a, new_b
     TYPE(dbcsr_error_type)                   :: dbcsr_error
 
@@ -449,21 +376,6 @@
     ENDIF
     IF (new_b_is_new) THEN
        CALL cp_dbcsr_release (new_b, error=error)
-    ENDIF
-    IF (prnt) THEN
-       CALL cp_dbcsr_print (matrix_c, matlab_format=.TRUE.,&
-            variable_name="mpo", error=error)
-    ENDIF
-    IF (verify) cs_b = cp_dbcsr_checksum (matrix_c, error=error)
-
-    IF (verify) THEN
-       WRITE(*,'(A,4(1X,E9.3))')routineN//" checksums", cs_c, cs_b,&
-            cs_c-cs_b, ABS(cs_c-cs_b)/cs_b
-       WRITE(*,*)routineN//" multiply type",&
-            trans_a//shape_a//'_'&
-            //trans_b//shape_b
-
-       IF (ABS(cs_c-cs_b) .GT. 0.00001) STOP "Bad multiply"
     ENDIF
   END SUBROUTINE cp_dbcsr_multiply_s
 
