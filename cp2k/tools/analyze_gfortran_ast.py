@@ -6,12 +6,12 @@
 import sys
 import re
 
-BANNED_STM  = ('GOTO', 'OPEN', 'CLOSE', )
+BANNED_STM  = ('GOTO', 'WHERE', 'FORALL', 'OPEN', 'CLOSE', )
 BANNED_CALL = ('CP_FM_GEMM', )
-USE_EXCEPTIONS = ("OMP_LIB", "OMP_LIB_KINDS", "F77_BLAS", "LAPACK",)
+USE_EXCEPTIONS = ("OMP_LIB", "OMP_LIB_KINDS", "LAPACK",)
 
 # false positives
-UNDEF_EXCEPTIONS  = ('RANDOM_NUMBER', 'RANDOM_SEED', 'GET_COMMAND_ARGUMENT')
+UNDEF_EXCEPTIONS  = ('RANDOM_NUMBER', 'RANDOM_SEED', 'GET_COMMAND_ARGUMENT', 'GET_ENVIRONMENT_VARIABLE',)
 
 #BLAS routines
 UNDEF_EXCEPTIONS += ('SROTG', 'DROTG', 'CROTG', 'ZROTG', 'SROTMG', 'DROTMG', 'SROT', 'DROT',
@@ -80,12 +80,16 @@ def main():
 
     issues = sorted(set(issues))
     issues_shown = [i for i in issues if(i not in suppress)]
+    issues_supp  = [i for i in issues if(i     in suppress)]
+
+    for i in issues_supp:
+        print i+" (suppressed)"
 
     for i in issues_shown:
         print i
 
     n = len(issues_shown)
-    m = len(issues) - n
+    m = len(issues_supp)
     print "Summary: Found %d issues (%d suppressed)"%(n, m)
     print "Status: " + ("OK" if n==0 else "FAILED")
 
@@ -133,6 +137,8 @@ def process_log_file(fn, public_symbols, used_symbols):
                 issues.append(fn+': Symbol "'+curr_symbol+'" in procedure "'+curr_procedure+'" is IMPLICIT-SAVE')
             if(("IMPLICIT-TYPE" in line) and ("USE-ASSOC" not in line) and ("FUNCTION" not in line)): #TODO sure about last clause?
                 issues.append(fn+': Symbol "'+curr_symbol+'" in procedure "'+curr_procedure+'" is IMPLICIT-TYPE')
+            if("THREADPRIVATE" in line):
+                issues.append(fn+': Symbol "'+curr_symbol+'" in procedure "'+curr_procedure+'" is THREADPRIVATE')
             if("INTRINSIC-PROC" in line):
                 curr_symbol_defined = True
             if("INTRINSIC" in line):

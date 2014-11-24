@@ -16,7 +16,6 @@ MODULE xc_perdew_zunger
   USE bibliography,                    ONLY: Ortiz1994,&
                                              Perdew1981,&
                                              cite_reference
-  USE f77_blas
   USE input_section_types,             ONLY: section_vals_type,&
                                              section_vals_val_get
   USE kinds,                           ONLY: dp
@@ -43,8 +42,8 @@ MODULE xc_perdew_zunger
   PRIVATE
 
   LOGICAL :: initialized = .FALSE.
-  REAL(KIND=dp), DIMENSION(0:1) :: A = (0,0), B = (0,0), C = (0,0), D = (0,0), &
-                               b1 = (0,0), b2 = (0,0), ga = (0,0)
+  REAL(KIND=dp), DIMENSION(0:1) :: A = 0.0_dp, B = 0.0_dp, C = 0.0_dp, D = 0.0_dp, &
+                               b1 = 0.0_dp, b2 = 0.0_dp, ga = 0.0_dp
 
   REAL(KIND=dp), PARAMETER :: epsilon = 5.E-13
   REAL(KIND=dp) :: eps_rho

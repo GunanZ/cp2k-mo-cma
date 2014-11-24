@@ -207,8 +207,8 @@ MODULE dbcsr_mm_csr
     ! This has to be done here because ensure_array_size() expects a pointer.
     ! the maximum number of blocks can be safely estimated by considering both the rowxcol,
     ! but also the blocks the latter can never be larger than norec**2, which is a 'small' constant
-    max_new_nblks = MIN(INT(mf-mi+1,int_8) * INT(nf-ni+1,int_8), &
-                        INT(af-ai+1,int_8) * INT(bf-bi+1,int_8))
+    max_new_nblks = INT( MIN(INT(mf-mi+1,int_8) * INT(nf-ni+1,int_8), &
+                         INT(af-ai+1,int_8) * INT(bf-bi+1,int_8)))
 
     nblks_new = this%product_wm%lastblk + max_new_nblks
 
@@ -629,7 +629,7 @@ MODULE dbcsr_mm_csr
                 ps_g = (m_map-1)*nxstacks(2)*nxstacks(3) +&
                        (k_map-1)*nxstacks(2) + n_map
                 ps_g = nstacks-ps_g
-                this%stack_map(n_map, k_map, m_map) = ps_g
+                this%stack_map(n_map, k_map, m_map) = INT(ps_g, kind=int_1)
                 ! Also take care of the stack m, n, k descriptors
                 this%stacks_descr(ps_g)%m     = m_size
                 this%stacks_descr(ps_g)%n     = n_size
@@ -642,7 +642,7 @@ MODULE dbcsr_mm_csr
                 ! This is the case when at least one of m, n, or k is
                 ! undefined.
                 ps_g = default_stack
-                this%stack_map(n_map, k_map, m_map) = default_stack
+                this%stack_map(n_map, k_map, m_map) = INT(default_stack, kind=int_1)
                 ! Also take care of the stack m, n, k descriptors
                 this%stacks_descr(ps_g)%m     = 0
                 this%stacks_descr(ps_g)%n     = 0
@@ -681,7 +681,7 @@ MODULE dbcsr_mm_csr
         map_loop: DO n_map = 1, SIZE(this%stack_map, 1)
           DO istack=1,nstacks-1
             IF(this%stack_map(m_map, k_map, n_map) == flop_index(istack)) THEN
-               this%stack_map(m_map, k_map, n_map) = istack
+               this%stack_map(m_map, k_map, n_map) = INT(istack, kind=int_1)
                CYCLE map_loop
             END IF
           ENDDO

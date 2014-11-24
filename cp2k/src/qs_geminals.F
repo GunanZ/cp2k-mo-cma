@@ -48,7 +48,8 @@ MODULE qs_geminals
   USE qs_kind_types,                   ONLY: get_qs_kind,&
                                              get_qs_kind_set,&
                                              qs_kind_type
-  USE qs_rho_types,                    ONLY: qs_rho_type
+  USE qs_rho_types,                    ONLY: qs_rho_get,&
+                                             qs_rho_type
   USE ri_environment_types,            ONLY: get_ri_env,&
                                              ri_environment_type,&
                                              ri_vector_set,&
@@ -365,7 +366,7 @@ MODULE qs_geminals
     CALL get_ri_env(ri_env=ri_env,coeff=ri_coeff,rhs=ri_rhs,error=error)
     CALL ri_vector_set(ri_rhs, 0._dp, error)
 
-    matrix_p => rho%rho_ao
+    CALL qs_rho_get(rho, rho_ao=matrix_p, error=error)
     nspins = SIZE(matrix_p)
 
     nkind = SIZE(qs_kind_set)
@@ -631,7 +632,7 @@ MODULE qs_geminals
                    memory_usage = store_int%memory_parameter%actual_memory_usage
                    CPPrecondition((nints/1.2_dp)<=HUGE(0)-memory_usage,cp_failure_level,routineP,error,failure)
                    IF (memory_usage+nints>SIZE(store_int%uncompressed_container)) THEN
-                      new_size = (memory_usage+nints)*1.2_dp
+                      new_size = INT((memory_usage+nints)*1.2_dp)
                       CALL reallocate(store_int%uncompressed_container, 1, new_size)
                    END IF
                    CALL dcopy(nints,intab,1,store_int%uncompressed_container(memory_usage),1)

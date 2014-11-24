@@ -26,7 +26,6 @@ MODULE topology_xtl
                                              parser_create,&
                                              parser_release
   USE cp_units,                        ONLY: cp_unit_to_cp2k
-  USE f77_blas
   USE input_section_types,             ONLY: section_get_rval,&
                                              section_vals_type
   USE kinds,                           ONLY: default_string_length,&
@@ -201,7 +200,7 @@ CPSourceFileRef)
        natom = natom + 1
        ! Resize in case needed
        IF (natom > SIZE(atom_info%id_molname)) THEN
-          newsize = pfactor*natom
+          newsize = INT(pfactor*natom)
           CALL reallocate(atom_info%id_molname,1,newsize)
           CALL reallocate(atom_info%id_resname,1,newsize)
           CALL reallocate(atom_info%resid,1,newsize)
@@ -286,7 +285,7 @@ CPSourceFileRef,&
                 natom = natom + 1
                 ! Resize in case needed
                 IF (natom > SIZE(atom_info%id_molname)) THEN
-                   newsize = pfactor*natom
+                   newsize = INT(pfactor*natom)
                    CALL reallocate(atom_info%id_molname,1,newsize)
                    CALL reallocate(atom_info%id_resname,1,newsize)
                    CALL reallocate(atom_info%resid,1,newsize)

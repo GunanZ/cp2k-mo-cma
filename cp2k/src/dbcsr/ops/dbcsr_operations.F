@@ -17,8 +17,6 @@ MODULE dbcsr_operations
   USE array_types,                     ONLY: array_data,&
                                              array_get,&
                                              array_i1d_obj
-  USE dbcsr_blas_operations,           ONLY: dbcsr_blas_copy,&
-                                             dbcsr_blas_gemm
   USE dbcsr_block_access,              ONLY: dbcsr_get_block_p,&
                                              dbcsr_put_block,&
                                              dbcsr_remove_block,&
@@ -118,13 +116,12 @@ MODULE dbcsr_operations
                           xc=dbcsr_type_no_symmetry
 
   PUBLIC :: dbcsr_trace, dbcsr_add_on_diag,&
-            dbcsr_set, dbcsr_scale, dbcsr_scale_mat, dbcsr_add, dbcsr_copy,&
+            dbcsr_set, dbcsr_scale, dbcsr_add, dbcsr_copy,&
             dbcsr_copy_into_existing,&
             dbcsr_get_diag, dbcsr_set_diag,&
             dbcsr_get_block_diag, dbcsr_hadamard_product,&
             dbcsr_filter, dbcsr_scale_by_vector,&
             dbcsr_function_of_elements,&
-            dbcsr_btriu,&
             dbcsr_triu,&
             dbcsr_init_random
   PUBLIC :: dbcsr_sum_replicated
@@ -150,12 +147,6 @@ MODULE dbcsr_operations
      MODULE PROCEDURE dbcsr_scale_anytype
      MODULE PROCEDURE dbcsr_scale_s, dbcsr_scale_d,&
                       dbcsr_scale_c, dbcsr_scale_z
-  END INTERFACE
-
-  INTERFACE dbcsr_scale_mat
-     MODULE PROCEDURE dbcsr_scale_mat_any
-     MODULE PROCEDURE dbcsr_scale_s_m, dbcsr_scale_d_m,&
-                      dbcsr_scale_c_m, dbcsr_scale_z_m
   END INTERFACE
 
   INTERFACE dbcsr_scale_by_vector
@@ -433,136 +424,6 @@ CONTAINS
     frame_size = MAX(l - f + 1, 0)
     frame_offset = MIN(f - block_offset + 1, block_size)
   END SUBROUTINE frame_block_limit
-
-
-! *****************************************************************************
-!> \brief Scales a DBCSR matrix by a vector or a matrix
-!> \param[inout] matrix_a       DBCSR matrix
-!> \param[in] alpha_matrix      (optional) a list of matrices
-!> \param[in] side              (optional) ?
-!> \param[in,out] error         error
-! *****************************************************************************
-  SUBROUTINE dbcsr_scale_mat_any(matrix_a, alpha_matrix, side, error)
-    TYPE(dbcsr_obj), INTENT(INOUT)           :: matrix_a
-    TYPE(dbcsr_data_obj), INTENT(IN)         :: alpha_matrix
-    CHARACTER(LEN=*), INTENT(IN), OPTIONAL   :: side
-    TYPE(dbcsr_error_type), INTENT(INOUT)    :: error
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'dbcsr_scale_mat_any', &
-      routineP = moduleN//':'//routineN
-
-    INTEGER                                  :: a_blk, a_col, a_col_size, &
-                                                a_nze, a_row, a_row_size, &
-                                                col_offset, error_handler, &
-                                                row_offset
-    INTEGER, ALLOCATABLE, DIMENSION(:)       :: m_offset
-    INTEGER, DIMENSION(:), POINTER           :: col_blk_size, row_blk_size
-    LOGICAL                                  :: right, tr
-    TYPE(dbcsr_data_obj)                     :: buffer, data_any, mat_tmp
-    TYPE(dbcsr_iterator)                     :: iter
-
-!   ---------------------------------------------------------------------------
-
-    CALL dbcsr_error_set(routineN, error_handler, error)
-
-    !
-    ! set vars
-    right = .TRUE.
-    IF(PRESENT(side)) THEN
-       SELECT CASE(side)
-       CASE('right');right = .TRUE.
-       CASE('left' );right = .FALSE.
-       CASE DEFAULT
-          CALL dbcsr_assert (.FALSE., dbcsr_fatal_level,&
-               dbcsr_wrong_args_error, routineN,&
-               "wrong side="//side,__LINE__,error)
-       END SELECT
-    ENDIF
-    !
-    CALL dbcsr_data_init (buffer)
-    ! Clean up these maxvalues
-    CALL dbcsr_data_new (buffer, dbcsr_get_data_type(matrix_a),&
-         data_size=MAXVAL(array_data (matrix_a%m%row_blk_size)) &
-         *MAXVAL(array_data (matrix_a%m%col_blk_size)))
-    CALL dbcsr_data_clear (buffer) ! Zero the buffer
-    !
-    ! TODO: Clean up these offsets using the matrix-supplied ones
-    row_blk_size => array_data (matrix_a%m%row_blk_size)
-    col_blk_size => array_data (matrix_a%m%col_blk_size)
-    ALLOCATE(m_offset(dbcsr_nblkrows_total(matrix_a)))
-    m_offset(1) = 1
-    IF(right) THEN
-       DO a_col = 2,dbcsr_nblkcols_total(matrix_a)
-          a_col_size = col_blk_size(a_col-1)
-          m_offset(a_col) = m_offset(a_col-1) + a_col_size**2
-       ENDDO
-    ELSE
-       DO a_row = 2,dbcsr_nblkrows_total(matrix_a)
-          a_row_size = row_blk_size(a_row-1)
-          m_offset(a_row) = m_offset(a_row-1) + a_row_size**2
-       ENDDO
-    ENDIF
-    !
-    ! This data area holds the current column
-    CALL dbcsr_data_init (mat_tmp)
-    CALL dbcsr_data_new (mat_tmp, dbcsr_data_get_type (alpha_matrix))
-    !
-    ! let's go
-    CALL dbcsr_data_init (data_any)
-    CALL dbcsr_data_new (data_any, dbcsr_get_data_type (matrix_a))
-    CALL dbcsr_iterator_start(iter, matrix_a)
-    iterations: DO WHILE (dbcsr_iterator_blocks_left (iter))
-       CALL dbcsr_iterator_next_block(iter, a_row, a_col, data_any, tr,&
-            block_number=a_blk,&
-            row_size=a_row_size, col_size=a_col_size, &
-            row_offset=row_offset, col_offset=col_offset)
-       a_nze = a_row_size * a_col_size
-       IF (a_nze .EQ. 0) CYCLE ! Skip empty blocks
-       !
-       ! let's scale
-       IF(right) THEN
-          !A = A * alpha
-          mat_tmp = pointer_view (mat_tmp, alpha_matrix, m_offset(a_col))
-          CALL dbcsr_blas_gemm ('N','N',&
-               a_row_size, a_col_size, a_col_size,&
-               dbcsr_scalar_one (alpha_matrix%d%data_type),&
-               data_any, a_row_size,&
-               mat_tmp, a_col_size,&
-               dbcsr_scalar_zero (alpha_matrix%d%data_type),&
-               buffer, a_row_size)
-          !CALL dgemm('N','N',a_row_size,a_col_size,a_col_size,&
-          !     1.0_dp,data_any%d%r_dp(1),a_row_size,&
-          !     alpha_matrix%d%r_dp(m_offset(a_col)),a_col_size,&
-          !     0.0_dp,buffer%d%r_dp(1),a_row_size)
-          CALL dbcsr_blas_copy (a_nze, buffer, 1, data_any, 1)
-       ELSE
-          !A = alpha * A
-          mat_tmp = pointer_view (mat_tmp, alpha_matrix, m_offset(a_row))
-          CALL dbcsr_blas_gemm ('N','N',&
-               a_row_size, a_col_size, a_row_size,&
-               dbcsr_scalar_one (alpha_matrix%d%data_type),&
-               mat_tmp, a_row_size,&
-               data_any, a_row_size,&
-               dbcsr_scalar_zero (alpha_matrix%d%data_type),&
-               buffer, a_row_size)
-          !CALL dgemm('N','N',a_row_size,a_col_size,a_row_size,&
-          !        &     1.0_dp,alpha_matrix%d%r_dp(m_offset(a_col)),a_row_size,&
-          !        &            data_any%d%r_dp(1),a_row_size,&
-          !        &     0.0_dp,buffer%d%r_dp(1),a_row_size)
-          CALL dbcsr_blas_copy(a_nze, buffer, 1, data_any, 1)
-       ENDIF
-    ENDDO iterations
-    CALL dbcsr_iterator_stop(iter)
-    CALL dbcsr_data_clear_pointer (data_any)
-    CALL dbcsr_data_release (data_any)
-    DEALLOCATE(m_offset)
-    !WRITE(*,*)"refs:", buffer%d%refcount, buffer%d%data_type
-    CALL dbcsr_data_release (buffer)
-    CALL dbcsr_data_clear_pointer (mat_tmp)
-    CALL dbcsr_data_release (mat_tmp)
-    CALL dbcsr_error_stop(error_handler, error)
-
-   END SUBROUTINE dbcsr_scale_mat_any
 
 
 ! *****************************************************************************
@@ -1244,14 +1105,14 @@ CONTAINS
              CALL dbcsr_put_block(matrix_c, row, col, c_data, tr_a, &
                   summation=.FALSE.)
           ELSE
-             IF (assume_blocks_in_b) THEN
+             IF (assume_blocks_in_b) THEN ! this makes not too much sense, to delete ?
                 SELECT CASE (data_type)
                 CASE (dbcsr_type_real_4)
-                   c_data%d%r_sp(1:nze) = a_data%d%r_sp(1:nze) * assumed_b_value 
+                   c_data%d%r_sp(1:nze) = a_data%d%r_sp(1:nze) * REAL(assumed_b_value,KIND=sp)
                 CASE (dbcsr_type_real_8)
                    c_data%d%r_dp(1:nze) = a_data%d%r_dp(1:nze) * assumed_b_value 
                 CASE (dbcsr_type_complex_4)
-                   c_data%d%c_sp(1:nze) = a_data%d%c_sp(1:nze) * assumed_b_value
+                   c_data%d%c_sp(1:nze) = a_data%d%c_sp(1:nze) * REAL(assumed_b_value,KIND=sp)
                 CASE (dbcsr_type_complex_8)
                    c_data%d%c_dp(1:nze) = a_data%d%c_dp(1:nze) * assumed_b_value
                 END SELECT
@@ -1987,146 +1848,6 @@ CONTAINS
 
   END SUBROUTINE dbcsr_copy_into_existing_sym
 
-
-
-! *****************************************************************************
-!> \brief Copy only a subset of matrix columns (element-wise, not block-size)
-!> \param[in,out] matrix_b      target DBCSR matrix
-!> \param[in]    matrix_a       source DBCSR matrix
-!> \param[in]    ncol           number of elemental column to copy
-!> \param[in]    source_start   starting elemental column in source
-!> \param[in]    target_start   starting elemental column in target
-!> \param[in,out] error         cp2k error
-!> \par Column block compatibility
-!>      The process column distributions of the copied columns must be
-!>      equal. Therefore, the source and target offsets must also be
-!>      the same.
-! *****************************************************************************
-  SUBROUTINE dbcsr_copy_columns(matrix_b, matrix_a,&
-       ncol, source_start, target_start, error)
-    TYPE(dbcsr_obj), INTENT(INOUT)           :: matrix_b
-    TYPE(dbcsr_obj), INTENT(IN)              :: matrix_a
-    INTEGER, INTENT(IN)                      :: ncol, source_start, &
-                                                target_start
-    TYPE(dbcsr_error_type), INTENT(INOUT)    :: error
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'dbcsr_copy_columns', &
-      routineP = moduleN//':'//routineN
-
-    INTEGER :: col_size, data_type, dst_col, dst_row, error_handler, &
-      first_col, last_col, num_col, rel, row_size, src_col, src_row
-    INTEGER, DIMENSION(:), POINTER           :: dst_col_offsets, &
-                                                dst_col_sizes, &
-                                                src_col_offsets, src_col_sizes
-    LOGICAL                                  :: dst_tr, src_tr
-    TYPE(dbcsr_data_obj)                     :: dst_data, src_data, tmp_buffer
-    TYPE(dbcsr_iterator)                     :: dst_iter, src_iter
-
-!   ---------------------------------------------------------------------------
-
-    CALL dbcsr_error_set(routineN, error_handler, error)
-    CALL dbcsr_assert (dbcsr_get_data_type(matrix_b)&
-         .EQ. dbcsr_get_data_type(matrix_a), dbcsr_fatal_level,&
-         dbcsr_wrong_args_error, routineN, "Matrices have different data types.",__LINE__,error)
-    data_type = dbcsr_get_data_type (matrix_b)
-
-    CALL dbcsr_assert (source_start .EQ. target_start, dbcsr_fatal_level,&
-         dbcsr_unimplemented_error_nr, routineN, "Column shifting not supported",__LINE__,error)
-
-    src_col_offsets => array_data (matrix_a%m%col_blk_offset)
-    dst_col_offsets => array_data (matrix_b%m%col_blk_offset)
-    src_col_sizes => array_data (matrix_a%m%col_blk_size)
-    dst_col_sizes => array_data (matrix_b%m%col_blk_size)
-
-    CALL dbcsr_data_init (src_data)
-    CALL dbcsr_data_init (dst_data)
-    CALL dbcsr_data_init (tmp_buffer)
-    CALL dbcsr_data_new (src_data, data_type)
-    CALL dbcsr_data_new (dst_data, data_type)
-    CALL dbcsr_data_new (tmp_buffer, data_type,&
-         matrix_a%m%max_rbs*matrix_a%m%max_cbs)
-    CALL dbcsr_iterator_start (src_iter, matrix_a)
-    CALL dbcsr_iterator_start (dst_iter, matrix_b)
-    ! Iterate through the blocks of the source and destination
-    ! matrix. There are three possibilites: 1 copy data for blocks
-    ! present in both that are fully within the specified range; 2
-    ! copy partial data for blacks partially within the specified
-    ! range; 3 add (partial or full) data for blocks present in source
-    ! but not in the target
-    IF (dbcsr_iterator_blocks_left (src_iter)) THEN
-       CALL dbcsr_iterator_next_block (src_iter, src_row, src_col, src_data,&
-            src_tr)
-    ELSE
-       src_row = 0 ; src_col = 0
-    ENDIF
-    DO WHILE (dbcsr_iterator_blocks_left (dst_iter))
-       CALL dbcsr_iterator_next_block (dst_iter, dst_row, dst_col, dst_data,&
-            dst_tr, row_size=row_size, col_size=col_size)
-       ! Now find the source position that is greater or equal to the
-       ! target one. I.e, skip blocks that the target doesn't have.
-       rel = pos_relation (dst_row, dst_col, src_row, src_col)
-       DO WHILE (rel .EQ. 1 .AND. dbcsr_iterator_blocks_left (src_iter))
-          CALL dbcsr_iterator_next_block (src_iter, src_row, src_col,&
-               src_data, src_tr)
-          rel = pos_relation (dst_row, dst_col, src_row, src_col)
-       ENDDO
-       SELECT CASE (rel)
-       CASE (0) ! Equal block coordinates; block exists in both src and dst
-          ! Check if the full block is being copied
-          CALL dbcsr_assert (src_col_sizes(src_col) .EQ. dst_col_sizes(dst_col),&
-               dbcsr_fatal_level, dbcsr_internal_error, routineN,&
-               "Unequal column sizes",__LINE__,error)
-          !CALL dbcsr_unimplemented_error (routineN, "Partial block copy not tested",&
-          !     error=error, error_level=dbcsr_warning_level)
-          CALL dbcsr_assert (src_col_offsets(src_col).eq.dst_col_offsets(dst_col),&
-               dbcsr_fatal_level, dbcsr_internal_error, routineN,&
-               "Block offsets must be equal",__LINE__,error)
-          first_col = 1 + MAX (src_col_offsets(src_col), source_start)&
-               - src_col_offsets(src_col)
-          last_col = MIN (src_col_offsets(src_col)+ncol-1, source_start+ncol-1) - &
-               src_col_offsets(src_col+1)-1 + 1
-          num_col = last_col - first_col + 1
-          IF (num_col .GT. 0) THEN
-             CALL dbcsr_block_partial_copy(&
-                  dst_data, row_size, col_size, dst_tr,&
-                  src_data, row_size, col_size, src_tr,&
-                  1, first_col, 1, first_col,& ! offsets
-                  row_size, num_col) ! sizes
-          ENDIF
-       CASE (-1) ! Block exists in dst but must be added to dst
-          IF (source_start .GE. src_col_offsets(src_col) .AND. &
-              src_col_offsets(src_col)+ncol-1 .LE. source_start+ncol-1) THEN
-             CALL dbcsr_put_block (matrix_b, src_row, src_col, src_data,&
-                  transposed=src_tr)
-          ELSE
-             CALL dbcsr_assert (.FALSE., dbcsr_fatal_level,  dbcsr_internal_error, routineN,&
-                  "Partial block addition not yet tested",__LINE__,error)
-             CALL dbcsr_data_clear (tmp_buffer)
-             CALL dbcsr_block_partial_copy (&
-                  tmp_buffer, row_size, col_size, src_tr,&
-                  src_data, row_size, col_size, src_tr,&
-                  1, first_col, 1, first_col,&
-                  row_size, num_col)
-             CALL dbcsr_put_block (matrix_b, src_row, src_col, tmp_buffer,&
-                  src_tr)
-          ENDIF
-       CASE (1)
-          ! Ran out of source. Do nothing.
-       CASE default
-          CALL dbcsr_assert (.FALSE., dbcsr_fatal_level, dbcsr_internal_error,&
-               routineN, "Trouble syncing iterators",__LINE__,error)
-       END SELECT
-    END DO
-    CALL dbcsr_iterator_stop (src_iter)
-    CALL dbcsr_iterator_stop (dst_iter)
-    CALL dbcsr_data_clear_pointer (src_data)
-    CALL dbcsr_data_clear_pointer (dst_data)
-    CALL dbcsr_data_release (src_data)
-    CALL dbcsr_data_release (dst_data)
-    CALL dbcsr_error_stop(error_handler, error)
-  END SUBROUTINE dbcsr_copy_columns
-
-
 ! *****************************************************************************
 !> \brief Determines the relation between two matrix positions.
 !> \param row1 ...
@@ -2496,46 +2217,6 @@ CONTAINS
 
 
 ! *****************************************************************************
-!> \brief block triu of a dbcsr matrix
-!> \param[in] matrix_b  triu of the matrix
-!> \param[in] matrix_a  the matrix
-!>
-!> \param error ...
-! *****************************************************************************
-  SUBROUTINE dbcsr_btriu(matrix_b, matrix_a, error)
-
-    TYPE(dbcsr_obj), INTENT(INOUT)           :: matrix_b
-    TYPE(dbcsr_obj), INTENT(IN)              :: matrix_a
-    TYPE(dbcsr_error_type), INTENT(INOUT)    :: error
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'dbcsr_btriu', &
-      routineP = moduleN//':'//routineN
-
-    INTEGER                                  :: blk, blk_nze, col, col_size, &
-                                                error_handler, row, row_size
-    TYPE(dbcsr_iterator)                     :: iter
-
-!   ---------------------------------------------------------------------------
-
-    CALL dbcsr_error_set(routineN, error_handler, error)
-    CALL dbcsr_copy(matrix_b, matrix_a, name="triu of "//matrix_a%m%name, error=error)
-
-    CALL dbcsr_iterator_start(iter, matrix_b)
-
-    DO WHILE (dbcsr_iterator_blocks_left(iter))
-       CALL dbcsr_iterator_next_block(iter, row, col, blk=blk,&
-            row_size=row_size, col_size=col_size)
-       blk_nze = row_size * col_size
-       IF(row.GT.col) CALL dbcsr_remove_block(matrix_b, row, col, blk_nze, blk)
-    ENDDO
-
-    CALL dbcsr_iterator_stop(iter)
-
-    CALL dbcsr_finalize (matrix_b, error=error)
-    CALL dbcsr_error_stop(error_handler, error)
-  END SUBROUTINE dbcsr_btriu
-
-! *****************************************************************************
 !> \brief  triu of a dbcsr matrix
 !> \param[inout] matrix_a  the matrix
 !>
@@ -2580,99 +2261,6 @@ CONTAINS
     CALL dbcsr_finalize (matrix_a, error=error)
     CALL dbcsr_error_stop(error_handler, error)
   END SUBROUTINE dbcsr_triu
-
-! *****************************************************************************
-!> \brief  symmetrize the block diagonal of a dbcsr matrix
-!> \param[inout] matrix_a  the matrix
-!>
-!> \param error ...
-! *****************************************************************************
-  SUBROUTINE dbcsr_symmetrize_block_diag(matrix_a, error)
-
-    TYPE(dbcsr_obj), INTENT(INOUT)           :: matrix_a
-    TYPE(dbcsr_error_type), INTENT(INOUT)    :: error
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'dbcsr_symmetrize_block_diag', &
-      routineP = moduleN//':'//routineN
-
-    INTEGER                                  :: blk, col, col_size, &
-                                                error_handler, i, j, row, &
-                                                row_size
-    LOGICAL                                  :: tr
-    REAL(dp)                                 :: dum
-    REAL(dp), DIMENSION(:, :), POINTER       :: DATA
-    TYPE(dbcsr_iterator)                     :: iter
-
-!   ---------------------------------------------------------------------------
-
-    CALL dbcsr_error_set(routineN, error_handler, error)
-    CALL dbcsr_iterator_start(iter, matrix_a)
-
-    DO WHILE (dbcsr_iterator_blocks_left(iter))
-       CALL dbcsr_iterator_next_block(iter, row, col, DATA, tr, &
-            block_number=blk, row_size=row_size, col_size=col_size)
-       IF(col.NE.row) CYCLE
-       DO j = 1,col_size
-       DO i = j+1,row_size
-          dum = (DATA(i,j) + DATA(j,i)) / 2.0_dp
-          DATA(i,j) = dum
-          DATA(j,i) = dum
-       ENDDO
-       ENDDO
-    ENDDO
-
-    CALL dbcsr_iterator_stop(iter)
-
-    CALL dbcsr_finalize(matrix_a, error=error)
-    CALL dbcsr_error_stop(error_handler, error)
-
-  END SUBROUTINE dbcsr_symmetrize_block_diag
-
-! *****************************************************************************
-!> \brief  tril of a dbcsr matrix
-!> \param[inout] matrix_a  the matrix
-!>
-!> \param error ...
-! *****************************************************************************
-  SUBROUTINE dbcsr_tril(matrix_a, error)
-
-    TYPE(dbcsr_obj), INTENT(INOUT)           :: matrix_a
-    TYPE(dbcsr_error_type), INTENT(INOUT)    :: error
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'dbcsr_tril', &
-      routineP = moduleN//':'//routineN
-
-    INTEGER                                  :: blk, blk_nze, col, col_size, &
-                                                error_handler, i, j, row, &
-                                                row_size
-    LOGICAL                                  :: tr
-    REAL(dp), DIMENSION(:, :), POINTER       :: DATA
-    TYPE(dbcsr_iterator)                     :: iter
-
-!   ---------------------------------------------------------------------------
-
-    CALL dbcsr_error_set(routineN, error_handler, error)
-    CALL dbcsr_iterator_start(iter, matrix_a)
-
-    DO WHILE (dbcsr_iterator_blocks_left(iter))
-       CALL dbcsr_iterator_next_block(iter, row, col, block=DATA, transposed=tr, &
-            block_number=blk, row_size=row_size, col_size=col_size)
-       blk_nze = row_size * col_size
-       IF(row.GT.col) CALL dbcsr_remove_block(matrix_a, row, col, blk_nze, blk)
-       IF(row.EQ.col) THEN
-          DO j = 1,col_size
-          DO i = 1,j-1
-             DATA(i,j) = 0.0_dp
-          ENDDO
-          ENDDO
-       ENDIF
-    ENDDO
-
-    CALL dbcsr_iterator_stop(iter)
-
-    CALL dbcsr_finalize (matrix_a, error=error)
-    CALL dbcsr_error_stop(error_handler, error)
-  END SUBROUTINE dbcsr_tril
 
 ! *****************************************************************************
 !> \brief filter a dbcsr matrix
@@ -3270,7 +2858,7 @@ CONTAINS
           IF(any_sym.AND.row.NE.col) &
                CALL dbcsr_assert (.FALSE., dbcsr_fatal_level, dbcsr_unimplemented_error_nr, &
                routineN,"Only nonsymmetric matrix so far",__LINE__,error)
-          norm = norm + fac * SUM(CONJG(data_z)*data_z)
+          norm = norm + fac * REAL(SUM(CONJG(data_z)*data_z),KIND=real_8)
        CASE DEFAULT
           CALL dbcsr_assert (.FALSE., dbcsr_fatal_level, dbcsr_unimplemented_error_nr, &
                routineN,"Wrong data type",__LINE__,error)

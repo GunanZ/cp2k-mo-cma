@@ -27,9 +27,7 @@ MODULE dbcsr_block_access
   USE btree_I8_k_zp2d_v,               ONLY: btree_2d_data_z => zp2d,&
                                              btree_add_z => btree_add,&
                                              btree_get_z => btree_find
-  USE dbcsr_block_operations,          ONLY: dbcsr_block_copy,&
-                                             dbcsr_block_transpose,&
-                                             dbcsr_data_clear,&
+  USE dbcsr_block_operations,          ONLY: dbcsr_data_clear,&
                                              dbcsr_data_set
   USE dbcsr_config,                    ONLY: default_resize_factor
   USE dbcsr_data_methods,              ONLY: dbcsr_data_clear_pointer,&
@@ -58,11 +56,8 @@ MODULE dbcsr_block_access
        dbcsr_mutable_new, dbcsr_nblkcols_total, dbcsr_nblkrows_total, &
        dbcsr_use_mutable, dbcsr_wm_use_mutable
   USE dbcsr_mp_methods,                ONLY: dbcsr_mp_mynode
-  USE dbcsr_ptr_util,                  ONLY: pointer_c_rank_remap2,&
-                                             pointer_d_rank_remap2,&
-                                             pointer_s_rank_remap2,&
-                                             pointer_view,&
-                                             pointer_z_rank_remap2
+  USE dbcsr_ptr_util,                  ONLY: pointer_rank_remap2,&
+                                             pointer_view
   USE dbcsr_toollib,                   ONLY: make_coordinate_tuple,&
                                              swap
   USE dbcsr_types,                     ONLY: &
@@ -85,19 +80,12 @@ MODULE dbcsr_block_access
 
   CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'dbcsr_block_access'
 
-  PUBLIC :: dbcsr_get_block, dbcsr_get_block_p,&
+  PUBLIC :: dbcsr_get_block_p,&
             dbcsr_put_block, dbcsr_remove_block
 
   PUBLIC :: dbcsr_reserve_block2d,&
             dbcsr_reserve_blocks, dbcsr_reserve_all_blocks, dbcsr_reserve_diag_blocks
 
-
-  INTERFACE dbcsr_get_block
-     MODULE PROCEDURE dbcsr_get_block_d, dbcsr_get_block_s,&
-                      dbcsr_get_block_z, dbcsr_get_block_c
-     MODULE PROCEDURE dbcsr_get_2d_block_d, dbcsr_get_2d_block_s,&
-                      dbcsr_get_2d_block_z, dbcsr_get_2d_block_c
-  END INTERFACE
 
   INTERFACE dbcsr_get_block_p
      MODULE PROCEDURE dbcsr_get_block_p_d, dbcsr_get_block_p_s,&
@@ -118,11 +106,6 @@ MODULE dbcsr_block_access
   INTERFACE dbcsr_reserve_block2d
      MODULE PROCEDURE dbcsr_reserve_block2d_s, dbcsr_reserve_block2d_d,&
                       dbcsr_reserve_block2d_c, dbcsr_reserve_block2d_z
-  END INTERFACE
-
-  INTERFACE dbcsr_get_tmp_block2d
-     MODULE PROCEDURE dbcsr_get_tmp_block2d_s, dbcsr_get_tmp_block2d_d,&
-                      dbcsr_get_tmp_block2d_c, dbcsr_get_tmp_block2d_z
   END INTERFACE
 
   INTERFACE dbcsr_set_block_pointer

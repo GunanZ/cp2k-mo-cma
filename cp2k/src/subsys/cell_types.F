@@ -13,7 +13,6 @@
 MODULE cell_types
   USE cp_units,                        ONLY: cp_unit_to_cp2k,&
                                              cp_units_rad
-  USE f77_blas
   USE kinds,                           ONLY: dp
   USE mathconstants,                   ONLY: degree,&
                                              sqrt3
@@ -73,50 +72,19 @@ MODULE cell_types
   PUBLIC :: cell_type, cell_p_type
 
   ! Public subroutines
-  PUBLIC :: get_cell, get_cell_param, init_cell, &
+  PUBLIC :: get_cell, get_cell_param, init_cell,&
             cell_create, cell_retain, cell_release,&
-            cell_clone, cell_copy, compare_cells, parse_cell_line, set_cell_param,&
+            cell_clone, cell_copy, parse_cell_line, set_cell_param,&
             pbc_cp2k_plumed_getset_cell, pbc_cp2k_plumed  !for plumed
 
   ! Public functions
   PUBLIC :: plane_distance, pbc, real_to_scaled, scaled_to_real
 
   INTERFACE pbc
-     MODULE PROCEDURE pbc1,pbc2,pbc3
+     MODULE PROCEDURE pbc1,pbc2,pbc3,pbc4
   END INTERFACE
 
 CONTAINS
-
-! *****************************************************************************
-!> \brief ...
-!> \param cell_1 ...
-!> \param cell_2 ...
-!> \param error ...
-!> \retval compare ...
-! *****************************************************************************
-  FUNCTION compare_cells (cell_1, cell_2, error) RESULT(compare)
-
-    TYPE(cell_type), POINTER                 :: cell_1, cell_2
-    TYPE(cp_error_type), INTENT(INOUT)       :: error
-    LOGICAL                                  :: compare
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'compare_cells', &
-      routineP = moduleN//':'//routineN
-
-    LOGICAL                                  :: failure
-
-    failure = .FALSE.
-    CPPrecondition(ASSOCIATED(cell_1),cp_failure_level,routineP,error,failure)
-    CPPrecondition(ASSOCIATED(cell_2),cp_failure_level,routineP,error,failure)
-
-    compare = ((cell_2%deth == cell_1%deth).AND.&
-               (ALL(cell_2%perd == cell_1%perd)).AND.&
-               (ALL(cell_2%hmat == cell_1%hmat)).AND.&
-               (ALL(cell_2%h_inv == cell_1%h_inv)).AND.&
-               (cell_2%orthorhombic.EQV.cell_1%orthorhombic).AND.&
-               (cell_2%symmetry_id == cell_1%symmetry_id))
-
-  END FUNCTION compare_cells
 
 ! *****************************************************************************
 !> \brief ...
@@ -707,6 +675,46 @@ CONTAINS
     END DO
 
   END FUNCTION pbc3
+  
+  !if positive_range == true, r(i) (or s(i)) in range [0, hmat(i,i)],
+  !else, r(i) (s(i)) in range [-hmat(i,i)/2, hmat(i,i)/2]
+! *****************************************************************************
+!> \brief ...
+!> \param r ...
+!> \param cell ...
+!> \param positive_range ...
+!> \retval r_pbc ...
+! *****************************************************************************
+  FUNCTION pbc4(r,cell,positive_range) RESULT(r_pbc)
+
+    REAL(KIND=dp), DIMENSION(3), INTENT(IN)  :: r
+    TYPE(cell_type), POINTER                 :: cell
+    LOGICAL                                  :: positive_range
+    REAL(KIND=dp), DIMENSION(3)              :: r_pbc
+
+    REAL(KIND=dp), DIMENSION(3)              :: s
+
+    IF (positive_range) THEN
+      IF (cell%orthorhombic) THEN
+        r_pbc(1) = r(1) - cell%hmat(1,1)*cell%perd(1)*FLOOR(cell%h_inv(1,1)*r(1))
+        r_pbc(2) = r(2) - cell%hmat(2,2)*cell%perd(2)*FLOOR(cell%h_inv(2,2)*r(2))
+        r_pbc(3) = r(3) - cell%hmat(3,3)*cell%perd(3)*FLOOR(cell%h_inv(3,3)*r(3))
+      ELSE
+        s(1) = cell%h_inv(1,1)*r(1) + cell%h_inv(1,2)*r(2) + cell%h_inv(1,3)*r(3)
+        s(2) = cell%h_inv(2,1)*r(1) + cell%h_inv(2,2)*r(2) + cell%h_inv(2,3)*r(3)
+        s(3) = cell%h_inv(3,1)*r(1) + cell%h_inv(3,2)*r(2) + cell%h_inv(3,3)*r(3)
+        s(1) = s(1) - cell%perd(1)*FLOOR(s(1))
+        s(2) = s(2) - cell%perd(2)*FLOOR(s(2))
+        s(3) = s(3) - cell%perd(3)*FLOOR(s(3))
+        r_pbc(1) = cell%hmat(1,1)*s(1) + cell%hmat(1,2)*s(2) + cell%hmat(1,3)*s(3)
+        r_pbc(2) = cell%hmat(2,1)*s(1) + cell%hmat(2,2)*s(2) + cell%hmat(2,3)*s(3)
+        r_pbc(3) = cell%hmat(3,1)*s(1) + cell%hmat(3,2)*s(2) + cell%hmat(3,3)*s(3)
+      END IF
+    ELSE
+      r_pbc = pbc1(r,cell)
+    END IF
+
+  END FUNCTION pbc4
 
 ! *****************************************************************************
 !> \brief   Transform real to scaled cell coordinates.

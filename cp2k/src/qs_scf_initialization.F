@@ -41,7 +41,6 @@ MODULE qs_scf_initialization
                                              cp_print_key_should_output,&
                                              cp_print_key_unit_nr
   USE cp_para_types,                   ONLY: cp_para_env_type
-  USE f77_blas
   USE input_constants,                 ONLY: &
        broy_mix, broy_mix_new, cholesky_dbcsr, cholesky_inverse, &
        cholesky_off, densities_guess, diag_block_davidson, diag_block_krylov, &
@@ -54,6 +53,7 @@ MODULE qs_scf_initialization
   USE kinds,                           ONLY: dp
   USE kpoint_types,                    ONLY: kpoint_type
   USE lri_optimize_ri_basis,           ONLY: optimize_lri_basis
+  USE pw_types,                        ONLY: pw_p_type
   USE qmmm_image_charge,               ONLY: calculate_image_matrix
   USE qs_block_davidson_types,         ONLY: block_davidson_allocate,&
                                              block_davidson_env_create
@@ -85,6 +85,7 @@ MODULE qs_scf_initialization
   USE qs_rho_methods,                  ONLY: duplicate_rho_type,&
                                              qs_rho_update_rho
   USE qs_rho_types,                    ONLY: qs_rho_create,&
+                                             qs_rho_get,&
                                              qs_rho_type
   USE qs_scf_diagonalization,          ONLY: diag_subspace_allocate
   USE qs_scf_lanczos,                  ONLY: krylov_space_allocate
@@ -190,7 +191,10 @@ CONTAINS
     CHARACTER(len=*), PARAMETER :: routineN = 'qs_scf_ensure_scf_env', &
       routineP = moduleN//':'//routineN
 
+    TYPE(pw_p_type), DIMENSION(:), POINTER   :: rho_g
     TYPE(qs_rho_type), POINTER               :: rho
+
+    NULLIFY(rho_g)
 
     IF (.NOT.ASSOCIATED(scf_env)) THEN ! i.e. for MD this is associated on the second step (it so seems)
        CALL scf_env_create(scf_env, error=error)
@@ -206,7 +210,8 @@ CONTAINS
            ! grid comparison, but the probability that the 1d lengths of the old and
            ! the new grid are accidentily equal is rather low
            CALL get_qs_env(qs_env,error=error, rho=rho)
-           IF (SIZE(rho%rho_g(1)%pw%pw_grid%gsq) /= SIZE(scf_env%mixing_store%rhoin(1)%cc)) &
+           CALL qs_rho_get(rho, rho_g=rho_g, error=error)
+           IF (SIZE(rho_g(1)%pw%pw_grid%gsq) /= SIZE(scf_env%mixing_store%rhoin(1)%cc)) &
              CALL mixing_storage_release(scf_env%mixing_store,error=error)
          END IF
        END SELECT
@@ -307,7 +312,7 @@ CONTAINS
     INTEGER                                  :: handle, is, nao, nrow_block, &
                                                 nw, stat
     LOGICAL                                  :: do_kpoints, failure
-    TYPE(cp_dbcsr_p_type), DIMENSION(:), &
+    TYPE(cp_dbcsr_p_type), DIMENSION(:, :), &
       POINTER                                :: matrix_s
     TYPE(cp_dbcsr_type), POINTER             :: ref_matrix
     TYPE(cp_fm_pool_p_type), DIMENSION(:), &
@@ -323,7 +328,7 @@ CONTAINS
 
     CALL get_qs_env(qs_env=qs_env,&
                     dft_control=dft_control,&
-                    matrix_s=matrix_s,&
+                    matrix_s_kp=matrix_s,&
                     mos=mos,&
                     do_kpoints=do_kpoints,&
                     error=error)
@@ -368,7 +373,7 @@ CONTAINS
                             error=error)
           ! Initialize dbcsr matrix to store the Cholesky decomposition
           IF (scf_env%cholesky_method == cholesky_dbcsr) THEN
-             ref_matrix => matrix_s(1)%matrix
+             ref_matrix => matrix_s(1,1)%matrix
              CALL cp_dbcsr_init_p(scf_env%ortho_dbcsr,error=error)
              CALL cp_dbcsr_create(scf_env%ortho_dbcsr,template=ref_matrix,&
                                   matrix_type=dbcsr_type_no_symmetry,error=error)
@@ -456,7 +461,9 @@ CONTAINS
     LOGICAL                                  :: failure
     TYPE(array_i1d_obj)                      :: col_blk_size, col_dist
     TYPE(cp_dbcsr_p_type), DIMENSION(:), &
-      POINTER                                :: matrix_s, mo_derivs
+      POINTER                                :: mo_derivs
+    TYPE(cp_dbcsr_p_type), DIMENSION(:, :), &
+      POINTER                                :: matrix_s
     TYPE(cp_dbcsr_type), POINTER             :: mo_coeff_b
     TYPE(cp_fm_p_type), DIMENSION(:), &
       POINTER                                :: mo_derivs_aux_fit
@@ -486,7 +493,7 @@ CONTAINS
     CALL get_qs_env(qs_env=qs_env,&
          dft_control=dft_control,&
          mos=mos,&
-         matrix_s=matrix_s,&
+         matrix_s_kp=matrix_s,&
          mos_aux_fit=mos_aux_fit,&
          xas_env=xas_env,error=error)
     CALL mpools_get(qs_env%mpools, ao_mo_fm_pools=ao_mo_fm_pools,&
@@ -510,12 +517,12 @@ CONTAINS
           IF(.not.ASSOCIATED(mo_coeff_b)) THEN
              CALL cp_fm_get_info(mos(ispin)%mo_set%mo_coeff,ncol_global=nmo,error=error)
              CALL cp_create_bl_distribution (col_dist, col_blk_size, nmo, &! fm->dbcsr
-                  dbcsr_mp_npcols(dbcsr_distribution_mp(cp_dbcsr_distribution(matrix_s(1)%matrix))))! fm->dbcsr
-             CALL dbcsr_distribution_new (dist, dbcsr_distribution_mp (cp_dbcsr_distribution(matrix_s(1)%matrix)),&! fm->dbcsr
-                  dbcsr_distribution_row_dist(cp_dbcsr_distribution(matrix_s(1)%matrix)), col_dist)! fm->dbcsr
+                  dbcsr_mp_npcols(dbcsr_distribution_mp(cp_dbcsr_distribution(matrix_s(1,1)%matrix))))! fm->dbcsr
+             CALL dbcsr_distribution_new (dist, dbcsr_distribution_mp (cp_dbcsr_distribution(matrix_s(1,1)%matrix)),&! fm->dbcsr
+                  dbcsr_distribution_row_dist(cp_dbcsr_distribution(matrix_s(1,1)%matrix)), col_dist)! fm->dbcsr
              CALL cp_dbcsr_init_p(mos(ispin)%mo_set%mo_coeff_b,error=error)
              CALL cp_dbcsr_create(mos(ispin)%mo_set%mo_coeff_b, "mo_coeff_b", dist, dbcsr_type_no_symmetry,&! fm->dbcsr
-                  cp_dbcsr_row_block_sizes(matrix_s(1)%matrix), col_blk_size, 0, 0, dbcsr_type_real_default,&!fm->dbcsr
+                  cp_dbcsr_row_block_sizes(matrix_s(1,1)%matrix), col_blk_size, 0, 0, dbcsr_type_real_default,&!fm->dbcsr
                   error=error)! fm->dbcsr
              CALL cp_dbcsr_distribution_release (dist)! fm->dbcsr
              CALL array_release (col_blk_size)! fm->dbcsr
@@ -742,12 +749,12 @@ CONTAINS
 ! Diagonalization: additional check whether we are in an orthonormal basis
       CASE(diag_standard)
         scf_env%method=general_diag_method_nr
-        scf_env%needs_ortho=.NOT.has_unit_metric
+        scf_env%needs_ortho = (.NOT.has_unit_metric) .AND. (.NOT.do_kpoints)
         IF (has_unit_metric) THEN
             scf_env%method=special_diag_method_nr
         END IF
 ! OT Diagonalization: not possible with ROKS
-      CASE ( diag_ot ) 
+      CASE ( diag_ot )
         CALL cp_assert(.NOT.(dft_control%roks),cp_failure_level,cp_assertion_failed,&
               routineP,"ROKS with OT diagonalization not possible",error,failure)
         CALL cp_assert(.NOT.do_kpoints,cp_failure_level,cp_assertion_failed,&
@@ -884,7 +891,7 @@ CONTAINS
       my_transition_potential, s_minus_half_available
     REAL(KIND=dp)                            :: u_ramping
     TYPE(cp_dbcsr_p_type), DIMENSION(:), &
-      POINTER                                :: matrix_h, matrix_ks, matrix_s
+      POINTER                                :: matrix_s
     TYPE(cp_logger_type), POINTER            :: logger
     TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(dft_control_type), POINTER          :: dft_control
@@ -898,8 +905,7 @@ CONTAINS
 
     CALL timeset(routineN,handle)
 
-    NULLIFY(scf_control, qs_kind_set, matrix_h, matrix_s, matrix_ks, &
-         dft_control, mos, rho)
+    NULLIFY(scf_control, qs_kind_set, matrix_s, dft_control, mos, rho)
     failure=.FALSE.
     my_transition_potential = .FALSE.
     IF(PRESENT(do_xas_tp)) my_transition_potential = do_xas_tp
@@ -916,10 +922,9 @@ CONTAINS
                     scf_control=scf_control,&
                     dft_control=dft_control,&
                     qs_kind_set=qs_kind_set,&
-                    mos=mos,matrix_ks=matrix_ks,&
+                    mos=mos,&
                     rho=rho,&
-                    matrix_h=matrix_h,&
-                    matrix_s=matrix_s,&
+    !                matrix_s=matrix_s,&
                     nelectron_total=scf_env%nelectron,&
                     do_kpoints=do_kpoints,&
                     para_env=para_env,&
@@ -936,6 +941,7 @@ CONTAINS
     ! calc ortho matrix
     ndep = 0
     IF (scf_env%needs_ortho)THEN
+       CALL get_qs_env(qs_env, matrix_s=matrix_s, error=error)
        CALL copy_dbcsr_to_fm(matrix_s(1)%matrix,scf_env%ortho,error=error)
        IF (scf_env%cholesky_method>cholesky_off) THEN
          CALL cp_fm_cholesky_decompose(scf_env%ortho,error=error)
@@ -953,7 +959,7 @@ CONTAINS
                             scf_control%eps_eigval,ndep,error=error)
             s_minus_half_available = .TRUE.
        END IF
- 
+
        IF (BTEST(cp_print_key_should_output(logger%iter_info,&
               qs_env%input,"DFT%PRINT%AO_MATRICES/ORTHO",error=error),cp_p_file)) THEN
             iw = cp_print_key_unit_nr(logger,qs_env%input,"DFT%PRINT%AO_MATRICES/ORTHO",&
@@ -968,8 +974,7 @@ CONTAINS
 
     ! DFT+U methods based on Lowdin charges need S^(1/2)
     IF (dft_control%dft_plus_u) THEN
-      CALL cp_assert(.NOT.do_kpoints,cp_failure_level,cp_assertion_failed,&
-            routineP,"DFT+U method not allowed with kpoints",error,failure)
+      CALL get_qs_env(qs_env, matrix_s=matrix_s, error=error)
       IF (dft_control%plus_u_method_id == plus_u_lowdin) THEN
         IF (s_minus_half_available) THEN
           CALL cp_dbcsr_sm_fm_multiply(matrix_s(1)%matrix,scf_env%ortho,scf_env%s_half,&
@@ -1126,7 +1131,7 @@ CONTAINS
        IF (extrapolation_method_nr==wfi_use_guess_method_nr) THEN
           CALL calculate_first_density_matrix(scf_env=scf_env,qs_env=qs_env,error=error)
           IF (.NOT.(qs_env%scf_control%density_guess==densities_guess)) THEN
-            CALL qs_rho_update_rho(rho,qs_env=qs_env, error=error)
+            CALL qs_rho_update_rho(rho, qs_env=qs_env, error=error)
             CALL qs_ks_did_change(qs_env%ks_env,rho_changed=.TRUE.,&
                  error=error)
           END IF

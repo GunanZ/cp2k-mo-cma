@@ -206,55 +206,6 @@ CONTAINS
     END IF
   END FUNCTION lcm
 
-
-! *****************************************************************************
-!> \brief Calculates the ceiling of a log base 2 for integers
-!> \param[in] lv    Value for which to calculate the function
-!> \retval cl2 Result of function on lv
-!> \note Should be careful for highest integer values.
-! *****************************************************************************
-  ELEMENTAL FUNCTION ceil_log2 (lv) RESULT (cl2)
-    INTEGER, INTENT(IN)                      :: lv
-    INTEGER                                  :: cl2
-
-    INTEGER                                  :: bit
-
-    bit = 0
-    DO WHILE (ISHFT(1, bit) .LT. lv .AND. bit .LT. BIT_SIZE(lv))
-       bit = bit + 1
-    ENDDO
-    bit = bit-1
-    ! Set to zero if lv is too big.
-    IF (bit .EQ. BIT_SIZE(lv)-2) bit = 0
-    cl2 = bit+1
-  END FUNCTION ceil_log2
-
-
-! *****************************************************************************
-!> \brief Calculates partition
-!> \param[in] total_size      Length to partition
-!> \param[in] me              My position (from 0 to num-1)
-!> \param[in] num             Number of postitions
-!> \param[out] first          First element of my position
-!> \param[out] last           Last element of my position
-! *****************************************************************************
-  pure SUBROUTINE partitions (total_size, me, num, first, last)
-    INTEGER, INTENT(IN)                      :: total_size, me, num
-    INTEGER, INTENT(OUT)                     :: first, last
-
-    first = INT(&
-           (  INT(total_size,kind=int_8) &
-            * INT(me,kind=int_8) &
-           ) &
-         / INT(num,kind=int_8), kind=int_4) + 1
-    last = INT(&
-           (  INT(total_size,kind=int_8) &
-            * INT(me+1,kind=int_8) &
-           ) &
-         / INT(num,kind=int_8), kind=int_4)
-  END SUBROUTINE partitions
-
-
 ! *****************************************************************************
 !> \brief generates the hash of a string and the index in the table
 !> \param key a string of any length
@@ -292,7 +243,7 @@ CONTAINS
     hash=IAND(     hash+IAND(ISHFT(hash, 15),b32)  ,b32)
     ! In fortran 4-byte-integers have only 31 bits because they are signed
     ! In fortran the rightmost (least significant) bit is in position 0
-    hash_index = IBCLR(hash, 31)
+    hash_index = INT(IBCLR(hash, 31))
   END FUNCTION joaat_hash
 
 END MODULE dbcsr_toollib

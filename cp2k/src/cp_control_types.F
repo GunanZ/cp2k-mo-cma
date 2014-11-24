@@ -10,7 +10,6 @@
 MODULE cp_control_types
   USE cp_fm_types,                     ONLY: cp_fm_p_type,&
                                              cp_fm_release
-  USE f77_blas
   USE input_constants,                 ONLY: do_full_density
   USE kinds,                           ONLY: default_path_length,&
                                              default_string_length,&
@@ -370,7 +369,8 @@ MODULE cp_control_types
                                           ref_count,&
                                           id_nr,&
                                           plus_u_method_id,&
-                                          dir_surf_dip
+                                          dir_surf_dip,&
+                                          nimages = 1
      INTEGER                           :: sic_list_id
      REAL(KIND=dp)                     :: relax_multiplicity,&
                                           sic_scaling_a,&

@@ -27,7 +27,6 @@ MODULE input_cp2k_dft
                                              medium_print_level,&
                                              silent_print_level
   USE cp_units,                        ONLY: cp_unit_to_cp2k
-  USE f77_blas
   USE input_constants,                 ONLY: &
        atomic_guess, broy_mix, broy_mix_new, cholesky_dbcsr, &
        cholesky_inverse, cholesky_off, cholesky_reduce, cholesky_restore, &
@@ -70,23 +69,24 @@ MODULE input_cp2k_dft
        outer_scf_optimizer_none, outer_scf_optimizer_sd, &
        outer_scf_s2_constraint, outer_scf_scp, plus_u_lowdin, &
        plus_u_mulliken, plus_u_mulliken_charges, pulay_mix, pw_interp, &
-       ramp_env, random_guess, real_time_propagation, rel_dkh, rel_none, &
-       rel_pot_erfc, rel_pot_full, rel_sczora_mp, rel_trans_atom, &
-       rel_trans_full, rel_trans_molecule, rel_zora, rel_zora_full, &
-       rel_zora_mp, restart_guess, sic_ad, sic_eo, sic_list_all, &
-       sic_list_unpaired, sic_mauri_spz, sic_mauri_us, sic_none, slater, &
-       smear_energy_window, smear_fermi_dirac, smear_list, sparse_guess, &
-       spline3_nopbc_interp, spline3_pbc_interp, tddfpt_davidson, &
-       tddfpt_excitations, tddfpt_lanczos, tddfpt_singlet, tddfpt_triplet, &
-       use_coulomb, use_diff, use_no, use_restart_wfn, use_rt_restart, &
-       use_scf_wfn, weight_type_mass, weight_type_unit, wfi_aspc_nr, &
-       wfi_frozen_method_nr, wfi_linear_p_method_nr, wfi_linear_ps_method_nr, &
-       wfi_linear_wf_method_nr, wfi_ps_method_nr, wfi_use_guess_method_nr, &
-       wfi_use_prev_p_method_nr, wfi_use_prev_rho_r_method_nr, &
-       wfi_use_prev_wf_method_nr, xas_1s_type, xas_2p_type, xas_2s_type, &
-       xas_dip_len2, xas_dip_vel, xas_dscf, xas_none, xas_scf_default, &
-       xas_scf_general, xas_tp_fh, xas_tp_hh, xas_tp_xfh, xas_tp_xhh, &
-       xes_tp_val
+       ramp_env, random_guess, real_time_propagation, ref_charge_atomic, &
+       ref_charge_mulliken, rel_dkh, rel_none, rel_pot_erfc, rel_pot_full, &
+       rel_sczora_mp, rel_trans_atom, rel_trans_full, rel_trans_molecule, &
+       rel_zora, rel_zora_full, rel_zora_mp, restart_guess, &
+       shape_function_density, shape_function_gaussian, sic_ad, sic_eo, &
+       sic_list_all, sic_list_unpaired, sic_mauri_spz, sic_mauri_us, &
+       sic_none, slater, smear_energy_window, smear_fermi_dirac, smear_list, &
+       sparse_guess, spline3_nopbc_interp, spline3_pbc_interp, &
+       tddfpt_davidson, tddfpt_excitations, tddfpt_lanczos, tddfpt_singlet, &
+       tddfpt_triplet, use_coulomb, use_diff, use_no, use_restart_wfn, &
+       use_rt_restart, use_scf_wfn, weight_type_mass, weight_type_unit, &
+       wfi_aspc_nr, wfi_frozen_method_nr, wfi_linear_p_method_nr, &
+       wfi_linear_ps_method_nr, wfi_linear_wf_method_nr, wfi_ps_method_nr, &
+       wfi_use_guess_method_nr, wfi_use_prev_p_method_nr, &
+       wfi_use_prev_rho_r_method_nr, wfi_use_prev_wf_method_nr, xas_1s_type, &
+       xas_2p_type, xas_2s_type, xas_dip_len2, xas_dip_vel, xas_dscf, &
+       xas_none, xas_scf_default, xas_scf_general, xas_tp_fh, xas_tp_hh, &
+       xas_tp_xfh, xas_tp_xhh, xes_tp_val
   USE input_cp2k_almo,                 ONLY: create_almo_scf_section
   USE input_cp2k_atom,                 ONLY: create_powell_section
   USE input_cp2k_distribution,         ONLY: create_distribution_section
@@ -1618,6 +1618,26 @@ CONTAINS
        CALL section_add_subsection(section,print_key,error=error)
        CALL section_release(print_key,error=error)
 
+       CALL cp_print_key_section_create(print_key,"external_potential_cube",&
+            description="Controls the printing of a cube file with external "//&
+            " potential from the DFT%EXTERNAL_POTENTIAL section only.",&
+            print_level=high_print_level,filename="",&
+            error=error)
+       CALL keyword_create(keyword, name="stride",&
+            description="The stride (X,Y,Z) used to write the cube file "//&
+            "(larger values result in smaller cube files). You can provide 3 numbers (for X,Y,Z) or"//&
+            " 1 number valid for all components.",&
+            usage="STRIDE 2 2 2",n_var=-1,default_i_vals=(/2,2,2/), type_of_var=integer_t,error=error)
+       CALL section_add_keyword(print_key,keyword,error=error)
+       CALL keyword_release(keyword,error=error)
+       CALL keyword_create(keyword, name="APPEND",&
+            description="append the cube files when they already exist",&
+            default_l_val=.FALSE., lone_keyword_l_val=.TRUE.,error=error)
+       CALL section_add_keyword(print_key,keyword,error=error)
+       CALL keyword_release(keyword,error=error)
+
+       CALL section_add_subsection(section,print_key,error=error)
+       CALL section_release(print_key,error=error)
 
 ! ZMP adding the print section for  the v_xc cube 
        CALL cp_print_key_section_create(print_key,"v_xc_cube",&
@@ -1894,6 +1914,44 @@ CONTAINS
        CALL section_add_subsection(section,print_key,error=error)
        CALL section_release(print_key,error=error)
 
+       ! Hirschfeld population analysis
+       CALL cp_print_key_section_create(print_key,"HIRSCHFELD",&
+            description="Controls the printing of the Hirschfeld (spin) population analysis", &
+            print_level=medium_print_level,filename="__STD_OUT__",&
+            common_iter_levels=1, error=error)
+       CALL keyword_create(keyword=keyword,name="SELF_CONSISTENT",&
+            description="Calculate charges from the Hirscheld-I (self_consistent) method."//&
+            " This scales only the full shape function, not the added charge as in the original scheme.",&
+            usage="SELF_CONSISTENT yes",repeats=.FALSE.,required=.FALSE.,n_var=1,&
+            default_l_val=.FALSE.,lone_keyword_l_val=.TRUE.,&
+            error=error)
+       CALL section_add_keyword(print_key,keyword,error=error)
+       CALL keyword_release(keyword,error=error)
+       CALL keyword_create(keyword=keyword,name="SHAPE_FUNCTION",&
+            description="Type of shape function used for Hirschfeld partitioning.",&
+            usage="SHAPE_FUNCTION {Gaussian,Density}",repeats=.FALSE.,required=.FALSE.,n_var=1,&
+            default_i_val=shape_function_gaussian,&
+            enum_c_vals=s2a("GAUSSIAN","DENSITY"),&
+            enum_desc=s2a("Single Gaussian with Colvalent radius", &
+            "Atomic density expanded in multiple Gaussians"), &
+            enum_i_vals=(/shape_function_gaussian,shape_function_density/),&
+            error=error)
+       CALL section_add_keyword(print_key,keyword,error=error)
+       CALL keyword_release(keyword,error=error)
+       CALL keyword_create(keyword=keyword,name="REFERENCE_CHARGE",&
+            description="Charge of atomic partitioning function for Hirschfeld method.",&
+            usage="REFERENCE_CHARGE {Atomic,Mulliken}",repeats=.FALSE.,required=.FALSE.,n_var=1,&
+            default_i_val=ref_charge_atomic,&
+            enum_c_vals=s2a("ATOMIC","MULLIKEN"),&
+            enum_desc=s2a("Use atomic core charges","Calculate Mulliken charges"), &
+            enum_i_vals=(/ref_charge_atomic,ref_charge_mulliken/),&
+            error=error)
+       CALL section_add_keyword(print_key,keyword,error=error)
+       CALL keyword_release(keyword,error=error)
+       CALL section_add_subsection(section,print_key,error=error)
+       CALL section_release(print_key,error=error)
+
+       ! Xray diffraction
        CALL cp_print_key_section_create(&
             print_key_section=print_key,&
             name="XRAY_DIFFRACTION_SPECTRUM",&
@@ -5635,6 +5693,22 @@ CONTAINS
             usage="ERROR_LIMIT <REAL>", default_r_val=1.0E-12_dp, error=error)
        CALL section_add_keyword(section,keyword,error=error)
        CALL keyword_release(keyword,error=error)
+       
+       !keyword for reading the external potential from cube file
+       CALL keyword_create(keyword, name="READ_FROM_CUBE",&
+            description="Switch for reading the external potential from file pot.cube. The values "//&
+                        "of the potential must be on the grid points of the realspace grid.",&
+            usage="READ_FROM_CUBE T", default_l_val=.FALSE., lone_keyword_l_val=.TRUE., error=error)
+       CALL section_add_keyword(section,keyword,error=error)
+       CALL keyword_release(keyword,error=error)
+       
+       !keyword for scaling the external potential that is read from file by a constant factor
+       CALL keyword_create(keyword, name="SCALING_FACTOR",&
+            description="A factor for scaling the the external potential that is read from file."//&
+                        "The value of the potential at each grid point is multiplied by this factor.",&
+            usage="SCALING_FACTOR <REAL>", default_r_val=1.0_dp, error=error)
+       CALL section_add_keyword(section,keyword,error=error)
+       CALL keyword_release(keyword,error=error)
     END IF
   END SUBROUTINE create_ext_pot_section
 
@@ -6175,8 +6249,7 @@ CONTAINS
             "Cholesky inversion of S, not as good as FULL_KINETIC, yet equally expensive.",&
             "skip preconditioning"),&
             enum_i_vals=(/ot_precond_full_all,ot_precond_full_single_inverse,ot_precond_full_single, &
-            ot_precond_full_kinetic,ot_precond_s_inverse,&
-            ot_precond_none/),&
+            ot_precond_full_kinetic,ot_precond_s_inverse,ot_precond_none/),&
             citations=(/VandeVondele2003/),&
             error=error)
        CALL section_add_keyword(section,keyword,error=error)

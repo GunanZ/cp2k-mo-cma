@@ -55,7 +55,8 @@ MODULE qs_scf_post_dftb
                                              qs_kind_type
   USE qs_mo_types,                     ONLY: get_mo_set,&
                                              mo_set_p_type
-  USE qs_rho_types,                    ONLY: qs_rho_type
+  USE qs_rho_types,                    ONLY: qs_rho_get,&
+                                             qs_rho_type
   USE qs_scf_types,                    ONLY: qs_scf_env_type
   USE qs_scf_wfn_mix,                  ONLY: wfn_mix
   USE timings,                         ONLY: timeset,&
@@ -127,8 +128,8 @@ CONTAINS
        CALL get_qs_env(qs_env,atomic_kind_set=atomic_kind_set,qs_kind_set=qs_kind_set,&
             dft_control=dft_control,rho=rho,natom=natom,para_env=para_env,&
             matrix_s=matrix_s,error=error)
-       nspins = dft_control%nspins 
-       matrix_p => rho%rho_ao
+       nspins = dft_control%nspins
+       CALL qs_rho_get(rho, rho_ao=matrix_p, error=error)
        ! Mulliken charges
        ALLOCATE(charges(natom,nspins),mcharge(natom),STAT=istat)
        CPPostcondition(istat==0,cp_failure_level,routineP,error,failure)
@@ -202,6 +203,14 @@ CONTAINS
        IF (BTEST(cp_print_key_should_output(logger%iter_info,print_key,error=error),cp_p_file)) THEN
          CALL cp_unimplemented_error(fromWhere=routineP, &
             message="Lowdin population analysis not implemented for DFTB method.", &
+            error=error, error_level=cp_warning_level)
+       END IF
+
+       ! Hirschfeld
+       print_key => section_vals_get_subs_vals(print_section,"HIRSCHFELD", error=error)
+       IF (BTEST(cp_print_key_should_output(logger%iter_info,print_key,error=error),cp_p_file)) THEN
+         CALL cp_unimplemented_error(fromWhere=routineP, &
+            message="Hirschfeld charges not available for DFTB method.", &
             error=error, error_level=cp_warning_level)
        END IF
 

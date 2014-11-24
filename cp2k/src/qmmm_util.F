@@ -12,7 +12,6 @@ MODULE qmmm_util
   USE cell_types,                      ONLY: cell_copy,&
                                              cell_type
   USE cp_subsys_types,                 ONLY: cp_subsys_type
-  USE f77_blas
   USE force_env_types,                 ONLY: force_env_get,&
                                              force_env_type,&
                                              use_qmmm
@@ -690,10 +689,12 @@ CONTAINS
 
       mean_z = 0.0_dp
       DO ip=1,SIZE(qm_atom_index)
-        mean_z = mean_z + EXP(CMPLX(0.0_dp,1.0_dp)*2.0*pi*MATMUL(mm_cell%h_inv, particles_mm(qm_atom_index(ip))%r))
+        mean_z = mean_z + EXP(CMPLX(0.0_dp,1.0_dp,KIND=dp)*2.0*pi* &
+                              MATMUL(mm_cell%h_inv, particles_mm(qm_atom_index(ip))%r))
       END DO
       mean_z = mean_z / ABS(mean_z)
-      qmmm_pbc_aware_mean = MATMUL(mm_cell%hmat, REAL(LOG(mean_z)/(CMPLX(0.0_dp,1.0_dp)*2.0_dp*pi), dp))
+      qmmm_pbc_aware_mean = MATMUL(mm_cell%hmat, &
+                                   REAL(LOG(mean_z)/(CMPLX(0.0_dp,1.0_dp,KIND=dp)*2.0_dp*pi), dp))
   END FUNCTION
 
   ! minimum image lattice coordinates difference vector

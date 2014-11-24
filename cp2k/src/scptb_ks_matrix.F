@@ -30,13 +30,10 @@ MODULE scptb_ks_matrix
   USE ewald_environment_types,         ONLY: ewald_env_get,&
                                              ewald_environment_type
   USE ewald_pw_types,                  ONLY: ewald_pw_type
-  USE f77_blas
   USE gamma,                           ONLY: fgamma_0
   USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                              section_vals_type
   USE kinds,                           ONLY: dp
-  USE kpoint_types,                    ONLY: get_kpoint_info,&
-                                             kpoint_type
   USE linear_systems,                  ONLY: solve_system
   USE mathconstants,                   ONLY: dfac,&
                                              fourpi,&
@@ -86,7 +83,8 @@ MODULE scptb_ks_matrix
                                              neighbor_list_iterator_p_type,&
                                              neighbor_list_iterator_release,&
                                              neighbor_list_set_p_type
-  USE qs_rho_types,                    ONLY: qs_rho_type
+  USE qs_rho_types,                    ONLY: qs_rho_get,&
+                                             qs_rho_type
   USE scptb_types,                     ONLY: &
        get_scptb_parameter, scp_vector_add, scp_vector_copy, &
        scp_vector_create, scp_vector_dot, scp_vector_mult, scp_vector_p_type, &
@@ -125,7 +123,7 @@ CONTAINS
 
     INTEGER :: atom_a, handle, iatom, ic, ikind, ispin, istat, lmaxscp, &
       natom, natom_kind, nkind, nspins, output_unit
-    LOGICAL                                  :: do_es, do_kp, do_scp, failure
+    LOGICAL                                  :: do_es, do_scp, failure
     REAL(KIND=dp)                            :: zeff
     REAL(KIND=dp), ALLOCATABLE, DIMENSION(:) :: mcharge
     REAL(KIND=dp), DIMENSION(:), POINTER     :: occupation_numbers
@@ -133,15 +131,14 @@ CONTAINS
     TYPE(atomic_kind_type), DIMENSION(:), &
       POINTER                                :: atomic_kind_set
     TYPE(cp_dbcsr_p_type), DIMENSION(:), &
-      POINTER                                :: ks_matrix, matrix_h, &
-                                                matrix_p, matrix_s, mo_derivs
+      POINTER                                :: ks_matrix, matrix_p, &
+                                                matrix_s, mo_derivs
     TYPE(cp_dbcsr_p_type), DIMENSION(:, :), &
       POINTER                                :: ks_matrixkp, matrixkp_h
     TYPE(cp_dbcsr_type), POINTER             :: mo_coeff
     TYPE(cp_logger_type), POINTER            :: logger
     TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(dft_control_type), POINTER          :: dft_control
-    TYPE(kpoint_type), POINTER               :: kpoints
     TYPE(mo_set_p_type), DIMENSION(:), &
       POINTER                                :: mo_array
     TYPE(particle_type), DIMENSION(:), &
@@ -158,19 +155,9 @@ CONTAINS
     CALL timeset(routineN,handle)
     failure=.FALSE.
     NULLIFY(dft_control, logger, scf_section)
-    NULLIFY(matrix_p, particle_set, ks_env, ks_matrix, ks_matrixkp, rho, energy)
+    NULLIFY(matrix_p, particle_set, ks_env, ks_matrixkp, rho, energy)
     CPPrecondition(ASSOCIATED(qs_env),cp_failure_level,routineP,error,failure)
     logger => cp_error_get_logger(error)
-
-    CALL get_qs_env(qs_env, do_kpoints=do_kp, kpoints=kpoints, error=error)
-    IF(do_kp) THEN
-       CALL get_kpoint_info(kpoints, matrix_ks=ks_matrixkp, error=error)
-       CPPrecondition(SIZE(ks_matrixkp,1)>0,cp_failure_level,routineP,error,failure)
-       CPPrecondition(SIZE(ks_matrixkp,2)>0,cp_failure_level,routineP,error,failure)
-    ELSE
-       CALL get_qs_env(qs_env, matrix_ks=ks_matrix, error=error)
-       CPPrecondition(SIZE(ks_matrix)>0,cp_failure_level,routineP,error,failure)
-    END IF
 
     IF ( .NOT. failure ) THEN
       CALL get_qs_env(qs_env,&
@@ -181,7 +168,12 @@ CONTAINS
                       para_env=para_env,&
                       rho=rho,&
                       energy=energy,&
+                      matrix_h_kp=matrixkp_h,&
+                      matrix_ks_kp=ks_matrixkp,&
                       error=error)
+
+      CPPrecondition(SIZE(ks_matrixkp,1)>0,cp_failure_level,routineP,error,failure)
+      CPPrecondition(SIZE(ks_matrixkp,2)>0,cp_failure_level,routineP,error,failure)
 
       scf_section => section_vals_get_subs_vals(qs_env%input,"DFT%SCF",error=error)
       nspins=dft_control%nspins
@@ -204,28 +196,21 @@ CONTAINS
       IF(do_scp) do_es = .TRUE.
 
       ! copy the core matrix into the fock matrix
-      IF(do_kp) THEN
-         CALL get_qs_env(qs_env=qs_env,kpoints=kpoints,error=error)
-         CALL get_kpoint_info(kpoints,matrix_h=matrixkp_h,error=error)
-         CPPrecondition(ASSOCIATED(matrixkp_h),cp_failure_level,routineP,error,failure)
-         DO ispin=1,nspins
-            DO ic=1,SIZE(matrixkp_h,2)
-               CALL cp_dbcsr_copy(ks_matrixkp(ispin,ic)%matrix,matrixkp_h(1,ic)%matrix,error=error)
-            END DO
+      CPPrecondition(ASSOCIATED(matrixkp_h),cp_failure_level,routineP,error,failure)
+      DO ispin=1,nspins
+         DO ic=1,SIZE(matrixkp_h,2)
+            CALL cp_dbcsr_copy(ks_matrixkp(ispin,ic)%matrix,matrixkp_h(1,ic)%matrix,error=error)
          END DO
-      ELSE
-         CALL get_qs_env(qs_env=qs_env,matrix_h=matrix_h,error=error)
-         CPPrecondition(ASSOCIATED(matrix_h),cp_failure_level,routineP,error,failure)
-         DO ispin=1,nspins
-            CALL cp_dbcsr_copy(ks_matrix(ispin)%matrix,matrix_h(1)%matrix,error=error)
-         END DO
-      END IF
+      END DO
 
       IF (do_es) THEN
-         CPPrecondition(.NOT.do_kp,cp_failure_level,routineP,error,failure)
          ! Mulliken charges
-         CALL get_qs_env(qs_env=qs_env,particle_set=particle_set,matrix_s=matrix_s,error=error)
-         matrix_p => rho%rho_ao
+         CALL get_qs_env(qs_env,&
+                         particle_set=particle_set,&
+                         matrix_s=matrix_s,&
+                         matrix_ks=ks_matrix,&
+                         error=error)
+         CALL qs_rho_get(rho, rho_ao=matrix_p, error=error)
          natom=SIZE(particle_set)
          ALLOCATE(charges(natom,nspins),STAT=istat)
          CPPostcondition(istat==0,cp_failure_level,routineP,error,failure)
@@ -294,7 +279,7 @@ CONTAINS
             IF(.NOT.mo_array(ispin)%mo_set%use_mo_coeff_b) THEN
                CPPrecondition(.FALSE.,cp_failure_level,routineP,error,failure)
             ENDIF
-            CALL cp_dbcsr_multiply('n','n',1.0_dp,ks_matrix(ispin)%matrix,mo_coeff,&
+            CALL cp_dbcsr_multiply('n','n',1.0_dp,ks_matrixkp(1,ispin)%matrix,mo_coeff,&
                  0.0_dp,mo_derivs(ispin)%matrix, error=error)
          ENDDO
       ENDIF
@@ -447,7 +432,7 @@ CONTAINS
           END IF
           IF ( .NOT. just_energy ) THEN
             CALL get_qs_env(qs_env=qs_env,matrix_s=matrix_s,error=error)
-            matrix_p => rho%rho_ao
+            CALL qs_rho_get(rho, rho_ao=matrix_p, error=error)
             IF ( calculate_forces .AND. SIZE(matrix_p) == 2) THEN
               CALL cp_dbcsr_add(matrix_p(1)%matrix,matrix_p(2)%matrix,&
                    alpha_scalar=1.0_dp,beta_scalar=1.0_dp,error=error)
@@ -565,7 +550,7 @@ CONTAINS
 
           IF(.NOT.just_energy.OR.calculate_forces) THEN
             IF ( calculate_forces ) THEN
-               matrix_p => rho%rho_ao
+               CALL qs_rho_get(rho, rho_ao=matrix_p, error=error)
                IF (SIZE(matrix_p) == 2) THEN
                   CALL cp_dbcsr_add(matrix_p(1)%matrix,matrix_p(2)%matrix,&
                        alpha_scalar=1.0_dp,beta_scalar=1.0_dp,error=error)
@@ -703,7 +688,7 @@ CONTAINS
             CALL get_atomic_kind_set(atomic_kind_set=atomic_kind_set, &
                                      kind_of=kind_of, atom_of_kind=atom_of_kind)
             IF ( calculate_forces ) THEN
-               matrix_p => rho%rho_ao
+               CALL qs_rho_get(rho, rho_ao=matrix_p, error=error)
                IF (SIZE(matrix_p) == 2) THEN
                   CALL cp_dbcsr_add(matrix_p(1)%matrix,matrix_p(2)%matrix,&
                        alpha_scalar=1.0_dp,beta_scalar=1.0_dp,error=error)
@@ -965,7 +950,7 @@ CONTAINS
        CPPostcondition(istat==0,cp_failure_level,routineP,error,failure)
        CALL get_atomic_kind_set(atomic_kind_set=atomic_kind_set, kind_of=kind_of, atom_of_kind=atom_of_kind)
        IF ( calculate_forces ) THEN
-          matrix_p => rho%rho_ao
+          CALL qs_rho_get(rho, rho_ao=matrix_p, error=error)
           IF (SIZE(matrix_p) == 2) THEN
              CALL cp_dbcsr_add(matrix_p(1)%matrix,matrix_p(2)%matrix,&
                   alpha_scalar=1.0_dp,beta_scalar=1.0_dp,error=error)

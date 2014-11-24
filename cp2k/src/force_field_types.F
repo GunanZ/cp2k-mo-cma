@@ -14,13 +14,6 @@
 MODULE force_field_types
 
   USE damping_dipole_types,            ONLY: damping_info_type
-  USE f77_blas
-  USE force_field_kind_types,          ONLY: &
-       allocate_bend_kind_set, allocate_bond_kind_set, &
-       allocate_impr_kind_set, allocate_opbend_kind_set, &
-       allocate_torsion_kind_set, allocate_ub_kind_set, &
-       deallocate_bend_kind_set, deallocate_bond_kind_set, &
-       impr_kind_dealloc_ref, torsion_kind_dealloc_ref
   USE kinds,                           ONLY: default_path_length,&
                                              default_string_length,&
                                              dp
@@ -151,7 +144,7 @@ MODULE force_field_types
     CHARACTER (LEN=default_string_length), POINTER :: torsion_c(:)
     CHARACTER (LEN=default_string_length), POINTER :: torsion_d(:)
     REAL(KIND=dp), POINTER                         :: torsion_k(:)
-    REAL(KIND=dp), POINTER                         :: torsion_m(:)
+    INTEGER, POINTER                               :: torsion_m(:)
     REAL(KIND=dp), POINTER                         :: torsion_phi0(:)
     CHARACTER (LEN=default_string_length), POINTER :: nonbond_a(:)
     REAL (KIND=dp), POINTER                        :: nonbond_eps(:)
@@ -205,18 +198,8 @@ MODULE force_field_types
 
 ! *** Public subroutines ***
 
-  PUBLIC :: allocate_bend_kind_set,&
-            allocate_bond_kind_set,&
-            allocate_ub_kind_set,&
-            allocate_torsion_kind_set,&
-            allocate_impr_kind_set,&
-            allocate_opbend_kind_set,&
-            init_ff_type,&
+  PUBLIC :: init_ff_type,&
             deallocate_ff_type,&
-            deallocate_bend_kind_set,&
-            deallocate_bond_kind_set,&
-            torsion_kind_dealloc_ref,&
-            impr_kind_dealloc_ref,&
             init_inp_info,&
             deallocate_inp_info
 

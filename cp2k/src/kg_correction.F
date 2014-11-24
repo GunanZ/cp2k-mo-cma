@@ -14,7 +14,6 @@ MODULE kg_correction
   USE cp_dbcsr_interface,              ONLY: cp_dbcsr_add,&
                                              cp_dbcsr_p_type,&
                                              cp_dbcsr_trace
-  USE f77_blas
   USE input_constants,                 ONLY: kg_tnadd_atomic,&
                                              kg_tnadd_embed
   USE kg_environment_types,            ONLY: kg_environment_type
@@ -31,7 +30,9 @@ MODULE kg_correction
   USE qs_rho_methods,                  ONLY: qs_rho_rebuild,&
                                              qs_rho_update_rho
   USE qs_rho_types,                    ONLY: qs_rho_create,&
+                                             qs_rho_get,&
                                              qs_rho_release,&
+                                             qs_rho_set,&
                                              qs_rho_type
   USE qs_vxc,                          ONLY: qs_vxc_create
   USE timings,                         ONLY: timeset,&
@@ -129,8 +130,7 @@ CONTAINS
     LOGICAL                                  :: my_gapw, my_gapw_xc
     REAL(KIND=dp)                            :: ekin_imol
     TYPE(cp_dbcsr_p_type), DIMENSION(:), &
-      POINTER                                :: density_matrix, matrix_h, &
-                                                my_mat
+      POINTER                                :: density_matrix, matrix_h
     TYPE(dft_control_type), POINTER          :: dft_control
     TYPE(kg_environment_type), POINTER       :: kg_env
     TYPE(pw_env_type), POINTER               :: pw_env
@@ -168,26 +168,24 @@ CONTAINS
     CALL pw_env_get(pw_env, auxbas_pw_pool=auxbas_pw_pool, error=error)
 
     ! get the density matrix
-    density_matrix => old_rho%rho_ao
+    CALL qs_rho_get(old_rho, rho_ao=density_matrix, error=error)
 
-    ! allocate and initialize the density 
+    ! allocate and initialize the density
     CALL qs_rho_create(rho_struct, error)
-    CALL qs_rho_rebuild(rho_struct, qs_env, rebuild_grids=.TRUE., error=error)
+
+    ! set the density matrix to the blocked matrix
+    CALL qs_rho_set(rho_struct, rho_ao=density_matrix, error=error) ! blocked_matrix
+
+    CALL qs_rho_rebuild(rho_struct, qs_env, rebuild_ao=.FALSE., rebuild_grids=.TRUE., error=error)
 
     ! loop over all subsets
     DO isub=1,kg_env%nsubsets
-
-      my_mat => rho_struct%rho_ao
-
-      ! set the density matrix to the blocked matrix  
-      rho_struct%rho_ao =>  density_matrix  ! blocked_matrix
-
       ! for gapw the task_list_soft would be needed
       CALL cp_assert(.NOT.(my_gapw.OR.my_gapw_xc), cp_fatal_level, cp_assertion_failed, routineP, &
                      " KG is currently not compatible with all electron calculations.")  
 
       ! calculate the densities for the given blocked density matrix - pass the subset task_list
-      CALL qs_rho_update_rho(rho_struct, qs_env, & 
+      CALL qs_rho_update_rho(rho_struct, qs_env, &
                              !task_list_external=qs_env%task_list, &
                              task_list_external=kg_env%subset(isub)%task_list, &
                              error=error)
@@ -198,17 +196,15 @@ CONTAINS
       CALL qs_vxc_create(ks_env=ks_env, rho_struct=rho_struct, xc_section=kg_env%xc_section_kg, &
                         vxc_rho=vxc_rho, vxc_tau=vxc_tau, exc=ekin_imol, error=error)
 
-      rho_struct%rho_ao => my_mat
-
       ekin_mol = ekin_mol + ekin_imol
 
       DO ispin=1,nspins
 
         vxc_rho(ispin)%pw%cr3d = -vxc_rho(ispin)%pw%cr3d*vxc_rho(ispin)%pw%pw_grid%dvol*1.0_dp
- 
+
         CALL integrate_v_rspace(v_rspace=vxc_rho(ispin), &
-             p=density_matrix(ispin), & 
-             h=ks_matrix(ispin), & 
+             p=density_matrix(ispin), &
+             h=ks_matrix(ispin), &
              qs_env=qs_env, &
              calculate_forces=calc_force, &
              gapw=gapw, &
@@ -223,26 +219,27 @@ CONTAINS
 
       IF (ASSOCIATED(vxc_tau)) THEN
       ! this case has NOT been tested yet...
-    
+
         CALL cp_assert(ASSOCIATED(vxc_tau), cp_fatal_level, cp_assertion_failed, routineP, &
-                       " KG is currently not compatible with TPSS, Becke-Roussel, or other"//& 
+                       " KG is currently not compatible with TPSS, Becke-Roussel, or other"//&
                        " Meta-GGA functionals.")
-    
+
         DO ispin=1,nspins
 
           ! clean up vxc_tau
           CALL pw_pool_give_back_pw(auxbas_pw_pool, vxc_tau(ispin)%pw, error=error)
-       
+
         END DO
 
         DEALLOCATE(vxc_tau)
 
-      END IF 
+      END IF
 
     END DO
 
     ! clean up rho_struct
-    CALL qs_rho_release(rho_struct, error) 
+    CALL qs_rho_set(rho_struct, rho_ao=Null(), error=error)
+    CALL qs_rho_release(rho_struct, error)
 
     CALL timestop(handle)
 
@@ -278,7 +275,7 @@ CONTAINS
 
     nspins = SIZE(ks_matrix)
     ! get the density matrix
-    density_matrix => rho%rho_ao
+    CALL qs_rho_get(rho, rho_ao=density_matrix, error=error)
     ! get the tnadd matrix
     tnadd_matrix => kg_env%tnadd_mat
 

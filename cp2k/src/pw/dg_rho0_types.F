@@ -9,7 +9,7 @@
 ! *****************************************************************************
 MODULE dg_rho0_types
 
-  USE f77_blas
+  
   USE kinds,                           ONLY: dp
   USE pw_grid_types,                   ONLY: pw_grid_type
   USE pw_methods,                      ONLY: pw_zero
@@ -303,7 +303,7 @@ CONTAINS
 
     rho0 => dg_rho0 % pw % cr3d
 
-    DO gpt = 1, pw_grid % ngpts_cut
+    DO gpt = 1, pw_grid % ngpts_cut_local
        ghat => pw_grid % g_hat ( :, gpt )
 
        lp = pw_grid % mapl % pos ( ghat ( 1 ) )

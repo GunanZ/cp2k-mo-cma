@@ -25,7 +25,6 @@ MODULE se_fock_matrix_ga
   USE cp_output_handling,              ONLY: cp_print_key_finished_output,&
                                              cp_print_key_unit_nr
   USE cp_para_types,                   ONLY: cp_para_env_type
-  USE f77_blas
   USE input_constants,                 ONLY: do_method_am1,&
                                              do_method_mndo,&
                                              do_method_mndod,&
@@ -44,7 +43,8 @@ MODULE se_fock_matrix_ga
   USE qs_ks_types,                     ONLY: qs_ks_env_type
   USE qs_mo_types,                     ONLY: get_mo_set,&
                                              mo_set_p_type
-  USE qs_rho_types,                    ONLY: qs_rho_type
+  USE qs_rho_types,                    ONLY: qs_rho_get,&
+                                             qs_rho_type
   USE scp_delta_fock_matrix,           ONLY: build_delta_fock_matrix
   USE scp_energy_types,                ONLY: scp_energy_type
   USE scp_environment_types,           ONLY: get_scp_env,&
@@ -164,7 +164,7 @@ CONTAINS
        se_control  => dft_control%qs_control%se_control
        scp_nddo    =  se_control%scp
        scf_section => section_vals_get_subs_vals(qs_env%input,"DFT%SCF",error=error)
-       matrix_p => rho%rho_ao
+       CALL qs_rho_get(rho, rho_ao=matrix_p, error=error)
 
        IF ( scp_nddo ) THEN
          CALL get_qs_env(qs_env=qs_env, scp_env=scp_env, error=error)

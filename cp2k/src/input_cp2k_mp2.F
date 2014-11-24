@@ -19,7 +19,6 @@ MODULE input_cp2k_mp2
                                              low_print_level,&
                                              medium_print_level,&
                                              silent_print_level
-  USE f77_blas
   USE input_constants,                 ONLY: &
        do_hfx_potential_coulomb, do_mp2_potential_tshpsc, gaussian, &
        mp2_method_direct, mp2_method_gpw, mp2_method_none, &
@@ -585,15 +584,15 @@ CONTAINS
        NULLIFY(keyword)
        CALL keyword_create(keyword, name="EPS_GRID",&
             description="Determines a threshold for the GPW based integration",&
-            usage="EPS_GRID 1.0E-5 ",required=.FALSE.,type_of_var=real_t,&
-            default_r_val=1.0E-6_dp, error=error)
+            usage="EPS_GRID 1.0E-9 ",required=.FALSE.,type_of_var=real_t,&
+            default_r_val=1.0E-8_dp, error=error)
        CALL section_add_keyword(section,keyword,error=error)
        CALL keyword_release(keyword,error=error)
 
        CALL keyword_create(keyword, name="EPS_FILTER",&
             description="Determines a threshold for the DBCSR based multiply (usually 10 times smaller than EPS_GRID).",&
-            usage="EPS_FILTER 1.0E-6 ",required=.FALSE.,type_of_var=real_t,&
-            default_r_val=1.0E-7_dp, error=error)
+            usage="EPS_FILTER 1.0E-10 ",required=.FALSE.,type_of_var=real_t,&
+            default_r_val=1.0E-9_dp, error=error)
        CALL section_add_keyword(section,keyword,error=error)
        CALL keyword_release(keyword,error=error)
 

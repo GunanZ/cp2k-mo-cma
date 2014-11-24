@@ -98,7 +98,6 @@ CONTAINS
 !> \param   sab_nl pair list (must be consistent with basis sets!)
 !> \param   calculate_forces (optional)
 !> \param   matrix_p density matrix for force calculation (optional)
-!> \param   matrixkp_p density matrices for force calculation (kpoints,optional)
 !> \param   error CP2K error reporting 
 !> \date    11.03.2002
 !> \par     History
@@ -114,7 +113,7 @@ CONTAINS
 ! *****************************************************************************
   SUBROUTINE build_overlap_matrix(ks_env, matrix_s, matrixkp_s, matrix_name,&
      nderivative, basis_set_id_a, basis_set_id_b, sab_nl, calculate_forces,&
-     matrix_p, matrixkp_p, error)
+     matrix_p, error)
 
     TYPE(qs_ks_env_type), POINTER            :: ks_env
     TYPE(cp_dbcsr_p_type), DIMENSION(:), &
@@ -128,8 +127,6 @@ CONTAINS
       DIMENSION(:), POINTER                  :: sab_nl
     LOGICAL, INTENT(IN), OPTIONAL            :: calculate_forces
     TYPE(cp_dbcsr_type), OPTIONAL, POINTER   :: matrix_p
-    TYPE(cp_dbcsr_p_type), DIMENSION(:), &
-      OPTIONAL, POINTER                      :: matrixkp_p
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     CHARACTER(len=*), PARAMETER :: routineN = 'build_overlap_matrix', &
@@ -137,14 +134,13 @@ CONTAINS
 
     INTEGER :: atom_a, atom_b, handle, i, iatom, ic, icol, ikind, inode, &
       irow, iset, istat, jatom, jkind, jset, ldsab, maxder, maxs, n1, n2, &
-      natom, ncoa, ncob, ncount, nder, nkind, nseta, nsetb, sgfa, sgfb
+      natom, ncoa, ncob, nder, nimg, nkind, nseta, nsetb, sgfa, sgfb
     INTEGER, ALLOCATABLE, DIMENSION(:)       :: atom_of_kind
     INTEGER, DIMENSION(3)                    :: cell
     INTEGER, DIMENSION(:), POINTER           :: la_max, la_min, lb_max, &
                                                 lb_min, npgfa, npgfb, nsgfa, &
                                                 nsgfb
-    INTEGER, DIMENSION(:, :), POINTER        :: first_sgfa, first_sgfb, &
-                                                index_to_cell
+    INTEGER, DIMENSION(:, :), POINTER        :: first_sgfa, first_sgfb
     INTEGER, DIMENSION(:, :, :), POINTER     :: cell_to_index
     LOGICAL                                  :: do_forces, do_symmetric, &
                                                 dokp, failure, found, trans, &
@@ -188,9 +184,7 @@ CONTAINS
      ELSEIF (PRESENT(matrixkp_s)) THEN
         dokp = .TRUE.
         CALL get_ks_env(ks_env=ks_env,kpoints=kpoints,error=error)
-        CALL get_kpoint_info(kpoint=kpoints,index_to_cell=index_to_cell,&
-                             cell_to_index=cell_to_index,error=error)
-        ncount = SIZE(index_to_cell,2)
+        CALL get_kpoint_info(kpoint=kpoints,cell_to_index=cell_to_index,error=error)
      ELSE
         CPAssert(.FALSE.,cp_failure_level,routineP,error,failure)
      END IF
@@ -204,6 +198,7 @@ CONTAINS
                      dft_control=dft_control,&
                      error=error)
 
+     nimg = dft_control%nimages
      nkind = SIZE(qs_kind_set)
 
      ALLOCATE (atom_of_kind(natom),STAT=istat)
@@ -215,6 +210,11 @@ CONTAINS
      ELSE
        do_forces = .FALSE.
      END IF
+
+     IF(do_forces .AND. dokp) THEN
+       ! forces and k-points are not support yet
+       CPPostcondition(nimg==1,cp_failure_level,routineP,error,failure)
+     ENDIF
 
      IF (PRESENT(nderivative)) THEN
        nder = nderivative
@@ -231,7 +231,7 @@ CONTAINS
      END IF
 
      IF(dokp) THEN
-        CALL cp_dbcsr_allocate_matrix_set(matrixkp_s,maxder,ncount,error=error)
+        CALL cp_dbcsr_allocate_matrix_set(matrixkp_s,maxder,nimg,error=error)
         CALL create_sab_matrix(ks_env, matrixkp_s, matrix_name, basis_set_id_a, basis_set_id_b, &
                                sab_nl, do_symmetric, error)
      ELSE
@@ -249,11 +249,7 @@ CONTAINS
      ldsab = get_memory_usage(qs_kind_set,basis_set_id_a,basis_set_id_b)
      IF (do_forces) THEN
         ! we need density matrix for forces
-        IF(dokp) THEN
-           CPPrecondition(PRESENT(matrixkp_p),cp_failure_level,routineP,error,failure)
-        ELSE
-           CPPrecondition(PRESENT(matrix_p),cp_failure_level,routineP,error,failure)
-        END IF
+        CPPrecondition(PRESENT(matrix_p),cp_failure_level,routineP,error,failure)
         nder = MAX(nder,1)
         ALLOCATE (pmat(ldsab,ldsab),STAT=istat)
         CPPostcondition(istat==0,cp_failure_level,routineP,error,failure)
@@ -342,15 +338,9 @@ CONTAINS
         END DO
         IF (do_forces) THEN
            NULLIFY (p_block)
-           IF(dokp) THEN
-              CALL cp_dbcsr_get_block_p(matrix=matrixkp_p(ic)%matrix,&
-                   row=irow,col=icol,block=p_block,found=found)
-              CPPostcondition(found,cp_failure_level,routineP,error,failure)
-           ELSE
-              CALL cp_dbcsr_get_block_p(matrix=matrix_p,row=irow,col=icol,&
+           CALL cp_dbcsr_get_block_p(matrix=matrix_p,row=irow,col=icol,&
                    block=p_block,found=found)
               CPPostcondition(found,cp_failure_level,routineP,error,failure)
-           END IF
         END IF
         trans = do_symmetric .AND. (iatom > jatom)
 
@@ -419,7 +409,7 @@ CONTAINS
 
      IF(dokp) THEN
         DO i = 1,maxs
-           DO ic=1,ncount
+           DO ic=1,nimg
               CALL cp_dbcsr_finalize(matrixkp_s(i,ic)%matrix, error=error)
               CALL cp_dbcsr_filter(matrixkp_s(i,ic)%matrix, &
                    dft_control%qs_control%eps_filter_matrix, error=error)

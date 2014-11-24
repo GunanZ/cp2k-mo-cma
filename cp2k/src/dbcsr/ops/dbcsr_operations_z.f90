@@ -206,34 +206,35 @@
                 b_end = b_beg + nze - 1
                 fac = REAL(1.0,real_8)
                 IF(row.NE.a_col) fac = sym_fac
+                ! this is a mess, no need to support that..
                 IF(    matrix_a%m%data_type.EQ.dbcsr_type_real_4.AND.&
                        matrix_b%m%data_type.EQ.dbcsr_type_real_4) THEN
-                   trace = trace + fac * SDOT (nze,&
+                   trace = trace +CMPLX(fac * SDOT (nze,&
                         a_data_r(ABS(matrix_a%m%blk_p(a_blk))),1,&
-                        b_data_r(ABS(matrix_b%m%blk_p(b_blk))),1)
+                        b_data_r(ABS(matrix_b%m%blk_p(b_blk))),1),kind=real_8)
                 ELSEIF(matrix_a%m%data_type.EQ.dbcsr_type_real_4.AND.&
                      matrix_b%m%data_type.EQ.dbcsr_type_real_8) THEN
                    trace = trace + &
-                        fac * SUM ( a_data_r(a_beg:a_end) * b_data_d(b_beg:b_end) )
+                        CMPLX(fac * SUM ( a_data_r(a_beg:a_end) * b_data_d(b_beg:b_end) ),kind=real_8)
                 ELSEIF(matrix_a%m%data_type.EQ.dbcsr_type_real_8.AND.&
                        matrix_b%m%data_type.EQ.dbcsr_type_real_4) THEN
                    trace = trace + &
-                        fac * SUM ( a_data_d(a_beg:a_end) * b_data_r(b_beg:b_end) )
+                        CMPLX(fac * SUM ( a_data_d(a_beg:a_end) * b_data_r(b_beg:b_end) ),kind=real_8)
                 ELSEIF(matrix_a%m%data_type.EQ.dbcsr_type_real_8.AND.&
                        matrix_b%m%data_type.EQ.dbcsr_type_real_8) THEN
-                   trace = trace + fac * DDOT (nze,&
+                   trace = trace + CMPLX(fac * DDOT (nze,&
                         a_data_d(ABS(matrix_a%m%blk_p(a_blk))),1,&
-                        b_data_d(ABS(matrix_b%m%blk_p(b_blk))),1)
+                        b_data_d(ABS(matrix_b%m%blk_p(b_blk))),1),kind=real_8)
                 ELSEIF(matrix_a%m%data_type.EQ.dbcsr_type_complex_4.AND.&
                        matrix_b%m%data_type.EQ.dbcsr_type_complex_4) THEN
-                   trace = trace + fac * CDOTU (nze,&
+                   trace = trace + CMPLX(fac * CDOTU (nze,&
                         a_data_c(ABS(matrix_a%m%blk_p(a_blk))),1,&
-                        b_data_c(ABS(matrix_b%m%blk_p(b_blk))),1)
+                        b_data_c(ABS(matrix_b%m%blk_p(b_blk))),1),kind=real_8)
                 ELSEIF(matrix_a%m%data_type.EQ.dbcsr_type_complex_8.AND.&
                        matrix_b%m%data_type.EQ.dbcsr_type_complex_8) THEN
-                   trace = trace + fac * ZDOTU (nze,&
+                   trace = trace + CMPLX(fac * ZDOTU (nze,&
                         a_data_z(ABS(matrix_a%m%blk_p(a_blk))),1,&
-                        b_data_z(ABS(matrix_b%m%blk_p(b_blk))),1)
+                        b_data_z(ABS(matrix_b%m%blk_p(b_blk))),1),kind=real_8)
                 ELSE
                    CALL dbcsr_assert (.FALSE., dbcsr_fatal_level, dbcsr_unimplemented_error_nr, &
                         routineN, "combination of types NYI",__LINE__,error)
@@ -250,9 +251,8 @@
   END SUBROUTINE dbcsr_trace_ab_z
 
 
-  !> \brief Interface for matrix scaling by a scalar
 ! *****************************************************************************
-!> \brief ...
+!> \brief Interface for matrix scaling by a scalar
 !> \param matrix_a ...
 !> \param alpha_scalar ...
 !> \param last_column ...
@@ -285,9 +285,8 @@
     CALL dbcsr_error_stop(error_handler, error)
   END SUBROUTINE dbcsr_scale_z
 
-  !> \brief Interface for matrix scaling by a vector
 ! *****************************************************************************
-!> \brief ...
+!> \brief Interface for matrix scaling by a vector
 !> \param matrix_a ...
 !> \param alpha ...
 !> \param side ...
@@ -312,38 +311,9 @@
     CALL dbcsr_data_release (enc_alpha_vec)
   END SUBROUTINE dbcsr_scale_by_vector_z
 
-  !> \brief Interface for matrix scaling by a matrix
-! *****************************************************************************
-!> \brief ...
-!> \param matrix_a ...
-!> \param alpha_matrix ...
-!> \param side ...
-!> \param error ...
-! *****************************************************************************
-  SUBROUTINE dbcsr_scale_z_m(matrix_a, alpha_matrix,&
-       side, error)
-    TYPE(dbcsr_obj), INTENT(INOUT)             :: matrix_a
-    COMPLEX(kind=real_8), DIMENSION(:), INTENT(IN), TARGET  :: alpha_matrix
-    CHARACTER(LEN=*), INTENT(IN), OPTIONAL     :: side
-    TYPE(dbcsr_error_type), INTENT(INOUT)      :: error
-    CHARACTER(len=*), PARAMETER :: routineN = 'dbcsr_scale_z_m', &
-      routineP = moduleN//':'//routineN
-    COMPLEX(kind=real_8), DIMENSION(:), POINTER             :: tmp_p
-    TYPE(dbcsr_data_obj)                       :: enc_alpha_mat
 
-    CALL dbcsr_data_init (enc_alpha_mat)
-    CALL dbcsr_data_new (enc_alpha_mat, dbcsr_type_complex_8)
-    tmp_p => alpha_matrix
-    CALL dbcsr_data_set_pointer (enc_alpha_mat, tmp_p)
-    CALL dbcsr_scale_mat (matrix_a, side=side, alpha_matrix = enc_alpha_mat,&
-         error=error)
-    CALL dbcsr_data_clear_pointer (enc_alpha_mat)
-    CALL dbcsr_data_release (enc_alpha_mat)
-  END SUBROUTINE dbcsr_scale_z_m
-
-  !> \brief Interface for dbcsr_set
 ! *****************************************************************************
-!> \brief ...
+!> \brief Interface for dbcsr_set
 !> \param matrix ...
 !> \param alpha ...
 !> \param error ...
