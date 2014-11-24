@@ -102,7 +102,7 @@ MODULE cp_control_types
      CHARACTER(LEN=default_path_length)   :: parameter_file
      CHARACTER(LEN=default_path_length)   :: dispersion_parameter_file
      REAL(KIND = dp)                      :: epspair
-     REAL(KIND = dp),DIMENSION(3)         :: xopt=0._dp
+     REAL(KIND = dp),DIMENSION(6)         :: xopt=0._dp
   END TYPE scptb_control_type
 
 ! *****************************************************************************

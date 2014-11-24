@@ -278,6 +278,7 @@ MODULE paramopt_worker
     REAL(KIND=dp),DIMENSION(:),POINTER       :: hb_para => Null()
     REAL(KIND=dp),DIMENSION(:),POINTER       :: dftb3_param => Null()
     REAL(KIND=dp),DIMENSION(:),POINTER       :: d3_ptr => Null()
+    REAL(KIND=dp),DIMENSION(:),POINTER       :: xopt_ptr => Null()
     REAL(KIND=dp),DIMENSION(:),ALLOCATABLE   :: pos,pos2
     REAL(dp), DIMENSION(3, 3)                :: U
     REAL(dp), DIMENSION(3)                   :: center1, center2
@@ -297,7 +298,7 @@ MODULE paramopt_worker
     !print *,'this is inp',this%inp_file
     !----for D3 optimization---------------------------
 !    allocate(d3_ptr(3)) !gets deallocated automatically ??? at least it seems
-!    this%D3 = (/1._dp,this%x(3:4)/)
+!    this%D3 = (/0.5_dp,this%x(4:5)/)
 !!    this%D3 = (/1._dp,this%x(1:2)/)
 !    !this%D3 = this%x(1:3) 
 !    d3_ptr = this%D3
@@ -307,40 +308,37 @@ MODULE paramopt_worker
 !    allocate(dftb3_param(2))
 !    dftb3_param = this%x(3:4)
 !    !---for hb param optimization---------------------
-    allocate(hb_para(3))
-    hb_para = 0._dp
-    hb_para(1) = this%x(1)
-    hb_para(2) = this%x(2)
-    hb_para(3) = this%x(3)
-   !-------------------------------------------------
-    CALL section_vals_val_set(this%root_section, &
-                                  "FORCE_EVAL%SUBSYS%TOPOLOGY%COORD_FILE_NAME",&
-                                  c_val=this%inp_file,error=this%error)
-!    do i=1,size(dftb3_param)
-!       CALL section_vals_val_set(this%root_section, &
-!                                 i_rep_section=i,&
-!                                 keyword_name="FORCE_EVAL%SUBSYS%KIND%DFTB3_PARAM",&
-!                                 r_val=dftb3_param(i), error = this%error)
-!    enddo
-!    CALL section_vals_val_set(this%root_section, &
-!                              "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%D3_SCALING",&
-!                              r_vals_ptr=d3_ptr,error=this%error)
-!                                                                    
-!
-    CALL section_vals_val_set(this%root_section, &
-                              "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%HB_SR_PARAM", &
-                              r_vals_ptr=hb_para, error = this%error)
-!   !--------------------------------------------------
-!    !---for hb param optimization---------------------
 !    allocate(hb_para(3))
 !    hb_para = 0._dp
 !    hb_para(1) = this%x(1)
 !    hb_para(2) = this%x(2)
 !    hb_para(3) = this%x(3)
+   !-------------------------------------------------
+    CALL section_vals_val_set(this%root_section, &
+                              "FORCE_EVAL%SUBSYS%TOPOLOGY%COORD_FILE_NAME", &
+                              c_val=this%inp_file, error = this%error)
+!---------------------------------------------------------------------------
+!    do i=1,size(dftb3_param)
+!        CALL section_vals_val_set(this%root_section, &
+!                                  i_rep_section=i,&
+!                                  keyword_name="FORCE_EVAL%SUBSYS%KIND%DFTB3_PARAM", &
+!                                  r_val=dftb3_param(i), error = this%error)
+!    enddo
 !    CALL section_vals_val_set(this%root_section, &
-!                              "FORCE_EVAL%DFT%QS%SCPTB%XOPT", &
+!                              "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%D3_SCALING", &
+!                              r_vals_ptr=d3_ptr, error = this%error)
+!    
+!    CALL section_vals_val_set(this%root_section, &
+!                              "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%HB_SR_PARAM", &
 !                              r_vals_ptr=hb_para, error = this%error)
-   !-----------------------------------------------
+!    
+!--------------------------------------------------------------------------
+    allocate(xopt_ptr(size(this%x)))
+    xopt_ptr = this%x
+    CALL section_vals_val_set(this%root_section, &
+                              "FORCE_EVAL%DFT%QS%SCPTB%XOPT", &
+                              r_vals_ptr=xopt_ptr, error= this%error)
+!--------------------------------------------------------------------------                              
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%DFT%CHARGE", &
                               i_val=this%charge, error = this%error)
@@ -384,32 +382,32 @@ MODULE paramopt_worker
     else
         this%converged = 0
     endif
-!    !-----------------geo opt------------------------------------
-!    if (this%method .eq. paramopt_do_mocma .or. &
-!        this%method .eq. paramopt_do_grid) then
-!        if (this%converged .eq. 1) then
-!          ALLOCATE(pos2(3*natoms))
-!          ALLOCATE(pos(3*natoms))
-!          ALLOCATE(g(2,3*natoms))
-!          CALL get_pos(this%f_env_id, pos, 3*natoms, ierr)
-!          CALL cp_geo_opt(this%force_env, this%globenv, eval_opt_geo=.TRUE.,error=this%error)
-!          CALL get_energy(this%f_env_id,energy,ierr)
-!          CALL get_pos(this%f_env_id, pos2, 3*natoms, ierr)
-!          CALL get_rmsd(natoms,RESHAPE(pos,(/ 3, natoms /)), &
-!                                 RESHAPE(pos2,(/ 3, natoms /) ), &
-!                                 0, U,center2,center1, rmsd,.FALSE.,g)
-!          !----------------calc energy--------------------
-!           if (this%force_env%qs_env%converged) then
-!                this%converged = 1
-!           else
-!                this%converged = 0
-!                energy = huge(1._dp)
-!           endif
-!           deallocate(pos,pos2,g)!
-!        else 
-!            energy = huge(1._dp)
-!        endif
-!    endif
+    !-----------------geo opt------------------------------------
+    if (this%method .eq. paramopt_do_mocma .or. &
+        this%method .eq. paramopt_do_grid) then
+        if (this%converged .eq. 1) then
+          ALLOCATE(pos2(3*natoms))
+          ALLOCATE(pos(3*natoms))
+          ALLOCATE(g(2,3*natoms))
+          CALL get_pos(this%f_env_id, pos, 3*natoms, ierr)
+          CALL cp_geo_opt(this%force_env, this%globenv, eval_opt_geo=.TRUE.,error=this%error)
+          CALL get_energy(this%f_env_id,energy,ierr)
+          CALL get_pos(this%f_env_id, pos2, 3*natoms, ierr)
+          CALL get_rmsd(natoms,RESHAPE(pos,(/ 3, natoms /)), &
+                                 RESHAPE(pos2,(/ 3, natoms /) ), &
+                                 0, U,center2,center1, rmsd,.FALSE.,g)
+          !----------------calc energy--------------------
+           if (this%force_env%qs_env%converged) then
+                this%converged = 1
+           else
+                this%converged = 0
+                energy = huge(1._dp)
+           endif
+           deallocate(pos,pos2,g)!
+        else 
+            energy = huge(1._dp)
+        endif
+    endif
     !------------------cleanup------------------------------------------------------
     CALL destroy_force_env(this%f_env_id, ierr)
     IF(ierr /= 0) STOP "paramopt_worker: destroy_force_env failed" 

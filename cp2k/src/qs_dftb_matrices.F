@@ -3185,7 +3185,7 @@ CONTAINS
       ! yannick's code again
       gamma = gamma * (-hb_para(2)*EXP(-(r-hb_para(3))**2._dp/(hb_para(1))**2._dp)+1._dp)
       !gamma = gamma * 1.0_dp/(1._dp + EXP((r-3.5_dp)/(hb_para)))
-      !gamma = gamma * EXP(-(0.5_dp*(ga+gb))**hb_para *r*r)
+      !gamma = gamma * EXP(-(0.5_dp*(ga+gb))**hb_para(1) *r*r)
     END IF
   END FUNCTION gamma_rab_sr
 
