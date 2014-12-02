@@ -210,7 +210,6 @@ CONTAINS
 
         CALL scf_env_do_scf(scf_env=scf_env, scf_control=scf_control, qs_env=qs_env,  &
                           converged=converged, should_stop=should_stop, error=error)
-<<<<<<< HEAD
       qs_env%converged=converged
       !   *** add the converged wavefunction to the wavefunction history
       IF ((ASSOCIATED(qs_env%wf_history)) .AND. &
@@ -223,20 +222,6 @@ CONTAINS
         qs_env%scf_control%outer_scf%have_scf = outer_scf_loop
         first_step_flag = .FALSE.
       END IF
-=======
-
-        !   *** add the converged wavefunction to the wavefunction history
-        IF ((ASSOCIATED(qs_env%wf_history)) .AND. &
-            ((scf_control%density_guess .NE. history_guess) .OR. &
-             (.NOT. first_step_flag))) THEN
-            CALL wfi_update(qs_env%wf_history,qs_env=qs_env,dt=1.0_dp, error=error)
-        ELSE IF ((scf_control%density_guess .EQ. history_guess) .AND. &
-                 (first_step_flag)) THEN
-          scf_control%max_scf = max_scf_tmp
-          scf_control%outer_scf%have_scf = outer_scf_loop
-          first_step_flag = .FALSE.
-        END IF
->>>>>>> upstream/master
 
         ! *** compute properties that depend on the converged wavefunction
         IF (.NOT.(should_stop)) CALL qs_scf_compute_properties(qs_env,dft_section,error)
