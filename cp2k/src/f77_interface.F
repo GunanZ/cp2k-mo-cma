@@ -789,7 +789,6 @@ CONTAINS
        DEALLOCATE(f_envs_old,stat=stat)
        CPPostcondition(stat==0,cp_fatal_level,routineP,error,failure)
     END IF
-
     IF (.NOT.failure) THEN
 
        CALL cp2k_read(root_section,para_env,globenv,error=error)

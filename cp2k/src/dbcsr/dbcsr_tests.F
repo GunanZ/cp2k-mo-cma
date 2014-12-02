@@ -33,6 +33,8 @@ MODULE dbcsr_tests
                                              dbcsr_error_type,&
                                              dbcsr_fatal_level,&
                                              dbcsr_wrong_args_error
+  USE dbcsr_io,                        ONLY: dbcsr_binary_read,&
+                                             dbcsr_binary_write
   USE dbcsr_methods,                   ONLY: &
        dbcsr_col_block_sizes, dbcsr_distribution, dbcsr_get_data_type, &
        dbcsr_init, dbcsr_name, dbcsr_nblkcols_total, dbcsr_nblkrows_total, &
@@ -45,7 +47,9 @@ MODULE dbcsr_tests
                                              dbcsr_mp_nprows,&
                                              dbcsr_mp_release
   USE dbcsr_multiply_api,              ONLY: dbcsr_multiply
-  USE dbcsr_operations,                ONLY: dbcsr_copy
+  USE dbcsr_operations,                ONLY: dbcsr_add,&
+                                             dbcsr_copy,&
+                                             dbcsr_frobenius_norm
   USE dbcsr_test_methods,              ONLY: dbcsr_make_random_block_sizes,&
                                              dbcsr_make_random_matrix
   USE dbcsr_transformations,           ONLY: dbcsr_redistribute
@@ -72,12 +76,13 @@ MODULE dbcsr_tests
 
   PRIVATE
 
-  PUBLIC :: dbcsr_run_tests, dbcsr_test_mm, dbcsr_test_arnoldi
+  PUBLIC :: dbcsr_run_tests, dbcsr_test_mm, dbcsr_test_arnoldi, dbcsr_test_binary_io
 
   CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'dbcsr_tests'
 
   INTEGER, PARAMETER          :: dbcsr_test_mm = 1         
   INTEGER, PARAMETER          :: dbcsr_test_arnoldi = 2
+  INTEGER, PARAMETER          :: dbcsr_test_binary_io = 3
 
 CONTAINS
 
@@ -101,13 +106,12 @@ CONTAINS
 !> \param[in] n_loops           number of repetition for each multiplication
 !> \param[in] eps               eps value for filtering
 !> \param retain_sparsity ...
-!> \param[in] deterministic attempt deterministic behavior
 !> \param[in] always_checksum   checksum after each multiplication
 ! *****************************************************************************
   SUBROUTINE dbcsr_run_tests (mp_group, io_unit, nproc,&
        matrix_sizes, matrix_types, trs, &
        bs_m, bs_n, bs_k, sparsities, alpha, beta, data_type, test_type,&
-       n_loops, eps, retain_sparsity, deterministic, always_checksum)
+       n_loops, eps, retain_sparsity, always_checksum)
     INTEGER, INTENT(IN)                      :: mp_group, io_unit
     INTEGER, DIMENSION(:), POINTER           :: nproc
     INTEGER, DIMENSION(:), INTENT(in)        :: matrix_sizes
@@ -119,7 +123,7 @@ CONTAINS
     INTEGER, INTENT(IN)                      :: data_type, test_type, n_loops
     REAL(kind=dp), INTENT(in)                :: eps
     LOGICAL, INTENT(in)                      :: retain_sparsity, &
-                                                deterministic, always_checksum
+                                                always_checksum
 
     CHARACTER(len=*), PARAMETER :: &
       fmt_desc = '(A,3(1X,I6),1X,A,2(1X,I5),1X,A,2(1X,L1))', &
@@ -180,7 +184,7 @@ CONTAINS
     CALL dbcsr_distribution_new (dist_c, mp_env, row_dist_c, col_dist_c)
     CALL dbcsr_make_random_matrix (matrix_c, sizes_m, sizes_n, "Matrix C",&
          REAL(sparsities(3), real_8),&
-         mp_group, data_type=data_type, dist=dist_c, nondet=.not.deterministic,&
+         mp_group, data_type=data_type, dist=dist_c, &
          error=dbcsr_error)
     CALL dbcsr_distribution_release (dist_c)
     IF (trs(1)) THEN
@@ -191,7 +195,7 @@ CONTAINS
        CALL dbcsr_distribution_new (dist_a, mp_env, row_dist_a, col_dist_a)
        CALL dbcsr_make_random_matrix (matrix_a, sizes_k, sizes_m, "Matrix A",&
             REAL(sparsities(1), real_8),&
-            mp_group, data_type=data_type, dist=dist_a, nondet=.not.deterministic,&
+            mp_group, data_type=data_type, dist=dist_a, &
             error=dbcsr_error)
        CALL array_release (row_dist_a)
        CALL array_release (col_dist_a)
@@ -201,7 +205,7 @@ CONTAINS
        CALL dbcsr_distribution_new (dist_a, mp_env, row_dist_c, col_dist_a)
        CALL dbcsr_make_random_matrix (matrix_a, sizes_m, sizes_k, "Matrix A",&
             REAL(sparsities(1), real_8),&
-            mp_group, data_type=data_type, dist=dist_a, nondet=.not.deterministic,&
+            mp_group, data_type=data_type, dist=dist_a, &
             error=dbcsr_error)
        CALL array_release (col_dist_a)
     ENDIF
@@ -214,7 +218,7 @@ CONTAINS
        CALL dbcsr_distribution_new (dist_b, mp_env, row_dist_b, col_dist_b)
        CALL dbcsr_make_random_matrix (matrix_b, sizes_n, sizes_k, "Matrix B",&
             REAL(sparsities(2), real_8),&
-            mp_group, data_type=data_type, dist=dist_b, nondet=.not.deterministic,&
+            mp_group, data_type=data_type, dist=dist_b, &
             error=dbcsr_error)
        CALL array_release (row_dist_b)
        CALL array_release (col_dist_b)
@@ -224,7 +228,7 @@ CONTAINS
        CALL dbcsr_distribution_new (dist_b, mp_env, row_dist_b, col_dist_c)
        CALL dbcsr_make_random_matrix (matrix_b, sizes_k, sizes_n, "Matrix B",&
             REAL(sparsities(2), real_8),&
-            mp_group, data_type=data_type, dist=dist_b, nondet=.not.deterministic,&
+            mp_group, data_type=data_type, dist=dist_b, &
             error=dbcsr_error)
        CALL array_release (row_dist_b)
     ENDIF
@@ -268,6 +272,8 @@ CONTAINS
             retain_sparsity=retain_sparsity)
     CASE(dbcsr_test_arnoldi)
        CALL test_arnoldi(matrix_a,matrix_b, io_unit, n_loops, eps)
+    CASE(dbcsr_test_binary_io)
+       CALL test_binary_io(matrix_a,io_unit,dbcsr_error)
     END SELECT
 
     CALL dbcsr_release (matrix_a)
@@ -276,6 +282,52 @@ CONTAINS
     CALL mp_comm_free(cart_group)
     CALL dbcsr_error_stop (error_handle, error=dbcsr_error)
   END SUBROUTINE dbcsr_run_tests
+
+! *****************************************************************************
+!> \brief dumps and retrieves a dbcsr matrix, and checks a checksum
+!> \param matrix_a matrix to be written
+!> \param io_unit unit for status updates
+!> \param dbcsr_error ...
+! *****************************************************************************
+  SUBROUTINE test_binary_io(matrix_a, io_unit,dbcsr_error)
+    TYPE(dbcsr_obj)                          :: matrix_a
+    INTEGER                                  :: io_unit
+    TYPE(dbcsr_error_type)                   :: dbcsr_error
+
+    CHARACTER(len=*), PARAMETER :: routineN = 'test_binary_io', &
+      routineP = moduleN//':'//routineN
+
+    CHARACTER(LEN=100)                       :: file_name
+    REAL(kind=real_8)                        :: norm, post, pre
+    TYPE(dbcsr_obj)                          :: matrix_a_read
+
+    file_name="test_dbcsr_binary_io.dat"
+
+    pre=dbcsr_checksum (matrix_a, pos=.TRUE., error=dbcsr_error)
+
+    CALL dbcsr_binary_write(matrix_a, file_name, dbcsr_error)
+
+    ! needs a new matrix, reading into matrix_a does not work
+    CALL dbcsr_init(matrix_a_read)
+    CALL dbcsr_binary_read(file_name, distribution=dbcsr_distribution(matrix_a),&
+                                      matrix_new=matrix_a_read, error=dbcsr_error)
+
+    post=dbcsr_checksum (matrix_a_read, pos=.TRUE., error=dbcsr_error)
+    CALL dbcsr_add(matrix_a_read,matrix_a,-1.0_dp,1.0_dp,error=dbcsr_error)
+    norm=dbcsr_frobenius_norm(matrix_a_read)
+    IF (io_unit>0) THEN
+      WRITE(io_unit,*) "checksums",pre,post
+      WRITE(io_unit,*) "difference norm",norm
+    ENDIF
+
+    CALL dbcsr_assert (norm==0.0_dp, dbcsr_fatal_level,&
+         dbcsr_wrong_args_error, routineN,&
+         "bug in binary io",__LINE__,dbcsr_error)
+
+    CALL dbcsr_release(matrix_a_read)
+
+  END SUBROUTINE test_binary_io
+
 
 ! *****************************************************************************
 !> \brief ...
