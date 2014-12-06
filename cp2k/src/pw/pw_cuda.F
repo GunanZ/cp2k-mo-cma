@@ -19,6 +19,7 @@
 ! *****************************************************************************
 MODULE pw_cuda
   USE ISO_C_BINDING
+  USE fast,                            ONLY: zero_c
   USE fft_tools,                       ONLY: &
        cube_transpose_1, cube_transpose_2, fft_scratch_sizes, &
        fft_scratch_type, get_fft_scratch, release_fft_scratch, x_to_yz, &
@@ -704,7 +705,7 @@ END SUBROUTINE pw_cuda_finalize
           CALL pw_cuda_sf(pw1, pbuf, scale, error)
 
           ! Exchange data ( transpose of matrix ) and sort
-          IF (pw1%pw_grid%grid_span /= FULLSPACE) CALL zero_c(SIZE(qbuf),qbuf)
+          IF (pw1%pw_grid%grid_span /= FULLSPACE) CALL zero_c(qbuf)
           CALL yz_to_xz(pbuf, rs_group, r_dim, g_pos, p2p, yzp, nyzray, &
                bo(:,:,:,2), qbuf, fft_scratch, error)
 
@@ -715,7 +716,8 @@ END SUBROUTINE pw_cuda_finalize
           CALL pw_cuda_f(qbuf, rbuf, -1, n(2), mx2*mz2, error)
 
           ! Exchange data ( transpose of matrix )
-          IF (pw1%pw_grid%grid_span /= FULLSPACE) CALL zero_c(SIZE(sbuf),sbuf)
+          IF (pw1%pw_grid%grid_span /= FULLSPACE) CALL zero_c(sbuf)
+
           CALL cube_transpose_1(rbuf, rs_group, bo(:,:,:,2), bo(:,:,:,1), sbuf, fft_scratch, error)
 
           ! FFT along z
@@ -740,7 +742,7 @@ END SUBROUTINE pw_cuda_finalize
           CALL pw_cuda_sf(pw1, sbuf, scale, error)
 
           ! Exchange data ( transpose of matrix ) and sort
-          IF (pw1%pw_grid%grid_span /= FULLSPACE) CALL zero_c(SIZE(tbuf),tbuf)
+          IF (pw1%pw_grid%grid_span /= FULLSPACE) CALL zero_c(tbuf)
           CALL x_to_yz (sbuf, gs_group, g_pos, p2p, yzp, nyzray, &
                bo(:,:,:,2), tbuf, fft_scratch, error)
 
