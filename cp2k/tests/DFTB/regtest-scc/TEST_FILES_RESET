@@ -279,3 +279,13 @@ ch2o-ot3.inp
 h2o-6.inp
 #do not accumulate shift in outer scf preconditioner
 h2o-7.inp
+#improvements to full_single inverse
+ch2o-ot3.inp
+h2o-7.inp
+reset tests for vector transfer
+h2o-7.inp
+new defaults for preconditioner
+ch2o-ot1.inp
+ch2o-ot3.inp
+new defaults for preconditioner
+h2o-7.inp

@@ -789,7 +789,6 @@ CONTAINS
        DEALLOCATE(f_envs_old,stat=stat)
        CPPostcondition(stat==0,cp_fatal_level,routineP,error,failure)
     END IF
-
     IF (.NOT.failure) THEN
 
        CALL cp2k_read(root_section,para_env,globenv,error=error)
@@ -1140,6 +1139,8 @@ CPSourceFileRef,&
 !> \param env_id id of the force_env
 !> \param description the tag of the result
 !> \param N ...
+!> \param RESULT ...
+!> \param res_exist ...
 !> \param ierr will return a number different from 0 if there was an error
 !> \author Joost VandeVondele
 ! *****************************************************************************

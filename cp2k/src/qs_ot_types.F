@@ -1080,25 +1080,39 @@ error=error)
        CALL stop_program(routineN,moduleN,__LINE__,"READ OTSCF SOLVER: Value unknown")
     END SELECT
 
+    !If these values are negative we will set them "optimal" for a given precondtioner below
+    CALL section_vals_val_get(ot_section,"STEPSIZE",r_val=settings%ds_min,error=error)
+    CALL section_vals_val_get(ot_section,"ENERGY_GAP",r_val=settings%energy_gap,error=error)
+
     CALL section_vals_val_get(ot_section,"PRECONDITIONER",i_val=settings%preconditioner_type,error=error)
     SELECT CASE(settings%preconditioner_type)
     CASE(ot_precond_none)
        settings%preconditioner_name="NONE"
+       IF(settings%ds_min<0.0_dp) settings%ds_min=0.15_dp
+       IF(settings%energy_gap<0.0_dp) settings%energy_gap=0.2_dp
     CASE(ot_precond_full_single)
        settings%preconditioner_name="FULL_SINGLE"
+       IF(settings%ds_min<0.0_dp) settings%ds_min=0.15_dp
+       IF(settings%energy_gap<0.0_dp) settings%energy_gap=0.2_dp
     CASE(ot_precond_full_single_inverse)
        settings%preconditioner_name="FULL_SINGLE_INVERSE"
+       IF(settings%ds_min<0.0_dp) settings%ds_min=0.08_dp
+       IF(settings%energy_gap<0.0_dp) settings%energy_gap=0.08_dp
     CASE(ot_precond_full_all)
        settings%preconditioner_name="FULL_ALL"
+       IF(settings%ds_min<0.0_dp) settings%ds_min=0.15_dp
+       IF(settings%energy_gap<0.0_dp) settings%energy_gap=0.08_dp
     CASE(ot_precond_full_kinetic)
        settings%preconditioner_name="FULL_KINETIC"
+       IF(settings%ds_min<0.0_dp) settings%ds_min=0.15_dp
+       IF(settings%energy_gap<0.0_dp) settings%energy_gap=0.2_dp
     CASE(ot_precond_s_inverse)
        settings%preconditioner_name="FULL_S_INVERSE"
+       IF(settings%ds_min<0.0_dp) settings%ds_min=0.15_dp
+       IF(settings%energy_gap<0.0_dp) settings%energy_gap=0.2_dp
     CASE DEFAULT
        CALL stop_program(routineN,moduleN,__LINE__,"READ OTSCF PRECONDITIONER: Value unknown")
     END SELECT
-    CALL section_vals_val_get(ot_section,"STEPSIZE",r_val=settings%ds_min,error=error)
-    CALL section_vals_val_get(ot_section,"ENERGY_GAP",r_val=settings%energy_gap,error=error)
     CALL section_vals_val_get(ot_section,"EPS_TAYLOR",r_val=settings%eps_taylor,error=error)
     CALL section_vals_val_get(ot_section,"MAX_TAYLOR",i_val=settings%max_taylor,error=error)
     CALL section_vals_val_get(ot_section,"ROTATION",l_val=settings%do_rotation,error=error)
@@ -1147,11 +1161,11 @@ error=error)
        CASE ("FULL_SINGLE")
           WRITE(output_unit,'(A)') "  Preconditioner : FULL_SINGLE         : diagonalization based"
        CASE ("FULL_SINGLE_INVERSE")
-          WRITE(output_unit,'(A)') "  Preconditioner : FULL_SINGLE_INVERSE : cholesky inversion of H + eS"
+          WRITE(output_unit,'(A)') "  Preconditioner : FULL_SINGLE_INVERSE : inversion of H + eS - 2*(Sc)(c^T*H*c+const)(Sc)^T"
        CASE ("FULL_ALL")
           WRITE(output_unit,'(A)') "  Preconditioner : FULL_ALL            : diagonalization, state selective"
        CASE ("FULL_KINETIC")
-          WRITE(output_unit,'(A)') "  Preconditioner : FULL_KINETIC        : cholesky inversion of T + eS"
+          WRITE(output_unit,'(A)') "  Preconditioner : FULL_KINETIC        : inversion of T + eS"
        CASE ("FULL_S_INVERSE")
           WRITE(output_unit,'(A)')            "  Preconditioner : FULL_S_INVERSE      : cholesky inversion of S"
        CASE ("SPARSE_DIAG")

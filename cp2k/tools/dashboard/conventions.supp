@@ -104,21 +104,12 @@ dbcsr_mm_multrec.F.ast: Found FORALL statement in procedure "remap_local2global"
 dbcsr_mp_operations.F.ast: Found FORALL statement in procedure "most_alltoall"
 dbcsr_mp_operations.F.ast: Found FORALL statement in procedure "remainder_alltoall"
 dbcsr_test_methods.F.ast: Found FORALL statement in procedure "dbcsr_random_dist"
-dgs.F.ast: Symbol "copy_cr" in "dg_get_patch_1" not defined
-dgs.F.ast: Symbol "copy_cri" in "dg_get_patch_2" not defined
-dgs.F.ast: Symbol "rankup" in "dg_get_patch_1" not defined
-dgs.F.ast: Symbol "rankup" in "dg_get_patch_2" not defined
-dgs.F.ast: Symbol "vc_x_vc" in "dg_get_patch_1" not defined
-dgs.F.ast: Symbol "vc_x_vc" in "dg_get_patch_2" not defined
-dgs.F.ast: Symbol "vr_x_vc" in "dg_get_patch_1" not defined
-dgs.F.ast: Symbol "vr_x_vc" in "dg_get_patch_2" not defined
 eip_silicon.F.ast: Found GOTO statement in procedure "eip_bazant_silicon"
 eip_silicon.F.ast: Found GOTO statement in procedure "eip_lenosky_silicon"
 eip_silicon.F.ast: Found GOTO statement in procedure "sublstiat_b"
 eip_silicon.F.ast: Found GOTO statement in procedure "sublstiat_l"
 eip_silicon.F.ast: Found OPEN statement in procedure "eip_bazant_silicon"
 eip_silicon.F.ast: Found OPEN statement in procedure "eip_lenosky_silicon"
-environment.F.ast: OMP PARALLEL without DEFAULT(NONE) found in "read_global_section"
 ep_f77.F.ast: Symbol "ep_f77_calc_e_f_low" in "ep_f77_calc_e_f" not defined
 ep_f77.F.ast: Symbol "ep_f77_create_low" in "ep_f77_create" not defined
 ep_f77.F.ast: Symbol "ep_f77_get_energy_low" in "ep_f77_get_energy" not defined
@@ -132,13 +123,8 @@ ep_f77_low.F.ast: Symbol "ep_f77_get_main_qs_env_low" in "ep_f77_get_main_qs_env
 ep_f77_low.F.ast: Symbol "ep_f77_release_low" in "ep_f77_release_low" not defined
 ep_f77_low.F.ast: Symbol "ep_f77_retain_low" in "ep_f77_retain_low" not defined
 erf_fn.F.ast: Found GOTO statement in procedure "calerf"
-f77_blas_extra.F.ast: Found GOTO statement in procedure "czcopy"
-f77_blas_extra.F.ast: Found GOTO statement in procedure "dscopy"
-f77_blas_extra.F.ast: Found GOTO statement in procedure "sdcopy"
-f77_blas_extra.F.ast: Found GOTO statement in procedure "zccopy"
 farming_methods.F.ast: Found CLOSE statement in procedure "farming_parse_input"
 farming_methods.F.ast: Found OPEN statement in procedure "farming_parse_input"
-fft_tools.F.ast: Symbol "zero_c" in "fft3d_ps" not defined
 fftw3_lib.F.ast: Found GOTO statement in procedure "sortint"
 gauss_colloc.F.ast: Found GOTO statement in procedure "collocgauss"
 gauss_colloc.F.ast: Found GOTO statement in procedure "collocgaussflat"
@@ -197,14 +183,7 @@ ps_wavelet_fft3d.F.ast: Found GOTO statement in procedure "ctrig"
 ps_wavelet_util.F.ast: Found GOTO statement in procedure "f_fft_dimensions"
 ps_wavelet_util.F.ast: Found GOTO statement in procedure "p_fft_dimensions"
 ps_wavelet_util.F.ast: Found GOTO statement in procedure "s_fft_dimensions"
-pw_methods.F.ast: Symbol "copy_cr" in "fft_wrap_pw1pw2" not defined
-pw_methods.F.ast: Symbol "copy_rc" in "fft_wrap_pw1pw2" not defined
-pw_methods.F.ast: Symbol "zero_c" in "fft_wrap_pw1pw2" not defined
-pw_methods.F.ast: Symbol "zero_c" in "pw_scatter_p" not defined
 pw_spline_utils.F.ast: Found GOTO statement in procedure "pw_nn_compose_r_no_pbc"
-pw_spline_utils.F.ast: OMP PARALLEL without DEFAULT(NONE) found in "pw_nn_smear_g"
-pw_spline_utils.F.ast: OMP PARALLEL without DEFAULT(NONE) found in "pw_spline2_evaluate_values_g"
-pw_spline_utils.F.ast: OMP PARALLEL without DEFAULT(NONE) found in "pw_spline3_evaluate_values_g"
 qmmm_init.F.ast: Found WHERE statement in procedure "setup_qmmm_links"
 qs_collocate_density.F.ast: Symbol "collocate_core_0" in "collocate_ortho" not defined
 qs_collocate_density.F.ast: Symbol "collocate_core_1" in "collocate_ortho" not defined
@@ -235,9 +214,6 @@ qs_integrate_potential_low.F.ast: Symbol "integrate_core_9" in "call_integrate" 
 qs_integrate_potential_low.F.ast: Symbol "integrate_core_default" in "call_integrate" not defined
 qs_localization_methods.F.ast: Found GOTO statement in procedure "jacobi_rot_para"
 qs_outer_scf.F.ast: Found GOTO statement in procedure "outer_loop_optimize"
-realspace_grid_types.F.ast: Symbol "copy_cr" in "rs_pw_transfer" not defined
-realspace_grid_types.F.ast: Symbol "copy_rc" in "rs_pw_transfer" not defined
-realspace_grid_types.F.ast: Symbol "copy_rc" in "rs_pw_transfer_replicated" not defined
 scp_diis_utils.F.ast: Found GOTO statement in procedure "store_hist"
 se_ga_tools.F.ast: Found GOTO statement in procedure "grid_factor"
 statistical_methods.F.ast: Found GOTO statement in procedure "alnorm"

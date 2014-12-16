@@ -13,3 +13,11 @@ dimer.inp
 dimer.inp
 #do not accumulate shift in outer scf preconditioner
 dimer.inp
+#improvements to full_single inverse
+dimer.inp
+reset tests for vector transfer
+dimer.inp
+new defaults for preconditioner
+dimer.inp
+#defaults for prec
+dimer.inp

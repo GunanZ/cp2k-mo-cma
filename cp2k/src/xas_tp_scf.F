@@ -63,17 +63,16 @@ MODULE xas_tp_scf
   USE qs_gspace_mixing,                ONLY: gspace_mixing,&
                                              self_consistency_check
   USE qs_kind_types,                   ONLY: qs_kind_type
-  USE qs_ks_methods,                   ONLY: qs_ks_did_change,&
-                                             qs_ks_update_qs_env
-  USE qs_ks_types,                     ONLY: qs_ks_env_type
+  USE qs_ks_methods,                   ONLY: qs_ks_update_qs_env
+  USE qs_ks_types,                     ONLY: qs_ks_did_change,&
+                                             qs_ks_env_type
   USE qs_loc_methods,                  ONLY: qs_loc_driver
   USE qs_loc_types,                    ONLY: get_qs_loc_env,&
                                              localized_wfn_control_type,&
                                              qs_loc_env_new_type
   USE qs_mo_methods,                   ONLY: calculate_subspace_eigenvalues
   USE qs_mo_types,                     ONLY: get_mo_set,&
-                                             mo_set_p_type,&
-                                             set_mo_set
+                                             mo_set_p_type
   USE qs_ot_eigensolver,               ONLY: ot_eigensolver
   USE qs_rho_methods,                  ONLY: qs_rho_update_rho
   USE qs_rho_types,                    ONLY: qs_rho_get,&
@@ -645,9 +644,9 @@ CONTAINS
     CHARACTER(LEN=*), PARAMETER :: routineN = 'xes_scf_once', &
       routineP = moduleN//':'//routineN
 
-    INTEGER                                  :: handle, ispin, istate, &
-                                                nelectron, nmo, nvirtual, &
-                                                nvirtual2, output_unit
+    INTEGER                                  :: handle, ispin, istate, nmo, &
+                                                nvirtual, nvirtual2, &
+                                                output_unit
     LOGICAL                                  :: failure
     REAL(KIND=dp), DIMENSION(:), POINTER     :: all_evals, eigenvalues
     TYPE(cp_dbcsr_p_type), DIMENSION(:), &
@@ -742,10 +741,6 @@ CONTAINS
           CALL set_xas_env(xas_env=xas_env,nvirtual=nvirtual,nvirtual2=nvirtual2,error=error)
        END IF
 
-       IF(xas_env%homo_occ == 0) THEN
-          nelectron = nelectron + 1
-          CALL set_mo_set(mos(1)%mo_set,nelectron=nelectron,error=error)
-       END IF
     END IF  ! failure
     CALL timestop(handle)
 

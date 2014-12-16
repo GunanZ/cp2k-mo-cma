@@ -79,10 +79,13 @@ CONTAINS
        param%energy                = -0.5_dp
        IF (present(xopt)) then
             param%energy = -1.2010034_dp
+            param%energy = xopt(3)
             param%zeta(1,0) = 1.2619947_dp
+            param%zeta(1,0) = xopt(2)
             param%hcore(1,0) = -0.991475_dp 
+            param%hcore(1,0) = xopt(1)
             param%ag = 0.2363_dp 
-            param%crep(1:3) = xopt(1:3)
+            param%crep(1:3) = xopt(4:6)
        endif
 !   CASE (2)
 !      !Helium

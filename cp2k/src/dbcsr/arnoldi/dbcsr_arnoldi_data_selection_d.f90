@@ -3,6 +3,10 @@
 !!! If you want a personal method, simply created a Subroutine returning the index
 !!! array selected ind which contains as the first nval_out entries the index of the evals
 
+! *****************************************************************************
+!> \brief ...
+!> \param arnoldi_data ...
+! *****************************************************************************
   SUBROUTINE select_evals_d(arnoldi_data)
     TYPE(dbcsr_arnoldi_data)                :: arnoldi_data
 
@@ -35,7 +39,7 @@
        STOP 'unknown selection index'
     END SELECT
     ! test whether we are converged
-    DO i=1, control%nval_req
+    DO i=1, control%nval_out
        my_ind=control%selected_ind(i)
        convergence=MAX(convergence, &
                    ABS(ar_data%revec(last_el, my_ind)*ar_data%Hessenberg(last_el+1, last_el)))
@@ -44,6 +48,13 @@
 
   END SUBROUTINE select_evals_d
 
+! *****************************************************************************
+!> \brief ...
+!> \param evals ...
+!> \param current_step ...
+!> \param selected_ind ...
+!> \param neval ...
+! *****************************************************************************
   SUBROUTINE index_min_max_real_eval_d(evals, current_step, selected_ind, neval)
     COMPLEX(real_8), DIMENSION(:)       :: evals
     INTEGER                                  :: current_step
@@ -58,6 +69,7 @@
     INTEGER                                   :: i
 
     neval=0
+    selected_ind=0
     tmp_array(1:current_step)=REAL(evals(1:current_step), real_8)
     CALL sort(tmp_array, current_step, indexing)
     DO i=1,current_step
@@ -77,6 +89,13 @@
 
   END SUBROUTINE index_min_max_real_eval_d
 
+! *****************************************************************************
+!> \brief ...
+!> \param evals ...
+!> \param current_step ...
+!> \param selected_ind ...
+!> \param neval ...
+! *****************************************************************************
   SUBROUTINE index_nmax_real_eval_d(evals, current_step, selected_ind, neval)
     COMPLEX(real_8), DIMENSION(:)       :: evals
     INTEGER                                  :: current_step
@@ -86,23 +105,36 @@
     CHARACTER(LEN=*), PARAMETER :: routineN = 'index_nmax_real_eval_d', &
       routineP = moduleN//':'//routineN
     
-    INTEGER                                  :: i
+    INTEGER                                  :: i, nlimit
     INTEGER, DIMENSION(current_step)         :: indexing
     REAL(real_8), DIMENSION(current_step)        :: tmp_array
 
+    nlimit=neval; neval=0
+    selected_ind=0
     tmp_array(1:current_step)=REAL(evals(1:current_step), real_8)
     CALL sort(tmp_array, current_step, indexing)
-    DO i=1, neval
-       selected_ind(i)=indexing(current_step+1-i)
+    DO i=1, current_step
+       IF(ABS(AIMAG(evals(indexing(current_step+1-i))))<EPSILON(0.0_real_8))THEN
+          selected_ind(i)=indexing(current_step+1-i)
+          neval=neval+1
+          IF(neval==nlimit)EXIT
+       END IF
     END DO
 
   END SUBROUTINE index_nmax_real_eval_d
 
+! *****************************************************************************
+!> \brief ...
+!> \param evals ...
+!> \param current_step ...
+!> \param selected_ind ...
+!> \param neval ...
+! *****************************************************************************
   SUBROUTINE index_nmin_real_eval_d(evals, current_step, selected_ind, neval)
     COMPLEX(real_8), DIMENSION(:)       :: evals
     INTEGER                                  :: current_step
     INTEGER, DIMENSION(:)                    :: selected_ind
-    INTEGER                                  :: neval
+    INTEGER                                  :: neval,nlimit
 
     CHARACTER(LEN=*), PARAMETER :: routineN = 'index_nmin_real_eval_d', &
       routineP = moduleN//':'//routineN
@@ -111,10 +143,16 @@
     INTEGER, DIMENSION(current_step)         :: indexing
     REAL(real_8), DIMENSION(current_step)        :: tmp_array
 
+    nlimit=neval; neval=0
+    selected_ind=0
     tmp_array(1:current_step)=REAL(evals(1:current_step), real_8)
     CALL sort(tmp_array, current_step, indexing)
-    DO i=1, neval
-       selected_ind(i)=indexing(i)
+    DO i=1, current_step
+       IF(ABS(AIMAG(evals(indexing(i))))<EPSILON(0.0_real_8))THEN
+          selected_ind(i)=indexing(i)
+          neval=neval+1
+          IF(neval==nlimit)EXIT
+       END IF
     END DO
 
   END SUBROUTINE index_nmin_real_eval_d

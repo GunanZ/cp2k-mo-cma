@@ -15,7 +15,8 @@ MODULE qs_environment_methods
   USE cell_types,                      ONLY: cell_type
   USE cp_blacs_env,                    ONLY: cp_blacs_env_type
   USE cp_control_types,                ONLY: dft_control_type
-  USE cp_dbcsr_interface,              ONLY: dbcsr_distribution_obj
+  USE cp_dbcsr_interface,              ONLY: cp_dbcsr_p_type,&
+                                             dbcsr_distribution_obj
   USE cp_dbcsr_operations,             ONLY: cp_dbcsr_dist2d_to_dist
   USE cp_ddapc_types,                  ONLY: cp_ddapc_release
   USE cp_ddapc_util,                   ONLY: cp_ddapc_init
@@ -63,8 +64,8 @@ MODULE qs_environment_methods
   USE qs_kind_types,                   ONLY: get_qs_kind,&
                                              get_qs_kind_set,&
                                              qs_kind_type
-  USE qs_ks_methods,                   ONLY: qs_ks_did_change
   USE qs_ks_types,                     ONLY: get_ks_env,&
+                                             qs_ks_did_change,&
                                              qs_ks_env_type,&
                                              set_ks_env
   USE qs_matrix_pools,                 ONLY: mpools_rebuild_fm_pools
@@ -263,6 +264,8 @@ SUBROUTINE qs_env_update_s_mstruct(qs_env,error)
 
     INTEGER                                  :: handle
     LOGICAL                                  :: do_ppl, failure
+    TYPE(cp_dbcsr_p_type), DIMENSION(:), &
+      POINTER                                :: matrix_ks, matrix_ks_aux_fit
     TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(dft_control_type), POINTER          :: dft_control
     TYPE(distribution_2d_type), POINTER      :: distribution_2d
@@ -285,6 +288,8 @@ SUBROUTINE qs_env_update_s_mstruct(qs_env,error)
                     para_env=para_env,&
                     dft_control=dft_control,&
                     particle_set=particle_set,&
+                    matrix_ks=matrix_ks,&
+                    matrix_ks_aux_fit=matrix_ks_aux_fit,&
                     distribution_2d=distribution_2d,&
                     rho_core=rho_core,&
                     vppl=vppl,&
@@ -356,10 +361,8 @@ SUBROUTINE qs_env_update_s_mstruct(qs_env,error)
     CALL cp_ddapc_init(qs_env, error)
 
     ! *** tell ks_env ***
-    IF (ASSOCIATED(qs_env%ks_env)) THEN
-       CALL qs_ks_did_change(qs_env%ks_env,s_mstruct_changed=.TRUE.,&
-            error=error)
-    END IF
+    CALL qs_ks_did_change(qs_env%ks_env,s_mstruct_changed=.TRUE.,error=error)
+
     !   *** Updates rho structure ***
     CALL qs_env_rebuild_rho(qs_env=qs_env,error=error)
 
@@ -757,6 +760,7 @@ SUBROUTINE qs_env_rebuild_rho(qs_env, rebuild_ao, rebuild_grids, error)
     LOGICAL                                  :: do_admm, gapw_xc
     TYPE(dft_control_type), POINTER          :: dft_control
     TYPE(qs_rho_type), POINTER               :: rho, rho_aux_fit, &
+                                                rho_aux_fit_buffer, &
                                                 rho_external, rho_xc
 
     NULLIFY(rho)
@@ -767,6 +771,7 @@ SUBROUTINE qs_env_rebuild_rho(qs_env, rebuild_ao, rebuild_grids, error)
                     rho=rho,&
                     rho_xc=rho_xc,&
                     rho_aux_fit=rho_aux_fit,&
+                    rho_aux_fit_buffer=rho_aux_fit_buffer,&
                     rho_external=rho_external,&
                     error=error)
 
@@ -781,6 +786,9 @@ SUBROUTINE qs_env_rebuild_rho(qs_env, rebuild_ao, rebuild_grids, error)
     END IF
     IF(do_admm) THEN
       CALL qs_rho_rebuild(rho_aux_fit,qs_env=qs_env,&
+                          rebuild_ao=rebuild_ao, rebuild_grids=rebuild_grids, &
+                          basis_set_id=use_aux_fit_basis_set, error=error)
+      CALL qs_rho_rebuild(rho_aux_fit_buffer,qs_env=qs_env,&
                           rebuild_ao=rebuild_ao, rebuild_grids=rebuild_grids, &
                           basis_set_id=use_aux_fit_basis_set, error=error)
     END IF

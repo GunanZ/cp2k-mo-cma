@@ -610,3 +610,14 @@ stp2.inp
 #do not accumulate shift in outer scf preconditioner
 stp3.inp
 scan_zn_1w_cp2k.inp
+#improvements to full_single inverse
+stp3.inp
+scan_zn_1w_cp2k.inp
+reset tests for vector transfer
+stp3.inp
+scan_zn_1w_cp2k.inp
+new defaults for preconditioner
+stp2.inp
+stp3.inp
+scan_zn_1w_cp2k.inp
+zn_1w_debug.inp

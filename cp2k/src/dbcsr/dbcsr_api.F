@@ -23,6 +23,8 @@ MODULE dbcsr_api
   USE dbcsr_arnoldi_data_methods,      ONLY: dbcsr_arnoldi_data,&
                                              deallocate_arnoldi_data,&
                                              get_selected_ritz_val,&
+                                             get_selected_ritz_vector,&
+                                             set_arnoldi_initial_vector,&
                                              setup_arnoldi_data
   USE dbcsr_block_access,              ONLY: dbcsr_get_block_p,&
                                              dbcsr_put_block,&
@@ -50,7 +52,7 @@ MODULE dbcsr_api
        multrec_limit
   USE dbcsr_csr_conversions,           ONLY: &
        convert_csr_to_dbcsr, convert_dbcsr_to_csr, csr_conversion_test, &
-       csr_create, csr_create_from_dbcsr, csr_create_new, csr_create_nze_row, &
+       csr_create, csr_create_from_dbcsr, csr_create_new, &
        csr_create_template, csr_destroy, csr_type, csr_write
   USE dbcsr_data_methods,              ONLY: &
        dbcsr_data_clear_pointer, dbcsr_data_init, dbcsr_data_new, &
@@ -185,9 +187,11 @@ MODULE dbcsr_api
             dbcsr_add_on_diag,&
             dbcsr_arnoldi_data,&
             setup_arnoldi_data,&
+            set_arnoldi_initial_vector,&
             deallocate_arnoldi_data,&
             dbcsr_arnoldi_ev,&
             get_selected_ritz_val,&
+            get_selected_ritz_vector,&
             dbcsr_binary_read,&
             dbcsr_binary_write,&
             dbcsr_triu,&
@@ -367,7 +371,6 @@ MODULE dbcsr_api
             csr_create_new,&
             csr_create_template,&
             csr_write,&
-            csr_conversion_test,&
-            csr_create_nze_row
+            csr_conversion_test
 
 END MODULE dbcsr_api

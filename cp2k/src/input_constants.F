@@ -652,7 +652,20 @@ MODULE input_constants
   ! This parameter defines when to use blocking
   INTEGER, PARAMETER, PUBLIC               :: do_admm_basis_projection=0,&
                                               do_admm_blocking_purify_full=1,&
-                                              do_admm_blocked_projection=2
+                                              do_admm_blocked_projection=2,&
+                                              do_admm_charge_constrained_projection=3
+
+  ! This parameter defines when to use blocking
+  INTEGER, PARAMETER, PUBLIC               :: do_admm_aux_exch_func_default=0,&
+                                              do_admm_aux_exch_func_pbex=1,&
+                                              do_admm_aux_exch_func_none=2,&
+                                              do_admm_aux_exch_func_opt=3,&
+                                              do_admm_aux_exch_func_bee=4
+ 
+
+  ! Define scaling of the exchange correction
+  INTEGER, PARAMETER, PUBLIC               :: do_admm_exch_scaling_none=0,&
+                                              do_admm_exch_scaling_merlot=1
 
   ! Define DFT+U method identifier codes
   INTEGER, PARAMETER, PUBLIC               :: plus_u_lowdin=1,&
@@ -830,8 +843,8 @@ MODULE input_constants
   INTEGER, PARAMETER, PUBLIC               :: swarm_do_glbopt=1
   INTEGER, PARAMETER, PUBLIC               :: swarm_do_paramopt=2
 
-! global opt parameters
-  INTEGER, PARAMETER, PUBLIC               :: glbopt_do_minhop  =1,&
+  ! global opt parameters
+  INTEGER, PARAMETER, PUBLIC               :: glbopt_do_minhop=1,&
                                               glbopt_do_mincrawl=2
 
 ! global opt parameters
@@ -839,12 +852,28 @@ MODULE input_constants
                                               paramopt_do_powell=2,&
                                               paramopt_do_grid=3,&
                                               paramopt_do_mocma=4
-! fm matrix multiplication
+  ! Self-consistent continuum solvation (SCCS) models
+  INTEGER, PARAMETER, PUBLIC               :: sccs_andreussi = 0,&
+                                              sccs_fattebert_gygi = 1
+
+  ! Derivative method used by the SCCS
+  INTEGER, PARAMETER, PUBLIC               :: sccs_derivative_fft = 0,&
+                                              sccs_derivative_cd3 = 1,&
+                                              sccs_derivative_cd5 = 2,&
+                                              sccs_derivative_cd7 = 3
+
+  ! fm matrix multiplication
   INTEGER, PARAMETER, PUBLIC               :: do_pdgemm  =1,&
                                               do_dbcsr   =2
 
   ! Dispersion DFTB
   INTEGER, PARAMETER, PUBLIC               :: dispersion_uff=100,&
                                               dispersion_d3 =200
+
+  ! Transport section
+  INTEGER, PARAMETER, PUBLIC               :: misc_method=0,&
+                                              scalapack_diagonalization=1,&
+                                              exper_code=2,&
+                                              do_transport=3
 
 END MODULE input_constants

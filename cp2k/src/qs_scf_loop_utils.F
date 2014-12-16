@@ -35,11 +35,11 @@ MODULE qs_scf_loop_utils
                                              qs_environment_type
   USE qs_gspace_mixing,                ONLY: gspace_mixing,&
                                              self_consistency_check
-  USE qs_ks_methods,                   ONLY: qs_ks_did_change
-  USE qs_ks_types,                     ONLY: qs_ks_env_type
+  USE qs_ks_types,                     ONLY: qs_ks_did_change,&
+                                             qs_ks_env_type
   USE qs_mo_methods,                   ONLY: calculate_density_matrix
-  USE qs_mo_types,                     ONLY: mo_set_p_type,&
-                                             set_mo_occupation
+  USE qs_mo_occupation,                ONLY: set_mo_occupation
+  USE qs_mo_types,                     ONLY: mo_set_p_type
   USE qs_ot_scf,                       ONLY: ot_scf_destroy,&
                                              ot_scf_mini
   USE qs_outer_scf,                    ONLY: outer_loop_gradient
@@ -207,7 +207,7 @@ CONTAINS
           CALL do_general_diag(scf_env,mos,matrix_ks,&
                                matrix_s,scf_control,scf_section, &
                                diis_step,error=error)
-          IF(scf_env%do_diag_sub) THEN
+          IF(scf_control%do_diag_sub) THEN
             skip_diag_sub = (scf_env%subspace_env%eps_diag_sub > 0.0_dp) .AND. &
                    (scf_env%iter_count==1  .OR. scf_env%iter_delta>scf_env%subspace_env%eps_diag_sub )
             IF( .NOT. skip_diag_sub) THEN
@@ -245,7 +245,7 @@ CONTAINS
          CALL do_block_krylov_diag(scf_env,mos,matrix_ks, &
                                    scf_control, scf_section, error=error)
        END IF
-       IF(scf_env%do_diag_sub) THEN
+       IF(scf_control%do_diag_sub) THEN
           skip_diag_sub = (scf_env%subspace_env%eps_diag_sub > 0.0_dp) .AND. &
                    (scf_env%iter_count==1  .OR. scf_env%iter_delta>scf_env%subspace_env%eps_diag_sub )
           IF( .NOT. skip_diag_sub) THEN
