@@ -242,7 +242,6 @@ CONTAINS
 ! *****************************************************************************
 !> \brief builds either the full neighborlist or neighborlists of molecular
 !> \brief subsets, depending on parameter values
-!> \param kg_env ...
 !> \param qs_env ...
 !> \param sab_orb the return type, a neighborlist 
 !> \param sac_kin ...
@@ -254,9 +253,8 @@ CONTAINS
 !>       2012.07 created [Martin Haeufel]
 !> \author Martin Haeufel
 ! *****************************************************************************
-  SUBROUTINE kg_build_neighborlist(kg_env, qs_env, sab_orb, sac_kin,&
+  SUBROUTINE kg_build_neighborlist(qs_env, sab_orb, sac_kin,&
              molecular, subset_of_mol, current_subset, error)
-    TYPE(kg_environment_type), POINTER       :: kg_env
     TYPE(qs_environment_type), POINTER       :: qs_env
     TYPE(neighbor_list_set_p_type), &
       DIMENSION(:), OPTIONAL, POINTER        :: sab_orb, sac_kin
@@ -448,22 +446,20 @@ CONTAINS
 
   END SUBROUTINE
 
-  ! writes the graph to file using the DIMACS standard format
-  ! for a definition of the file format see 
-  ! mat.gsia.cmu.edu?COLOR/general/ccformat.ps
-  ! in brief:
-  ! c comment line
-  ! p edge NODES EDGES
-  ! with NODES - number of nodes
-  !      EDGES - numer of edges
-  ! e W V
-  ! ...
-  ! there is one edge descriptor line for each edge in the graph
-  ! for an edge (w,v) the fields W and V specify its endpoints
 ! *****************************************************************************
-!> \brief ...
+!> \brief writes the graph to file using the DIMACS standard format
+!>        for a definition of the file format see 
+!>        mat.gsia.cmu.edu?COLOR/general/ccformat.ps
+!>        c comment line
+!>        p edge NODES EDGES
+!>        with NODES - number of nodes
+!>        EDGES - numer of edges
+!>        e W V
+!>        ...
+!>        there is one edge descriptor line for each edge in the graph
+!>        for an edge (w,v) the fields W and V specify its endpoints
 !> \param pairs ...
-!> \param nnodes ...
+!> \param nnodes the total number of nodes
 !> \param error ...
 ! *****************************************************************************
   SUBROUTINE write_to_file(pairs, nnodes, error)

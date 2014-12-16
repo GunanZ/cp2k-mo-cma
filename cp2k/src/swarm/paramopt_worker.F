@@ -297,22 +297,23 @@ MODULE paramopt_worker
     !print *,'this is charge', this%charge
     !print *,'this is inp',this%inp_file
     !----for D3 optimization---------------------------
-!    allocate(d3_ptr(3)) !gets deallocated automatically ??? at least it seems
-!    this%D3 = (/0.5_dp,this%x(4:5)/)
-!!    this%D3 = (/1._dp,this%x(1:2)/)
-!    !this%D3 = this%x(1:3) 
-!    d3_ptr = this%D3
-!    !----for dftb3 param optimization-----------------
-!    ! NEEDS TO BE ADJUSTED !!!!!!!!!!!!!!!!!
-!    !allocate(dftb3_param(4))
-!    allocate(dftb3_param(2))
-!    dftb3_param = this%x(3:4)
-!    !---for hb param optimization---------------------
-!    allocate(hb_para(3))
-!    hb_para = 0._dp
-!    hb_para(1) = this%x(1)
-!    hb_para(2) = this%x(2)
-!    hb_para(3) = this%x(3)
+    allocate(d3_ptr(3)) !gets deallocated automatically ??? at least it seems
+    this%D3 = (/1.0_dp,this%x(4:5)/)
+    !this%D3 = (/1._dp,this%x(1:2)/)
+    !this%D3 = this%x(1:3) 
+    d3_ptr = this%D3
+    !----for dftb3 param optimization-----------------
+    !! NEEDS TO BE ADJUSTED !!!!!!!!!!!!!!!!!
+    !allocate(dftb3_param(4))
+    !dftb3_param = this%x(6:9)
+    !!allocate(dftb3_param(2))
+    !!dftb3_param = this%x(6:7)
+    !---for hb param optimization---------------------
+    allocate(hb_para(3))
+    hb_para = 0._dp
+    hb_para(1) = this%x(1)
+    hb_para(2) = this%x(2)
+    hb_para(3) = this%x(3)
    !-------------------------------------------------
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%SUBSYS%TOPOLOGY%COORD_FILE_NAME", &
@@ -324,20 +325,23 @@ MODULE paramopt_worker
 !                                  keyword_name="FORCE_EVAL%SUBSYS%KIND%DFTB3_PARAM", &
 !                                  r_val=dftb3_param(i), error = this%error)
 !    enddo
-!    CALL section_vals_val_set(this%root_section, &
-!                              "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%D3_SCALING", &
-!                              r_vals_ptr=d3_ptr, error = this%error)
-!    
-!    CALL section_vals_val_set(this%root_section, &
-!                              "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%HB_SR_PARAM", &
-!                              r_vals_ptr=hb_para, error = this%error)
-!    
-!--------------------------------------------------------------------------
-    allocate(xopt_ptr(size(this%x)))
-    xopt_ptr = this%x
+!-----------------------------------------------------------------------------
     CALL section_vals_val_set(this%root_section, &
-                              "FORCE_EVAL%DFT%QS%SCPTB%XOPT", &
-                              r_vals_ptr=xopt_ptr, error= this%error)
+                              "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%D3_SCALING", &
+                              r_vals_ptr=d3_ptr, error = this%error)
+    
+!-----------------------------------------------------------------------------
+    CALL section_vals_val_set(this%root_section, &
+                              "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%HB_SR_PARAM", &
+                              r_vals_ptr=hb_para, error = this%error)
+    
+!--------------------------------------------------------------------------
+!    allocate(xopt_ptr(size(this%x)))
+!    xopt_ptr = this%x
+!    CALL section_vals_val_set(this%root_section, &
+!                              "FORCE_EVAL%DFT%QS%SCPTB%XOPT", &
+!                              r_vals_ptr=xopt_ptr, error= this%error)
+!   !print *,'after xopt set' 
 !--------------------------------------------------------------------------                              
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%DFT%CHARGE", &
@@ -360,12 +364,11 @@ MODULE paramopt_worker
                             output_unit=this%iw, &
                             mpi_comm=this%group, &
                             ierr=ierr)
-    CALL get_natom(this%f_env_id,natoms,ierr)
     IF (ierr .ne. 0) THEN
         print *, "Create force env failed",trim(input_file)
         STOP
     ENDIF
-    !print *,"after create force env"
+    CALL get_natom(this%f_env_id,natoms,ierr)
     !------------------------------------------------------------
     CALL f_env_get_from_id(this%f_env_id,this%f_env,this%error)
     IF(failure) STOP "paramopt_drive_worker: f_env_add_defaults failed"

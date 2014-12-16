@@ -646,6 +646,8 @@ CONTAINS
     END IF
 
     IF (conv_dx .AND. conv_rdx .AND. conv_g .AND. conv_rg .AND. conv_p) conv = .TRUE.
+    !yannicks ugly hack max. gradient > 1 abort :(
+    IF (maxdum(3) .gt. 1._dp) conv = .TRUE. 
 
     IF ((conv).AND.(output_unit>0)) THEN
        WRITE (UNIT=output_unit,FMT="(/,T2,A)") REPEAT("*",79)

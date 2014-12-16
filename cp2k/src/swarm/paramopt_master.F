@@ -186,7 +186,7 @@ MODULE paramopt_master
     !------------------------------------
     this%m = 2
     m = this%m
-    this%database = 2 ! 1 for the s22 and 2 for water_cluster and 3 for water27
+    this%database = 1 ! 1 for the s22 and 2 for water_cluster and 3 for water27
     if (.not. this%benchmark) then 
         if (this%database == 1) then
             this%num_ref_mol = 3*22
@@ -516,11 +516,16 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                     CALL energy2function(this%num_ref_mol,this%energies(input,:,:), &
                                         this%ref_matrix,this%database,func_array)
                     this%f(input,1) = sum(func_array)
-                    this%f(input,2) = sum(this%rmsd(input,:,:))
+                    !this%f(input,2) = sum(this%rmsd(input,:,:))
+                    ! this also is only first dim...so dimer of s22 yannick
+                    this%f(input,2) = sum(this%rmsd(input,:,1))
                     CALL open_file(file_name="output", file_status="UNKNOWN",&
                         file_action="WRITE", file_position="APPEND",unit_number=iounit)
                     write(iounit,*) var_trans(this%x(input,:), &
-                                    this%u_bound,this%l_bound),this%f(input,:),func_array,this%rmsd(input,:,:)
+                                    this%u_bound,this%l_bound),this%f(input,:),func_array,this%rmsd(input,:,1)
+                    ! index 1 here is the first row...so the dimer of s22 ...
+                    ! should be changed to be generic ?!
+                    !                this%u_bound,this%l_bound),this%f(input,:),func_array,this%rmsd(input,:,:)
                     CALL close_file(iounit)
                 enddo
                     select type(mocmaes => this%population)
@@ -768,7 +773,8 @@ END SUBROUTINE do_optim
     REAL(KIND=dp),DIMENSION(4)                      :: ref_ene
     select case(database)
       case(1)
-        do i=1,nref
+        print *,'nref',nref/3
+        do i=1,nref/3
             func_array(i) = abs(energies(i,1)-(energies(i,2)+energies(i,3)))*kcalmol
             func_array(i) = abs(func_array(i) - ref_matrix(i,5))
             print *,'dimer',energies(i,1),'monomer',energies(i,2),'monomer',energies(i,3),'f',func_array(i),'ref',ref_matrix(i,5)
