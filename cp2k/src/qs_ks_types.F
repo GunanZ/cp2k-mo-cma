@@ -167,12 +167,16 @@ MODULE qs_ks_types
                                                              matrix_s_aux_fit => Null(),&
                                                              matrix_s_aux_fit_vs_orb => Null(),&
                                                              matrix_ks_aux_fit => Null(),&
-                                                             matrix_ks_aux_fit_im => Null()
+                                                             matrix_ks_aux_fit_im => Null(),&
+                                                             matrix_ks_aux_fit_dft => Null(),&
+                                                             matrix_ks_aux_fit_hfx => Null()
 
     TYPE(qs_rho_type), POINTER                            :: rho => Null(),&
                                                              rho_buffer => Null(),&
                                                              rho_xc => Null(),&
-                                                             rho_aux_fit => Null()
+                                                             rho_aux_fit => Null(),&
+                                                             rho_aux_fit_buffer => Null()
+
     TYPE(pw_p_type), POINTER                              :: rho_core => Null(),&
                                                              vppl => Null(),&
                                                              rho_nlcc => Null(),&
@@ -242,6 +246,7 @@ SUBROUTINE qs_ks_env_create(ks_env, error)
     ALLOCATE(ks_env)
     CALL qs_rho_create(ks_env%rho, error)
     CALL qs_rho_create(ks_env%rho_aux_fit, error)
+    CALL qs_rho_create(ks_env%rho_aux_fit_buffer, error)
     CALL qs_rho_create(ks_env%rho_xc, error)
     CALL qs_rho_create(ks_env%rho_buffer, error)
     CALL kpoint_create(ks_env%kpoints,error)
@@ -262,6 +267,8 @@ END SUBROUTINE qs_ks_env_create
 !> \param matrix_vxc ...
 !> \param matrix_ks_aux_fit ...
 !> \param matrix_ks_aux_fit_im ...
+!> \param matrix_ks_aux_fit_dft ...
+!> \param matrix_ks_aux_fit_hfx ...
 !> \param kinetic ...
 !> \param matrix_s ...
 !> \param matrix_s_aux_fit ...
@@ -277,6 +284,7 @@ END SUBROUTINE qs_ks_env_create
 !> \param matrix_s_kp ...
 !> \param rho ...
 !> \param rho_aux_fit ...
+!> \param rho_aux_fit_buffer ...
 !> \param rho_buffer ...
 !> \param rho_xc ...
 !> \param vppl ...
@@ -340,11 +348,12 @@ END SUBROUTINE qs_ks_env_create
                         s_mstruct_changed,rho_changed,&
                         potential_changed,forces_up_to_date,&
                         matrix_h,matrix_ks,matrix_ks_im,matrix_vxc,matrix_ks_aux_fit,&
-                        matrix_ks_aux_fit_im,&
+                        matrix_ks_aux_fit_im,matrix_ks_aux_fit_dft,matrix_ks_aux_fit_hfx,&
                         kinetic,matrix_s,matrix_s_aux_fit,matrix_s_aux_fit_vs_orb,&
                         matrix_w,matrix_w_mp2,matrix_p_mp2,gamma_matrix,&
                         matrix_h_kp, matrix_ks_kp, matrix_vxc_kp, kinetic_kp, matrix_s_kp,&
-                        rho, rho_aux_fit, rho_buffer, rho_xc,&
+                        rho, rho_aux_fit, rho_aux_fit_buffer, &
+                        rho_buffer, rho_xc,&
                         vppl, rho_core, rho_nlcc, rho_nlcc_g, vee,&
                         neighbor_list_id,&
                         sab_orb,sab_aux_fit,sab_aux_fit_asymm, &
@@ -367,15 +376,16 @@ END SUBROUTINE qs_ks_env_create
                                                 forces_up_to_date
     TYPE(cp_dbcsr_p_type), DIMENSION(:), OPTIONAL, POINTER :: matrix_h, &
       matrix_ks, matrix_ks_im, matrix_vxc, matrix_ks_aux_fit, &
-      matrix_ks_aux_fit_im, kinetic, matrix_s, matrix_s_aux_fit, &
-      matrix_s_aux_fit_vs_orb, matrix_w, matrix_w_mp2, matrix_p_mp2, &
-      gamma_matrix
+      matrix_ks_aux_fit_im, matrix_ks_aux_fit_dft, matrix_ks_aux_fit_hfx, &
+      kinetic, matrix_s, matrix_s_aux_fit, matrix_s_aux_fit_vs_orb, matrix_w, &
+      matrix_w_mp2, matrix_p_mp2, gamma_matrix
     TYPE(cp_dbcsr_p_type), DIMENSION(:, :), &
       OPTIONAL, POINTER                      :: matrix_h_kp, matrix_ks_kp, &
                                                 matrix_vxc_kp, kinetic_kp, &
                                                 matrix_s_kp
-    TYPE(qs_rho_type), OPTIONAL, POINTER     :: rho, rho_aux_fit, rho_buffer, &
-                                                rho_xc
+    TYPE(qs_rho_type), OPTIONAL, POINTER     :: rho, rho_aux_fit, &
+                                                rho_aux_fit_buffer, &
+                                                rho_buffer, rho_xc
     TYPE(pw_p_type), OPTIONAL, POINTER       :: vppl, rho_core, rho_nlcc, &
                                                 rho_nlcc_g, vee
     INTEGER, OPTIONAL                        :: neighbor_list_id
@@ -452,6 +462,8 @@ END SUBROUTINE qs_ks_env_create
      IF (PRESENT(matrix_ks_im)) matrix_ks_im => ks_env%matrix_ks_im
      IF (PRESENT(matrix_ks_aux_fit)) matrix_ks_aux_fit => ks_env%matrix_ks_aux_fit
      IF (PRESENT(matrix_ks_aux_fit_im)) matrix_ks_aux_fit_im => ks_env%matrix_ks_aux_fit_im
+     IF (PRESENT(matrix_ks_aux_fit_dft)) matrix_ks_aux_fit_dft => ks_env%matrix_ks_aux_fit_dft
+     IF (PRESENT(matrix_ks_aux_fit_hfx)) matrix_ks_aux_fit_hfx => ks_env%matrix_ks_aux_fit_hfx
      IF (PRESENT(matrix_s_aux_fit)) matrix_s_aux_fit => ks_env%matrix_s_aux_fit
      IF (PRESENT(matrix_s_aux_fit_vs_orb)) matrix_s_aux_fit_vs_orb => ks_env%matrix_s_aux_fit_vs_orb
      IF (PRESENT(matrix_w)) matrix_w => ks_env%matrix_w
@@ -460,6 +472,7 @@ END SUBROUTINE qs_ks_env_create
      IF (PRESENT(gamma_matrix)) gamma_matrix => ks_env%gamma_matrix
      IF (PRESENT(rho)) rho => ks_env%rho
      IF (PRESENT(rho_aux_fit)) rho_aux_fit => ks_env%rho_aux_fit
+     IF (PRESENT(rho_aux_fit_buffer)) rho_aux_fit_buffer => ks_env%rho_aux_fit_buffer
      IF (PRESENT(rho_buffer)) rho_buffer => ks_env%rho_buffer
      IF (PRESENT(rho_xc)) rho_xc => ks_env%rho_xc
      IF (PRESENT(rho_core)) rho_core => ks_env%rho_core
@@ -541,6 +554,8 @@ END SUBROUTINE qs_ks_env_create
 !> \param matrix_vxc ...
 !> \param matrix_ks_aux_fit ...
 !> \param matrix_ks_aux_fit_im ...
+!> \param matrix_ks_aux_fit_dft ...
+!> \param matrix_ks_aux_fit_hfx ...
 !> \param kinetic ...
 !> \param matrix_s ...
 !> \param matrix_s_aux_fit ...
@@ -593,8 +608,8 @@ END SUBROUTINE qs_ks_env_create
                         s_mstruct_changed,rho_changed,&
                         potential_changed,forces_up_to_date,&
                         matrix_h,matrix_ks,matrix_ks_im,matrix_vxc,matrix_ks_aux_fit,matrix_ks_aux_fit_im,&
-                        kinetic,matrix_s,matrix_s_aux_fit,matrix_s_aux_fit_vs_orb,&
-                        matrix_w,matrix_w_mp2,matrix_p_mp2,gamma_matrix,&
+                        matrix_ks_aux_fit_dft,matrix_ks_aux_fit_hfx,kinetic,matrix_s,matrix_s_aux_fit,&
+                        matrix_s_aux_fit_vs_orb, matrix_w,matrix_w_mp2,matrix_p_mp2,gamma_matrix,&
                         matrix_h_kp, matrix_ks_kp, matrix_vxc_kp, kinetic_kp, matrix_s_kp,&
                         vppl, rho_core, rho_nlcc, rho_nlcc_g, vee,&
                         neighbor_list_id,&
@@ -614,9 +629,9 @@ END SUBROUTINE qs_ks_env_create
                                                 forces_up_to_date
     TYPE(cp_dbcsr_p_type), DIMENSION(:), OPTIONAL, POINTER :: matrix_h, &
       matrix_ks, matrix_ks_im, matrix_vxc, matrix_ks_aux_fit, &
-      matrix_ks_aux_fit_im, kinetic, matrix_s, matrix_s_aux_fit, &
-      matrix_s_aux_fit_vs_orb, matrix_w, matrix_w_mp2, matrix_p_mp2, &
-      gamma_matrix
+      matrix_ks_aux_fit_im, matrix_ks_aux_fit_dft, matrix_ks_aux_fit_hfx, &
+      kinetic, matrix_s, matrix_s_aux_fit, matrix_s_aux_fit_vs_orb, matrix_w, &
+      matrix_w_mp2, matrix_p_mp2, gamma_matrix
     TYPE(cp_dbcsr_p_type), DIMENSION(:, :), &
       OPTIONAL, POINTER                      :: matrix_h_kp, matrix_ks_kp, &
                                                 matrix_vxc_kp, kinetic_kp, &
@@ -674,7 +689,8 @@ END SUBROUTINE qs_ks_env_create
      IF (PRESENT(matrix_ks_im)) ks_env%matrix_ks_im => matrix_ks_im
      IF (PRESENT(matrix_ks_aux_fit)) ks_env%matrix_ks_aux_fit => matrix_ks_aux_fit
      IF (PRESENT(matrix_ks_aux_fit_im)) ks_env%matrix_ks_aux_fit_im => matrix_ks_aux_fit_im
-
+     IF (PRESENT(matrix_ks_aux_fit_dft)) ks_env%matrix_ks_aux_fit_dft => matrix_ks_aux_fit_dft
+     IF (PRESENT(matrix_ks_aux_fit_hfx)) ks_env%matrix_ks_aux_fit_hfx => matrix_ks_aux_fit_hfx
      IF (PRESENT(matrix_s_aux_fit)) ks_env%matrix_s_aux_fit => matrix_s_aux_fit
      IF (PRESENT(matrix_s_aux_fit_vs_orb)) ks_env%matrix_s_aux_fit_vs_orb => matrix_s_aux_fit_vs_orb
      IF (PRESENT(matrix_w)) ks_env%matrix_w => matrix_w
@@ -789,6 +805,10 @@ END SUBROUTINE qs_ks_env_create
             CALL cp_dbcsr_deallocate_matrix_set(ks_env%matrix_ks_aux_fit,error)
           IF (ASSOCIATED(ks_env%matrix_ks_aux_fit_im)) &
             CALL cp_dbcsr_deallocate_matrix_set(ks_env%matrix_ks_aux_fit_im,error)
+          IF (ASSOCIATED(ks_env%matrix_ks_aux_fit_dft)) &
+            CALL cp_dbcsr_deallocate_matrix_set(ks_env%matrix_ks_aux_fit_dft,error)
+          IF (ASSOCIATED(ks_env%matrix_ks_aux_fit_hfx)) &
+            CALL cp_dbcsr_deallocate_matrix_set(ks_env%matrix_ks_aux_fit_hfx,error)
           IF (ASSOCIATED(ks_env%matrix_s_aux_fit)) &
             CALL cp_dbcsr_deallocate_matrix_set(ks_env%matrix_s_aux_fit,error)
           IF (ASSOCIATED(ks_env%matrix_s_aux_fit_vs_orb)) &
@@ -809,6 +829,8 @@ END SUBROUTINE qs_ks_env_create
             CALL qs_rho_release(ks_env%rho_xc, error=error)
           IF(ASSOCIATED(ks_env%rho_aux_fit))&
             CALL qs_rho_release(ks_env%rho_aux_fit, error=error)
+          IF(ASSOCIATED(ks_env%rho_aux_fit_buffer))&
+            CALL qs_rho_release(ks_env%rho_aux_fit_buffer, error=error)
           IF (ASSOCIATED(ks_env%distribution_2d)) &
              CALL distribution_2d_release(ks_env%distribution_2d,error=error)
           IF(ASSOCIATED(ks_env%task_list)) &
@@ -932,9 +954,6 @@ END SUBROUTINE qs_ks_retain
 !> \param rho_changed if true it means that the density has changed
 !> \param potential_changed ...
 !> \param full_reset if true everything has changed
-!> \param dealloc defaults to true, if set to false the matrices are not
-!>                deallocted when mstruct_changed is set.
-!>                Only meant as a workaround for MP2's call in qs_force.F
 !> \param error variable to control error logging, stopping,...
 !>        see module cp_error_handling
 !> \par History
@@ -943,27 +962,22 @@ END SUBROUTINE qs_ks_retain
 !> \author Fawzi Mohamed
 ! *****************************************************************************
   SUBROUTINE qs_ks_did_change(ks_env,s_mstruct_changed,rho_changed,&
-                              potential_changed,full_reset,dealloc,error)
+                              potential_changed,full_reset,error)
     TYPE(qs_ks_env_type), POINTER            :: ks_env
     LOGICAL, INTENT(in), OPTIONAL            :: s_mstruct_changed, &
                                                 rho_changed, &
-                                                potential_changed, &
-                                                full_reset, dealloc
+                                                potential_changed, full_reset
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     CHARACTER(len=*), PARAMETER :: routineN = 'qs_ks_did_change', &
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: handle
-    LOGICAL                                  :: failure, my_dealloc, &
-                                                my_mstruct_chg
+    LOGICAL                                  :: failure, my_mstruct_chg
 
     CALL timeset(routineN,handle)
     failure = .FALSE.
     my_mstruct_chg = .FALSE.
-
-    my_dealloc = .TRUE.
-    IF (PRESENT(dealloc)) my_dealloc = dealloc
 
     CPPrecondition(ASSOCIATED(ks_env),cp_failure_level,routineP,error,failure)
 
@@ -988,14 +1002,12 @@ END SUBROUTINE qs_ks_retain
 
     IF(my_mstruct_chg) THEN
        ks_env%s_mstruct_changed = .TRUE.
-       IF(my_dealloc) THEN
-          ! *** deallocate matrices that will have the wrong structure ***
-          CALL kpoint_transitional_release(ks_env%matrix_ks, error)
-          CALL cp_dbcsr_deallocate_matrix_set(ks_env%matrix_ks_aux_fit,error)
-          !TODO: deallocate imaginary parts as well
-          !CALL cp_dbcsr_deallocate_matrix_set(ks_env%matrix_ks_im,error)
-          !CALL cp_dbcsr_deallocate_matrix_set(ks_env%matrix_ks_aux_fit_im,error)
-       ENDIF
+       ! *** deallocate matrices that will have the wrong structure ***
+       CALL kpoint_transitional_release(ks_env%matrix_ks, error)
+       CALL cp_dbcsr_deallocate_matrix_set(ks_env%matrix_ks_aux_fit,error)
+       !TODO: deallocate imaginary parts as well
+       !CALL cp_dbcsr_deallocate_matrix_set(ks_env%matrix_ks_im,error)
+       !CALL cp_dbcsr_deallocate_matrix_set(ks_env%matrix_ks_aux_fit_im,error)
     ENDIF
 
     CALL  timestop(handle)

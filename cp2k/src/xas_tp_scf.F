@@ -72,8 +72,7 @@ MODULE xas_tp_scf
                                              qs_loc_env_new_type
   USE qs_mo_methods,                   ONLY: calculate_subspace_eigenvalues
   USE qs_mo_types,                     ONLY: get_mo_set,&
-                                             mo_set_p_type,&
-                                             set_mo_set
+                                             mo_set_p_type
   USE qs_ot_eigensolver,               ONLY: ot_eigensolver
   USE qs_rho_methods,                  ONLY: qs_rho_update_rho
   USE qs_rho_types,                    ONLY: qs_rho_get,&
@@ -645,9 +644,9 @@ CONTAINS
     CHARACTER(LEN=*), PARAMETER :: routineN = 'xes_scf_once', &
       routineP = moduleN//':'//routineN
 
-    INTEGER                                  :: handle, ispin, istate, &
-                                                nelectron, nmo, nvirtual, &
-                                                nvirtual2, output_unit
+    INTEGER                                  :: handle, ispin, istate, nmo, &
+                                                nvirtual, nvirtual2, &
+                                                output_unit
     LOGICAL                                  :: failure
     REAL(KIND=dp), DIMENSION(:), POINTER     :: all_evals, eigenvalues
     TYPE(cp_dbcsr_p_type), DIMENSION(:), &
@@ -742,10 +741,6 @@ CONTAINS
           CALL set_xas_env(xas_env=xas_env,nvirtual=nvirtual,nvirtual2=nvirtual2,error=error)
        END IF
 
-       IF(xas_env%homo_occ == 0) THEN
-          nelectron = nelectron + 1
-          CALL set_mo_set(mos(1)%mo_set,nelectron=nelectron,error=error)
-       END IF
     END IF  ! failure
     CALL timestop(handle)
 

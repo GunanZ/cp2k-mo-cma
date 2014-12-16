@@ -10,6 +10,7 @@
 !> \author Manuel Guidon
 ! *****************************************************************************
 MODULE hfx_derivatives
+  USE admm_types,                      ONLY: admm_type
   USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                              get_atomic_kind_set
   USE cell_types,                      ONLY: cell_type,&
@@ -265,8 +266,9 @@ MODULE hfx_derivatives
     LOGICAL                                  :: with_mp2_density, is_anti_symmetric
     TYPE(dft_control_type), &
       POINTER                                :: dft_control
+    TYPE(admm_type), POINTER                 :: admm_env 
 
-    NULLIFY(dft_control)
+    NULLIFY(dft_control, admm_env) 
 
     with_mp2_density=.FALSE.
     IF(ASSOCIATED(qs_env%mp2_env)) with_mp2_density=.TRUE.
@@ -275,6 +277,7 @@ MODULE hfx_derivatives
     is_anti_symmetric=cp_dbcsr_get_matrix_type(rho_ao(1)%matrix).EQ.dbcsr_type_antisymmetric
 
     CALL get_qs_env(qs_env,&
+                    admm_env=admm_env,&
                     particle_set=particle_set,&
                     atomic_kind_set=atomic_kind_set,&
                     cell=cell,&
@@ -2062,6 +2065,7 @@ MODULE hfx_derivatives
 !> \param i 2d index
 !> \param j 2d index
 !> \param N matrix size
+!> \retval get_1D_idx ...
 !> \par History
 !>      03.2009 created [Manuel Guidon]
 !> \author Manuel Guidon
