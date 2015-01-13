@@ -1,6 +1,6 @@
 !-----------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations         !
-!   Copyright (C) 2000 - 2014  CP2K developers group                          !
+!   Copyright (C) 2000 - 2015  CP2K developers group                          !
 !-----------------------------------------------------------------------------!
 
 ! *****************************************************************************
@@ -256,7 +256,8 @@ CONTAINS
     ALLOCATE (mo_set%occupation_numbers(nmo),STAT=istat)
     CPPostcondition((istat == 0),cp_failure_level,routineP,error,failure)
     ! Initialize MO occupations
-    mo_set%occupation_numbers(1:nmo) =  0.0_dp
+    mo_set%occupation_numbers(:) =  0.0_dp
+    ! Quick return, if no electrons are available
     IF (mo_set%nelectron == 0) THEN
       RETURN
     END IF
