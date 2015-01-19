@@ -45,9 +45,9 @@ SUBROUTINE fftw3_do_cleanup(wisdom_file,ionode)
     CHARACTER(LEN=*), INTENT(IN)             :: wisdom_file
     LOGICAL                                  :: ionode
 
-    INTEGER                                  :: iunit,istat
 
 #if defined ( __FFTW3 )
+    INTEGER                                  :: iunit,istat
     ! Write out FFTW3 wisdom to file (if we can)
     ! only the ionode updates the wisdom
     IF (ionode) THEN
@@ -72,6 +72,7 @@ SUBROUTINE fftw3_do_init(wisdom_file)
 
     CHARACTER(LEN=*), INTENT(IN)             :: wisdom_file
 
+#if defined ( __FFTW3 )
     INTEGER                                  :: istat, isuccess, iunit
     LOGICAL                                  :: exist
 
@@ -83,6 +84,8 @@ SUBROUTINE fftw3_do_init(wisdom_file)
 ! a C interface to a global variable in MKL that sets
 ! the number of threads which can concurrently execute
 ! an FFT
+! We need __INTEL_COMPILER so we can be sure that the compiler
+! understands the !DEC$ version definitions
 #if defined (__INTEL_COMPILER) && defined (__MKL) && defined (__FFTW3)
 !$    include "mkl.fi"
 !DEC$ IF DEFINED (INTEL_MKL_VERSION)
@@ -95,7 +98,6 @@ SUBROUTINE fftw3_do_init(wisdom_file)
 !DEC$ ENDIF
 #endif
 
-#if defined ( __FFTW3 )
     ! Read FFTW wisdom (if available)
     ! all nodes are opening the file here...
     INQUIRE(FILE=wisdom_file,exist=exist)
@@ -109,7 +111,6 @@ SUBROUTINE fftw3_do_init(wisdom_file)
           CLOSE(iunit)
        ENDIF
     ENDIF
-#endif
 
 
     ! Now check if we have a real FFTW3 library, or are using MKL wrappers
@@ -118,7 +119,9 @@ SUBROUTINE fftw3_do_init(wisdom_file)
 ! If we are not using the Intel compiler, there is no way to tell which
 ! MKL version is in use, so fail safe...
 !$     mkl_is_safe = .FALSE.
-#if defined (__INTEL_COMPILER) &&defined (__MKL) && defined (__FFTW3)
+! If we have an Intel compiler (__INTEL_COMPILER is defined) then check the
+! MKL version and make the appropriate action
+#if defined (__INTEL_COMPILER) && defined (__MKL) && defined (__FFTW3)
 !DEC$ IF DEFINED (INTEL_MKL_VERSION)
 !DEC$ IF INTEL_MKL_VERSION .EQ. 110100
 !$     mkl_dft_number_of_user_threads=omp_get_max_threads() 
@@ -136,6 +139,7 @@ SUBROUTINE fftw3_do_init(wisdom_file)
 !$              "Now exiting..."
 !$     ENDIF
 !$  ENDIF
+#endif
 
 END SUBROUTINE
 
@@ -415,13 +419,13 @@ FUNCTION fftw3_is_mkl_wrapper() RESULT(is_mkl)
   IMPLICIT NONE
 
   LOGICAL :: is_mkl
+#if defined ( __FFTW3 )
   LOGICAL :: guru_supported
   INTEGER :: dim_n(2), dim_istride(2), dim_ostride(2), &
              howmany_n(2), howmany_istride(2), howmany_ostride(2)
   INTEGER (KIND=integer8_kind) :: test_plan
   COMPLEX(KIND=dp), DIMENSION(1,1,1) :: zin
 
-#if defined ( __FFTW3 )
 #include "fftw3.f"
 
   ! Attempt to create a plan with the guru interface for a 2d sub-space
@@ -568,6 +572,7 @@ SUBROUTINE fftw3_create_plan_3d(plan, zin, zout, plan_style)
   COMPLEX(KIND=dp), DIMENSION(*), INTENT(INOUT)      :: zin
   COMPLEX(KIND=dp), DIMENSION(*), INTENT(INOUT)      :: zout
   INTEGER                                            :: plan_style
+#if defined ( __FFTW3 )
   INTEGER                                            :: n1,n2,n3
   INTEGER                                            :: nt
   INTEGER                                            :: rows_per_th
@@ -580,7 +585,6 @@ SUBROUTINE fftw3_create_plan_3d(plan, zin, zout, plan_style)
   INTEGER :: dim_n(2), dim_istride(2), dim_ostride(2), &
              howmany_n(2), howmany_istride(2), howmany_ostride(2)
 
-#if defined ( __FFTW3 )
 #include "fftw3.f"
   INTEGER :: fftw_plan_type
   SELECT CASE(plan_style)
@@ -752,11 +756,11 @@ SUBROUTINE fftw3_workshare_execute_dft(plan, plan_r, split_dim, nt, tid, &
   INTEGER, INTENT(IN)                           :: istride, ostride
   COMPLEX(KIND=dp), DIMENSION(*), INTENT(INOUT) :: input, output
     INTEGER (KIND=integer8_kind)                :: plan, plan_r
+#if defined (__FFTW3)
     INTEGER                                     :: i_off, o_off
     INTEGER                                     :: th_planA, th_planB
    INTEGER :: rows_per_thread, rows_per_thread_r
 
-#if defined (__FFTW3)
       CALL fftw3_compute_rows_per_th(split_dim, nt, rows_per_thread, &
                                      rows_per_thread_r, &
                                      th_planA, th_planB)
@@ -811,9 +815,10 @@ SUBROUTINE fftw33d ( plan, scale, zin, zout, stat )
   REAL(KIND=dp), INTENT(IN)                            :: scale
   COMPLEX(KIND=dp), DIMENSION(*), INTENT(INOUT), TARGET:: zin
   COMPLEX(KIND=dp), DIMENSION(*), INTENT(INOUT), TARGET:: zout
+  INTEGER, INTENT(OUT)                                 :: stat
+#if defined ( __FFTW3 )
   COMPLEX(KIND=dp), POINTER                            :: xout(:)
   COMPLEX(KIND=dp), ALLOCATABLE                        :: tmp1(:)
-  INTEGER, INTENT(OUT)                                 :: stat
   INTEGER                                              :: n1, n2, n3
   INTEGER                                              :: tid, nt
   INTEGER                                              :: i,j,k
@@ -821,7 +826,6 @@ SUBROUTINE fftw33d ( plan, scale, zin, zout, stat )
 !------------------------------------------------------------------------------
 
 
-#if defined ( __FFTW3 )
 #include "fftw3.f"
 
   n1 = plan%n_3d(1)
@@ -907,9 +911,9 @@ SUBROUTINE fftw3_create_plan_1dm(plan, zin, zout, plan_style)
   COMPLEX(KIND=dp), DIMENSION(*), INTENT(IN)         :: zin
   COMPLEX(KIND=dp), DIMENSION(*), INTENT(IN)         :: zout
   INTEGER, INTENT(IN)                                :: plan_style
+#if defined ( __FFTW3 )
   INTEGER                                            :: ii,di,io,DO, num_threads, num_rows
 
-#if defined ( __FFTW3 )
 #include "fftw3.f"
   INTEGER :: fftw_plan_type
   SELECT CASE(plan_style)
