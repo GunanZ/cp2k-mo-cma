@@ -166,17 +166,17 @@ def retrieve_report(report_url):
 #===============================================================================
 def parse_report(report_txt, report_type):
     if(report_txt==None):
-        return( {'status':'UNKOWN', 'summary':'Error while retrieving report.', 'revision':None} )
+        return( {'status':'UNKNOWN', 'summary':'Error while retrieving report.', 'revision':None} )
     try:
         if(report_type == "regtest"):
             return parse_regtest_report(report_txt)
         elif(report_type == "generic"):
             return parse_generic_report(report_txt)
         else:
-            raise(Exception("Unkown report_type"))
+            raise(Exception("Unknown report_type"))
     except:
         print traceback.print_exc()
-        return( {'status':'UNKOWN', 'summary':'Error while parsing report.', 'revision':None} )
+        return( {'status':'UNKNOWN', 'summary':'Error while parsing report.', 'revision':None} )
 
 #===============================================================================
 def send_notification(report, addressbook, last_ok, svn_log, name, s):
@@ -234,7 +234,7 @@ def write_file(fn, content, gz=False):
     print("Wrote: "+fn)
 
 #===============================================================================
-def svn_log(limit=500):
+def svn_log(limit=3000):
     sys.stdout.write("Fetching svn log... ")
     sys.stdout.flush()
     # xml version contains nice UTC timestamp
@@ -298,6 +298,11 @@ def parse_regtest_report(report_txt):
     report = dict()
     report['revision'] = int(re.search("(revision|Revision:) (\d+)\.?\n", report_txt).group(2))
 
+    if("LOCKFILE" in report_txt):
+        report['status'] = "UNKNOWN"
+        report['summary'] = "Test directory is locked."
+        return(report)
+
     m = re.search("make: .* Error .*", report_txt)
     if(m):
         report['status'] = "FAILED"
@@ -318,7 +323,7 @@ def parse_regtest_report(report_txt):
     if(wrong_results > 0):
         report['summary'] += "; wrong: %d"%wrong_results
     if(runtime_errors > 0):
-        report['summary'] += "; crashed: %d"%runtime_errors
+        report['summary'] += "; failed: %d"%runtime_errors
     if(memory_leaks > 0):
         report['summary'] += "; memleaks: %d"%memory_leaks
 
