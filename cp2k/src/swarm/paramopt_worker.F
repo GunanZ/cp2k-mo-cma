@@ -129,7 +129,6 @@ MODULE paramopt_worker
 
         failure = .FALSE.
 
-        worker%m = 2
         worker%error = error
         worker%root_section => root_section
         worker%input_path = input_path
@@ -141,6 +140,7 @@ MODULE paramopt_worker
         swarm_section => section_vals_get_subs_vals(root_section, "SWARM", error=error)
         paramopt_section => section_vals_get_subs_vals(swarm_section, "PARAM_OPT", error=error)
         CALL section_vals_val_get(paramopt_section,"NUM_VAR", i_val=worker%n, error=error)
+        CALL section_vals_val_get(paramopt_section,"NUM_OBJ", i_val=worker%m, error=error)
         CALL section_vals_val_get(paramopt_section,"METHOD", i_val=worker%method, error=error) 
         IF (worker%iw>0) WRITE(worker%iw,*) "paramopt_worker_init called."
         IF (worker%iw>0) WRITE(worker%iw,*) "paramopt_worker_init done."
@@ -163,7 +163,7 @@ MODULE paramopt_worker
 
     CHARACTER(len=default_string_length)     :: command
     REAL(kind=dp)                            :: test
-   REAL(kind=dp)                            :: x,x1,h
+   REAL(kind=dp)                            :: x,x1,x2,h
    REAL(kind=dp),DIMENSION(:),POINTER       :: func
    INTEGER                                  :: Id
 
@@ -178,6 +178,7 @@ MODULE paramopt_worker
                 !CALL run_mdgopt(worker, cmd, report)
                 !------------do calc here------------
                 CALL myfun(worker%x,worker%func(1),worker%ref_func)
+                ! blablabla
                 !------------------------------------ 
                 CALL swarm_message_add(report, "status", "done") 
                 CALL swarm_message_add(report, "result", worker%func(1))
@@ -208,17 +209,22 @@ MODULE paramopt_worker
             CALL swarm_message_get(cmd, "pop_id", worker%pop_id)
             CALL swarm_message_get(cmd, "x", worker%x)
             CALL swarm_message_get(cmd, "ref_func", worker%ref_func)
+            write(worker%iw,*) "this is x in worker",worker%x
             !------------do calc here------------
-            !CALL myfun(worker%x,y,worker%ref_func)
-            !Zitzler¿Deb¿Thiele's function N. 1
-            worker%x = abs(worker%x)
+            !!CALL myfun(worker%x,y,worker%ref_func)
+            !!Zitzler¿Deb¿Thiele's function N. 1
+            !worker%x = abs(worker%x)
             x1 = worker%x(1)
-            !h = 1._dp - sqrt((x1)/(g(worker%x)))
-            h = 1._dp - (x1/g(worker%x))**2
-            worker%func(1) = (x1)
-            worker%func(2) = (g(worker%x)*h)
-            print *,'pop_id',worker%pop_id
-            print *,'this is x',worker%x,'and f',worker%func
+            x2 = worker%x(2)
+            !!h = 1._dp - sqrt((x1)/(g(worker%x)))
+            !h = 1._dp - (x1/g(worker%x))**2
+            !worker%func(1) = (x1)
+            !worker%func(2) = (g(worker%x)*h)
+            worker%func(1) = 0.5_dp*(x1**2+x2**2) + sin(x1**2+x2**2)
+            worker%func(2) = (3_dp*x1-2_dp*x2+4_dp)**2/8_dp + (x1-x2+1_dp)**2/27_dp + 15_dp
+            worker%func(3) = 1_dp/(x1**2+x2**2+1_dp)-1.1_dp*exp(-(x1**2+x2**2))
+            write(worker%iw,*) 'pop_id',worker%pop_id
+            write(worker%iw,*) 'this is x',worker%x,'and f',worker%func
             !------------------------------------ 
             CALL swarm_message_add(report, "status", "done") 
             CALL swarm_message_add(report, "inp_num", worker%inp_num)

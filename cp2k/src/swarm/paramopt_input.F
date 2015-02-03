@@ -94,6 +94,12 @@ MODULE paramopt_input
          default_i_val= 1,error=error)
     CALL section_add_keyword(paramopt_section, keyword, error=error)
     CALL keyword_release(keyword,error=error) 
+    
+    CALL keyword_create(keyword, name="NUM_OBJ",&
+         description="balba TODO.",&
+         default_i_val= 2,error=error)
+    CALL section_add_keyword(paramopt_section, keyword, error=error)
+    CALL keyword_release(keyword,error=error) 
 !
 !    CALL keyword_create(keyword, name="SEED",&
 !         description="balba TODO.",&
