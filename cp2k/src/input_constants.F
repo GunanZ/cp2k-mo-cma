@@ -47,8 +47,7 @@ MODULE input_constants
                                               do_fist=2,&
                                               do_qmmm=4,&
                                               do_eip=5,&
-                                              do_ep=6,&
-                                              do_mixed=7
+                                              do_mixed=6
 
   ! QMMM
   REAL(KIND=dp), PARAMETER, PUBLIC         :: RADIUS_QMMM_DEFAULT = 0.80_dp,& ! Angstrom
@@ -563,8 +562,7 @@ MODULE input_constants
   INTEGER, PARAMETER, PUBLIC               :: outer_scf_ddapc_constraint=123, &
                                               outer_scf_s2_constraint=124,&
                                               outer_scf_becke_constraint=125, &
-                                              outer_scf_scp=126, &
-                                              outer_scf_none=127
+                                              outer_scf_none=126
 
   ! outer scf optimizers
   INTEGER, PARAMETER, PUBLIC               :: outer_scf_optimizer_sd=1001, &
@@ -636,9 +634,8 @@ MODULE input_constants
   INTEGER, PARAMETER, PUBLIC               :: use_orb_basis_set=1,&
                                               use_aux_fit_basis_set=2,&
                                               use_aux_basis_set=3,&
-                                              use_scp_basis_set=4,&
-                                              use_ri_aux_basis_set=5,&
-                                              use_lri_basis_set=6
+                                              use_ri_aux_basis_set=4,&
+                                              use_lri_basis_set=5
   ! ADMM PARAMETER
   ! This parameter defines the method to use for the purification
   INTEGER, PARAMETER, PUBLIC               :: do_admm_purify_none=1,&
@@ -701,9 +698,6 @@ MODULE input_constants
                                               fftw_plan_patient=3, &
                                               fftw_plan_exhaustive=4
 
-  ! SCP-DFT
-  INTEGER, PARAMETER, PUBLIC               :: copy_coeff=1,  &
-                                              copy_fcoeff=2
   !real time propagation
   INTEGER, PARAMETER, PUBLIC               :: do_taylor=1,  &
                                               do_pade=2,&
@@ -736,10 +730,11 @@ MODULE input_constants
                                               ls_cluster_molecular=112
 
   INTEGER, PARAMETER, PUBLIC               :: ls_s_inversion_hotelling=3,&
-                                              ls_s_inversion_sign_sqrt=5
+                                              ls_s_inversion_sign_sqrt=5,&
+                                              ls_s_inversion_none=6
   
   INTEGER, PARAMETER, PUBLIC               :: ls_scf_ns=17, ls_scf_trs4=18,&
-                                              ls_scf_tc2=19
+                                              ls_scf_tc2=19, ls_scf_pexsi=20
 
   INTEGER, PARAMETER, PUBLIC               :: ls_scf_line_search_3point=3,&
                                               ls_scf_line_search_3point_2d=6

@@ -1,5 +1,8 @@
 ====== How to compile the CP2K code ======
 
+This document is maintained in the svn-repository as cp2k/INSTALL .
+A nicely rendered version of it can be found at http://cp2k.org/howto:compile .
+
 =====  1. Acquire the code: =====
 
 see  http://www.cp2k.org/
@@ -17,6 +20,8 @@ If SVN is not installed on your system get it at
 ===== 2. Install Prerequisites =====
 Sub-points here discuss prerequisites needed to build CP2K.
 Some of these can be conveniently installed by a script see: cp2k/tools/toolchain
+Copies of the recommended versions of 3rd party software can be
+downloaded from http://www.cp2k.org/static/downloads/ .
 
 ==== 2a. GNU make ====
 GNU make should be on your system (gmake or make on linux) and used for
@@ -25,8 +30,8 @@ download from http://ftp.gnu.org/pub/gnu/make/
 also python (2.X) is required for building.
 
 ==== 2b. Fortran and C Compiler ====
-A Fortran 95 compiler and matching C compiler should be installed on your system.
-We have good experience with gcc/gfortran 4.6.X and above.  Be aware that some
+A Fortran 2003 compiler and matching C compiler should be installed on your system.
+We have good experience with gcc/gfortran 4.9.2, but gcc >=4.6 works.  Be aware that some
 compilers have bugs that might cause them to fail (internal compiler errors,
 segfaults) or, worse, yield a mis-compiled CP2K. Report bugs to compiler
 vendors; they (and we) have an interest in fixing them.
@@ -98,7 +103,7 @@ cp2k/tools/hfx_tools/libint_tools/README_LIBINT
 Tested against libinit-1.1.4 and currently hardcoded to the default
 angular momentum LIBINT_MAX_AM 5
 (check your include/libint/libint.h to see if it matches)
-http://www.chem.vt.edu/chem-dept/valeev/software/libint/libint.html
+http://sourceforge.net/projects/libint/files/v1-releases/libint-1.1.4.tar.gz/download
 Note that you should **NOT** use libinit-1.1.3.
 
 ==== 2g. libsmm (optional) ====
@@ -170,7 +175,32 @@ python 2.x is needed to run the dependency generator.
 On most system python is already installed.
 For more information visit: http://www.python.org/
 
-===== Compile =====
+==== 2n. PEXSI (optional) ====
+The Pole EXpansion and Selected Inversion (PEXSI) method requires the PEXSI library
+and two dependencies (ParMETIS or PT-Scotch and SuperLU_DIST).
+  * Download PEXSI (www.pexsi.org) and install it and its
+    dependencies by following the instructions in their README.md.
+  * The version 0.7.3 has been tested with CP2K.
+  * Building the Fortran interface of PEXSI (provided in the fortran
+    subdirectory) is required.
+
+In the arch file of CP2K:
+  * Add ''-lpexsi_${SUFFIX} -lsuperlu_dist_3.3 -lparmetis -lmetis'', and their paths
+    (with -L$(LIB_DIR)) to LIBS. It is important that these libraries are placed
+    before LAPACK and BLAS.
+  * in order to link in PT-Scotch instead of ParMETIS replace ''-lparmetis -lmetis'' with:
+      -lptscotchparmetis -lptscotch -lptscotcherr -lscotchmetis -lscotch -lscotcherr
+  * Add ''-I$(PEXSI_DIR)/fortran/'' (for f_ppexsi_interface.mod) to FCFLAGS.
+  * Add -D__LIBPEXSI to DFLAGS.
+
+Below are some additional hints that may help in the compilation process:
+  * For building PT-Scotch, the flag ''-DSCOTCH_METIS_PREFIX'' in
+    Makefile.inc must not be set and the flag ''-DSCOTCH_PTHREAD'' must be removed.
+  * For building SuperLU_DIST with PT-Scotch, you must set the following in make.inc.
+      METISLIB = -lscotchmetis -lscotch -lscotcherr
+      PARMETISLIB = -lptscotchparmetis -lptscotch -lptscotcherr
+
+===== 3. Compile =====
 
 ==== 3a. ARCH files ====
 The location of compiler and libraries needs to be specified. Examples
@@ -274,9 +304,6 @@ completeness besides the flags described in this document.
 
   * -D__mp_timeset__ Timing of MPI routines.
   * -D__USE_LEGACY_WEIGHTS Use legacy atomic weights (?)
-  * -D__USE_PAT craypat profiling (?)
-  * -D__HMD ?
-  * -D__HPM ?
   * -D_USE_GA Global Arrays Toolkit ?
 
 ==== 3e. Automatic architecture discovery ====

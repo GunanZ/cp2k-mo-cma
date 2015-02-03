@@ -1790,7 +1790,7 @@ CONTAINS
         DO 6001,k1=l1-1,l1+1
         DO 6000,jj=1,icell(0,k1,k2,k3)
           jat=icell(jj,k1,k2,k3)
-          IF (jat.eq.iat) GOTO 6000
+          IF (jat.eq.iat) CYCLE
           xrel= rxyz(1,iat)-rxyz(1,jat)
           yrel= rxyz(2,iat)-rxyz(2,jat)
           zrel= rxyz(3,iat)-rxyz(3,jat)
@@ -2939,7 +2939,6 @@ CONTAINS
 
 1000        CONTINUE
 
-        RETURN
         END SUBROUTINE subfeniat_l
 
 ! *****************************************************************************
@@ -2984,7 +2983,7 @@ CONTAINS
         DO 6365,k1=l1-1,l1+1
         DO 6366,jj=1,icell(0,k1,k2,k3)
           jat=icell(jj,k1,k2,k3)
-          IF (jat.eq.iat) GOTO 6363
+          IF (jat.eq.iat) GOTO 6363 !This looks like it should just be a CYCLE statement, but this GOTO exits three loops simultanuously
           xrel= rxyz(1,iat)-rxyz(1,jat)
           yrel= rxyz(2,iat)-rxyz(2,jat)
           zrel= rxyz(3,iat)-rxyz(3,jat)

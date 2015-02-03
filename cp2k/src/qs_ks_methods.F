@@ -61,7 +61,6 @@ MODULE qs_ks_methods
   USE cp_para_types,                   ONLY: cp_para_env_type
   USE dft_plus_u,                      ONLY: plus_u
   USE efield_utils,                    ONLY: efield_potential
-  USE ep_qs_types,                     ONLY: ep_qs_type
   USE hartree_local_methods,           ONLY: Vh_1c_gg_integrals
   USE hfx_admm_utils,                  ONLY: hfx_admm_init,&
                                              hfx_ks_matrix
@@ -80,6 +79,7 @@ MODULE qs_ks_methods
   USE lri_forces,                      ONLY: calculate_lri_forces
   USE lri_ks_methods,                  ONLY: calculate_lri_ks_matrix
   USE message_passing,                 ONLY: mp_sum
+  USE pw_env_methods
   USE pw_env_types,                    ONLY: pw_env_get,&
                                              pw_env_type
   USE pw_methods,                      ONLY: pw_axpy,&
@@ -89,7 +89,8 @@ MODULE qs_ks_methods
                                              pw_transfer,&
                                              pw_zero
   USE pw_poisson_methods,              ONLY: pw_poisson_solve
-  USE pw_poisson_types,                ONLY: pw_poisson_type
+  USE pw_poisson_types,                ONLY: PS_IMPLICIT,&
+                                             pw_poisson_type
   USE pw_pool_types,                   ONLY: pw_pool_create_pw,&
                                              pw_pool_give_back_pw,&
                                              pw_pool_p_type,&
@@ -123,10 +124,14 @@ MODULE qs_ks_methods
                                              qmmm_modify_hartree_pot
   USE qs_ks_types,                     ONLY: qs_ks_env_type,&
                                              set_ks_env
-  USE qs_ks_utils,                     ONLY: &
-       calc_v_sic_rspace, calculate_zmp_potential, compute_matrix_vxc, &
-       ep_v_core, low_spin_roks, print_densities, print_detailed_energy, &
-       sic_explicit_orbitals, sum_up_and_integrate
+  USE qs_ks_utils,                     ONLY: calc_v_sic_rspace,&
+                                             calculate_zmp_potential,&
+                                             compute_matrix_vxc,&
+                                             low_spin_roks,&
+                                             print_densities,&
+                                             print_detailed_energy,&
+                                             sic_explicit_orbitals,&
+                                             sum_up_and_integrate
   USE qs_mo_types,                     ONLY: get_mo_set,&
                                              mo_set_p_type,&
                                              mo_set_type
@@ -213,9 +218,9 @@ CONTAINS
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: handle, ispin, nspins
-    LOGICAL :: do_adiabatic_rescaling, do_ddapc, do_ep, do_hfx, do_ppl, &
-      failure, gapw, gapw_xc, hfx_treat_lsd_in_core, just_energy_xc, &
-      my_print, use_virial
+    LOGICAL :: do_adiabatic_rescaling, do_ddapc, do_hfx, do_ppl, failure, &
+      gapw, gapw_xc, hfx_treat_lsd_in_core, just_energy_xc, my_print, &
+      use_virial
     REAL(KIND=dp)                            :: ecore_ppl, edisp, ee_ener, &
                                                 ekin_mol, mulliken_order_p
     REAL(KIND=dp), DIMENSION(3, 3)           :: h_stress
@@ -229,7 +234,6 @@ CONTAINS
     TYPE(cp_logger_type), POINTER            :: logger
     TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(dft_control_type), POINTER          :: dft_control
-    TYPE(ep_qs_type), POINTER                :: ep_qs_env
     TYPE(pw_env_type), POINTER               :: pw_env
     TYPE(pw_p_type) :: rho_tot_gspace, v_efield_rspace, v_hartree_gspace, &
       v_hartree_rspace, v_sccs_rspace, v_sic_rspace, v_spin_ddapc_rest_r
@@ -237,7 +241,8 @@ CONTAINS
                                                 v_rspace_new_aux_fit, &
                                                 v_tau_rspace, &
                                                 v_tau_rspace_aux_fit
-    TYPE(pw_p_type), POINTER                 :: rho_nlcc, vee, vppl_rspace
+    TYPE(pw_p_type), POINTER                 :: rho_core, rho_nlcc, vee, &
+                                                vppl_rspace
     TYPE(pw_poisson_type), POINTER           :: poisson_env
     TYPE(pw_pool_p_type), DIMENSION(:), &
       POINTER                                :: pw_pools
@@ -252,7 +257,7 @@ CONTAINS
 
     failure=.FALSE.
     CALL timeset(routineN,handle)
-    NULLIFY(admm_env, becke, cell, dft_control, ep_qs_env, logger, &
+    NULLIFY(admm_env, becke, cell, dft_control, logger, &
          mo_derivs, my_rho, rho_struct, para_env, pw_env, virial, &
          vppl_rspace, v_hartree_rspace%pw, adiabatic_rescaling_section, &
          hfx_sections, input, scf_section, xc_section, matrix_h, matrix_s, &
@@ -261,7 +266,7 @@ CONTAINS
          matrix_vxc, matrix_ks_aux_fit, matrix_ks_aux_fit_im, &
          matrix_ks_aux_fit_dft,&
          matrix_s_aux_fit, matrix_s_aux_fit_vs_orb, vee, rho_nlcc, ks_env, &
-         ks_matrix, ks_matrix_im, rho, energy, rho_xc, rho_r, rho_ao)
+         ks_matrix, ks_matrix_im, rho, energy, rho_xc, rho_r, rho_ao, rho_core)
 
     CPPrecondition(ASSOCIATED(qs_env),cp_failure_level,routineP,error,failure)
 
@@ -287,11 +292,11 @@ CONTAINS
                     para_env=para_env,&
                     input=input,&
                     virial=virial,&
-                    ep_qs_env=ep_qs_env,&
                     v_hartree_rspace=v_hartree_rspace%pw,&
                     vee=vee,&
                     rho_nlcc=rho_nlcc,&
                     rho=rho,&
+                    rho_core=rho_core,&
                     rho_xc=rho_xc,&
                     energy=energy,&
                     error=error)
@@ -302,9 +307,6 @@ CONTAINS
        ks_matrix => ext_ks_matrix
 
     use_virial = virial%pv_availability.AND.(.NOT.virial%pv_numer)
-    do_ep=ASSOCIATED(ep_qs_env)
-    IF (do_ep) do_ep=ep_qs_env%ep_active.AND.calculate_forces.and.&
-         ASSOCIATED(ep_qs_env%dH_coeffs)
 
     hfx_sections => section_vals_get_subs_vals(input,"DFT%XC%HF",error=error)
     CALL section_vals_get(hfx_sections,explicit=do_hfx,error=error)
@@ -418,13 +420,22 @@ CONTAINS
           IF (use_virial.AND.calculate_forces) THEN
              h_stress(:,:) = 0.0_dp
              CALL pw_poisson_solve(poisson_env,rho_tot_gspace%pw,energy%hartree,&
-                                   v_hartree_gspace%pw,h_stress=h_stress,error=error)
+                                   v_hartree_gspace%pw,h_stress=h_stress, &
+                                   rho_core=rho_core, error=error)
              virial%pv_virial = virial%pv_virial + h_stress/REAL(para_env%num_pe,dp)
           ELSE
-             CALL pw_poisson_solve(poisson_env,rho_tot_gspace%pw,energy%hartree,&
-                                   v_hartree_gspace%pw,error=error)
+             CALL pw_poisson_solve(poisson_env, rho_tot_gspace%pw,energy%hartree, &
+                              v_hartree_gspace%pw, rho_core=rho_core, error=error)
           END IF
        END IF
+
+       IF (ASSOCIATED(poisson_env%green_fft)) THEN
+         IF (poisson_env%green_fft%method .EQ. PS_IMPLICIT .AND. calculate_forces) THEN
+            CALL cp_assert(.FALSE., cp_warning_level, cp_assertion_failed, routineP,&
+               "The implicit Poisson solver might have inaccurate forces (dielectric deriv).", &
+               error, failure)
+         END IF
+       END IF 
 
        ! In case decouple periodic images and/or apply restraints to charges
        IF (do_ddapc) THEN
@@ -503,7 +514,7 @@ CONTAINS
                                   qmmm_env=qs_env%qmmm_env_qm,qs_env=qs_env,error=error)
                   ENDIF
                ENDIF
-                  CALL pw_release(qs_env%ks_qmmm_env%v_metal_rspace%pw,error=error)
+               CALL pw_release(qs_env%ks_qmmm_env%v_metal_rspace%pw,error=error)
              END IF
           IF (.NOT.just_energy) THEN
              CALL qmmm_modify_hartree_pot(v_hartree=v_hartree_rspace,&
@@ -624,13 +635,8 @@ CONTAINS
        ! ***  Single atom contributions ***
        IF (.NOT.just_energy) THEN
           IF (calculate_forces) THEN
-             IF (do_ep) THEN
-                ! Getting  nuclear force contribution from ep potential
-                CALL ep_v_core(qs_env,ep_qs_env,nspins,error=error)
-             ELSE
-                ! Getting nuclear force contribution from the core charge density
-                CALL integrate_v_core_rspace(v_hartree_rspace,qs_env,error=error)
-             END IF
+             ! Getting nuclear force contribution from the core charge density
+             CALL integrate_v_core_rspace(v_hartree_rspace,qs_env,error=error)
           END IF
 
           IF (.NOT.do_hfx) THEN
@@ -642,12 +648,8 @@ CONTAINS
           END IF
 
           ! sum up potentials and integrate
-          IF (do_ep) THEN
-             my_rho => ep_qs_env%dH_coeffs
-          ELSE
-             ! Pointing my_rho to the density matrix rho_ao
-             my_rho => rho_ao
-          END IF
+          ! Pointing my_rho to the density matrix rho_ao
+          my_rho => rho_ao
           CALL  sum_up_and_integrate(ks_env,qs_env,ks_matrix,rho,my_rho,vppl_rspace,&
                 v_rspace_new,v_rspace_new_aux_fit,v_tau_rspace,v_tau_rspace_aux_fit,&
                 v_efield_rspace,v_sic_rspace,v_spin_ddapc_rest_r,v_sccs_rspace,becke,&
@@ -764,7 +766,7 @@ CONTAINS
                       energy%efield + energy%efield_core + energy%ee +&
                       energy%ee_core + energy%exc_aux_fit + energy%image_charge +&
                       energy%sccs_pol + energy%sccs_mpc
-       
+
        ! Print detailed energy
        IF (my_print) THEN
           CALL print_detailed_energy(qs_env,dft_control,input,energy,mulliken_order_p,error=error)
@@ -801,8 +803,9 @@ CONTAINS
 
     INTEGER                                  :: handle, ispin, nspins, stat
     LOGICAL                                  :: failure, just_energy_xc, &
-                                                my_print
+                                                my_print, use_virial
     REAL(KIND=dp)                            :: edisp
+    REAL(KIND=dp), DIMENSION(3, 3)           :: h_stress
     TYPE(atomic_kind_type), DIMENSION(:), &
       POINTER                                :: atomic_kind_set
     TYPE(cp_dbcsr_p_type), DIMENSION(:), &
@@ -827,13 +830,15 @@ CONTAINS
     TYPE(qs_ks_env_type), POINTER            :: ks_env
     TYPE(qs_rho_type), POINTER               :: my_rho_xc, rho
     TYPE(section_vals_type), POINTER         :: input, xc_section
+    TYPE(virial_type), POINTER               :: virial
 
     failure=.FALSE.
     CALL timeset(routineN,handle)
     NULLIFY(dft_control, input,  mo_derivs, my_rho_xc, para_env, pw_env,&
             xc_section, ks_env, ks_matrix, rho, energy, auxbas_pw_pool, matrix_h,&
             matrix_p, poisson_env, pw_pools, v_rspace_new, v_tau_rspace, &
-            atomic_kind_set, lri_env, lri_density, lri_v_int, v_hartree_rspace%pw)
+            atomic_kind_set, lri_env, lri_density, lri_v_int, v_hartree_rspace%pw,&
+            virial)
     CPPrecondition(ASSOCIATED(qs_env),cp_failure_level,routineP,error,failure)
 
     my_print = .TRUE.
@@ -849,6 +854,7 @@ CONTAINS
                     pw_env=pw_env,&
                     para_env=para_env,&
                     input=input,&
+                    virial=virial,&
                     v_hartree_rspace=v_hartree_rspace%pw,&
                     matrix_ks=ks_matrix,&
                     rho=rho,&
@@ -859,6 +865,8 @@ CONTAINS
     CPPrecondition(SIZE(ks_matrix)>0,cp_failure_level,routineP,error,failure)
     CPPrecondition(ASSOCIATED(pw_env),cp_failure_level,routineP,error,failure)
 
+    use_virial = virial%pv_availability.AND.(.NOT.virial%pv_numer)
+
     ! gets the tmp grids
     IF (.NOT. failure) THEN
        CALL pw_env_get(pw_env, auxbas_pw_pool=auxbas_pw_pool,&
@@ -867,7 +875,7 @@ CONTAINS
 
     IF (.NOT. failure) THEN
 
-       ! *** calculate the hartree potential on the LRI pw density ***
+       ! *** calculate the Hartree potential on the LRI pw density ***
        CALL pw_pool_create_pw(auxbas_pw_pool,&
                                  v_hartree_gspace%pw, &
                                  use_data=COMPLEXDATA1D,&
@@ -879,14 +887,24 @@ CONTAINS
                                  in_space=RECIPROCALSPACE,&
                                  error=error)
 
+       ! get the total density in g-space [ions + electrons]
        CALL calc_rho_tot_gspace(rho_tot_gspace, qs_env, rho, error=error)
 
        IF(my_print) THEN
          CALL print_densities(qs_env, rho, my_rho_xc, error=error)
        END IF
 
-       CALL pw_poisson_solve(poisson_env,rho_tot_gspace%pw,energy%hartree,&
-                             v_hartree_gspace%pw,error=error)
+       ! solve Poisson equation to get Hartree energy and potential and the stress
+       ! tensor from the Hartee term if needed
+       IF (use_virial.AND.calculate_forces) THEN
+           h_stress(:,:) = 0.0_dp
+           CALL pw_poisson_solve(poisson_env,rho_tot_gspace%pw,energy%hartree,&
+                                 v_hartree_gspace%pw,h_stress=h_stress,error=error)
+           virial%pv_virial = virial%pv_virial + h_stress/REAL(para_env%num_pe,dp)
+       ELSE
+           CALL pw_poisson_solve(poisson_env,rho_tot_gspace%pw,energy%hartree,&
+                                 v_hartree_gspace%pw,error=error)
+       ENDIF
 
        IF (.NOT. just_energy) THEN
           CALL pw_transfer(v_hartree_gspace%pw, v_hartree_rspace%pw, error=error)
@@ -896,7 +914,7 @@ CONTAINS
        CALL pw_pool_give_back_pw(auxbas_pw_pool,v_hartree_gspace%pw,error=error)
        CALL pw_pool_give_back_pw(auxbas_pw_pool,rho_tot_gspace%pw,error=error)
 
-       ! core contribution
+       ! *** core contribution
        IF (.NOT. just_energy) THEN
              ! Initialize the Kohn-Sham matrix with the core Hamiltonian matrix
              DO ispin=1,nspins
@@ -905,7 +923,8 @@ CONTAINS
              END DO
        END IF
 
-      ! exchange-correlation
+      ! *** exchange-correlation
+      IF (use_virial .AND. calculate_forces) virial%pv_calculate = .TRUE.
       xc_section => section_vals_get_subs_vals(input,"DFT%XC",error=error)
       just_energy_xc=just_energy
 
@@ -915,7 +934,11 @@ CONTAINS
            just_energy=just_energy_xc, error=error)
       IF(edisp /= 0.0_dp) energy%dispersion = edisp
 
-      ! sum v_hartree + v_xc
+      IF (use_virial .AND. calculate_forces) THEN           
+         virial%pv_virial = virial%pv_virial - virial%pv_xc 
+      ENDIF                                                 
+
+      ! *** sum v_hartree + v_xc
       IF (ASSOCIATED(v_rspace_new)) THEN
         DO ispin=1,nspins
          v_rspace_new(ispin)%pw%cr3d  =&
@@ -925,30 +948,46 @@ CONTAINS
       ENDIF
       ! NO TAU YET
  
-      !do integration and build matrix
+      ! *** do integration and build matrix
       IF (.NOT. just_energy) THEN
 
        DO ispin=1,nspins
           lri_v_int => lri_density%lri_coefs(ispin)%lri_kinds
-          CALL integrate_v_rspace_one_center(v_rspace_new(ispin),qs_env,&
-               lri_v_int,calculate_forces,error)
-          CALL pw_pool_give_back_pw(auxbas_pw_pool,v_rspace_new(ispin)%pw,&
-               error=error)
+          IF(.NOT.ASSOCIATED(v_rspace_new)) THEN
+            CALL integrate_v_rspace_one_center(v_hartree_rspace,qs_env,&
+                 lri_v_int,calculate_forces,error)
+          ELSE
+            CALL integrate_v_rspace_one_center(v_rspace_new(ispin),qs_env,&
+                 lri_v_int,calculate_forces,error)
+            CALL pw_pool_give_back_pw(auxbas_pw_pool,v_rspace_new(ispin)%pw,&
+                 error=error)
+          ENDIF
           CALL calculate_lri_ks_matrix(lri_env, lri_v_int, ks_matrix(ispin)%matrix,&
                atomic_kind_set, para_env, error)
        ENDDO
-       DEALLOCATE(v_rspace_new,stat=stat)
-       CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
+       IF(ASSOCIATED(v_rspace_new)) THEN
+          DEALLOCATE(v_rspace_new,stat=stat)
+          CPPostconditionNoFail(stat==0,cp_warning_level,routineP,error)
+       ENDIF
 
+       ! *** LRIGPW forces
        IF (calculate_forces ) THEN
            ! Getting nuclear force contribution from the core charge density
             CALL integrate_v_core_rspace(v_hartree_rspace, qs_env,error=error)
            ! Getting electronic force contribution from fitted LRI charge density
             CALL qs_rho_get(rho, rho_ao=matrix_p, error=error)
-            CALL calculate_lri_forces(lri_env,lri_density,qs_env,matrix_p,atomic_kind_set,error)
+            CALL calculate_lri_forces(lri_env,lri_density,qs_env,matrix_p,atomic_kind_set,&
+                 use_virial,error)
        END IF
 
       ENDIF
+
+       ! At this point the ks matrix should be up to date, filter it if requested
+      DO ispin=1,nspins
+         CALL cp_dbcsr_filter(ks_matrix(ispin)%matrix,&
+              dft_control%qs_control%eps_filter_matrix,&
+              error=error)
+      ENDDO
 
       ! Right now we can compute the orbital derivative here, as it depends currently only on the available
       ! Kohn-Sham matrix. This might change in the future, in which case more pieces might need to be assembled
@@ -970,7 +1009,6 @@ CONTAINS
             energy%ee + energy%ee_core+&
             energy%exc_aux_fit+&
             energy%image_charge
-
 
     END IF ! failure
 

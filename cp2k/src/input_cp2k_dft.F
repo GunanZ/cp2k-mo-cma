@@ -72,12 +72,12 @@ MODULE input_cp2k_dft
        outer_scf_becke_constraint, outer_scf_ddapc_constraint, &
        outer_scf_none, outer_scf_optimizer_bisect, outer_scf_optimizer_diis, &
        outer_scf_optimizer_none, outer_scf_optimizer_sd, &
-       outer_scf_s2_constraint, outer_scf_scp, plus_u_lowdin, &
-       plus_u_mulliken, plus_u_mulliken_charges, pulay_mix, pw_interp, &
-       ramp_env, random_guess, real_time_propagation, ref_charge_atomic, &
-       ref_charge_mulliken, rel_dkh, rel_none, rel_pot_erfc, rel_pot_full, &
-       rel_sczora_mp, rel_trans_atom, rel_trans_full, rel_trans_molecule, &
-       rel_zora, rel_zora_full, rel_zora_mp, restart_guess, sccs_andreussi, &
+       outer_scf_s2_constraint, plus_u_lowdin, plus_u_mulliken, &
+       plus_u_mulliken_charges, pulay_mix, pw_interp, ramp_env, random_guess, &
+       real_time_propagation, ref_charge_atomic, ref_charge_mulliken, &
+       rel_dkh, rel_none, rel_pot_erfc, rel_pot_full, rel_sczora_mp, &
+       rel_trans_atom, rel_trans_full, rel_trans_molecule, rel_zora, &
+       rel_zora_full, rel_zora_mp, restart_guess, sccs_andreussi, &
        sccs_derivative_cd3, sccs_derivative_cd5, sccs_derivative_cd7, &
        sccs_derivative_fft, sccs_fattebert_gygi, shape_function_density, &
        shape_function_gaussian, sic_ad, sic_eo, sic_list_all, &
@@ -138,180 +138,10 @@ MODULE input_cp2k_dft
 
   PUBLIC :: create_dft_section
   PUBLIC :: create_bsse_section, create_qs_section
-  PUBLIC :: create_scf_section, create_ep_section
+  PUBLIC :: create_scf_section
   PUBLIC :: create_interp_section, create_localize_section
 
 CONTAINS
-
-! *****************************************************************************
-!> \brief creates an ep section
-!> \param section the section to be created
-!> \param error variable to control error logging, stopping,...
-!>        see module cp_error_handling
-!> \author fawzi
-! *****************************************************************************
-  SUBROUTINE create_ep_section(section,error)
-    TYPE(section_type), POINTER              :: section
-    TYPE(cp_error_type), INTENT(inout)       :: error
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'create_ep_section', &
-      routineP = moduleN//':'//routineN
-
-    LOGICAL                                  :: failure
-    TYPE(keyword_type), POINTER              :: keyword
-    TYPE(section_type), POINTER              :: print_key, print_section
-
-    failure=.FALSE.
-
-    CPPrecondition(.NOT.ASSOCIATED(section),cp_failure_level,routineP,error,failure)
-    CALL section_create(section,name="ep",&
-         description="parameter needed by an ep calculation",&
-         repeats=.FALSE., required=.TRUE.,&
-         error=error)
-
-    NULLIFY(keyword)
-    CALL keyword_create(keyword, name="EPS_LIN_SOLV",&
-         description="Requested convergence of the linear solver (for psi1)",&
-         usage="EPS_LIN_SOLV",&
-         default_r_val=1.e-5_dp,error=error)
-    CALL section_add_keyword(section,keyword,error=error)
-    CALL keyword_release(keyword,error=error)
-    CALL keyword_create(keyword, name="ROTATE",&
-         description="If rotations from a unique set of coefficients should"//&
-         " be used or if single molecule optimizations generate it",&
-         usage="ROTATE",&
-         default_l_val=.FALSE.,lone_keyword_l_val=.TRUE.,error=error)
-    CALL section_add_keyword(section,keyword,error=error)
-    CALL keyword_release(keyword,error=error)
-    CALL keyword_create(keyword, name="START_COEFFS",&
-         description="Starting coefficients for roatation based ep",&
-         usage="START_COEFFS 1.0 0.0 ...",&
-          type_of_var=real_t, n_var=-1,error=error)
-    CALL section_add_keyword(section,keyword,error=error)
-    CALL keyword_release(keyword,error=error)
-    CALL keyword_create(keyword, name="E0_ONLY",&
-         description="If only e0 should be calculated",&
-         usage="E0_ONLY",&
-         default_l_val=.FALSE.,lone_keyword_l_val=.TRUE.,error=error)
-    CALL section_add_keyword(section,keyword,error=error)
-    CALL keyword_release(keyword,error=error)
-    CALL keyword_create(keyword, name="COMP_INPUT",&
-         description="Path to the input to be used for the component of the main system",&
-         usage="COMP_INPUT comp.inp",&
-         default_lc_val="comp.inp",error=error)
-    CALL section_add_keyword(section,keyword,error=error)
-    CALL keyword_release(keyword,error=error)
-    CALL keyword_create(keyword, name="AT_PER_MOL",&
-         description="Number of atoms in each molecule (at the moment only uniform system cam be handled)",&
-         usage="at_per_mol 3",&
-         default_i_val=3,error=error)
-    CALL section_add_keyword(section,keyword,error=error)
-    CALL keyword_release(keyword,error=error)
-
-    NULLIFY(print_section)
-    CALL section_create(print_section,name="print",&
-         description="Section of possible print options for an EP calculation.",&
-         repeats=.FALSE., required=.TRUE.,error=error)
-
-    NULLIFY(print_key)
-    CALL cp_print_key_section_create(print_key,"ENERGY",&
-         description="Controls the printing of the various energies",&
-         print_level=medium_print_level,filename="",&
-         error=error)
-    CALL section_add_subsection(print_section,print_key,error=error)
-    CALL section_release(print_key,error=error)
-
-    CALL cp_print_key_section_create(print_key,"RUN_INFO",&
-         description="Prints various informations on the progress of the ep calculation",&
-         print_level=medium_print_level,filename="__STD_OUT__",&
-         error=error)
-    CALL keyword_create(keyword, name="LIN_SOLV",&
-         description="print the linear solver progress",&
-         usage="lin_solv",&
-         default_l_val=.TRUE.,lone_keyword_l_val=.TRUE.,error=error)
-    CALL section_add_keyword(print_key,keyword,error=error)
-    CALL keyword_release(keyword,error=error)
-
-    CALL section_add_subsection(print_section,print_key,error=error)
-    CALL section_release(print_key,error=error)
-
-    CALL cp_print_key_section_create(print_key,"EP_MATRIXES",&
-         description="Prints various matrixes of an ep calculation",&
-         print_level=debug_print_level,filename="__STD_OUT__",&
-         error=error)
-
-    CALL keyword_create(keyword, name="psi0",&
-         description="print the value of the psi0 matrix",&
-         usage="psi0",&
-         default_l_val=.TRUE.,lone_keyword_l_val=.TRUE.,error=error)
-    CALL section_add_keyword(print_key,keyword,error=error)
-    CALL keyword_release(keyword,error=error)
-
-    CALL keyword_create(keyword, name="psi0_blocks",&
-         description="print the value of the blocs of the psi0 matrix",&
-         usage="psi0_blocks",&
-         default_l_val=.FALSE.,lone_keyword_l_val=.TRUE.,error=error)
-    CALL section_add_keyword(print_key,keyword,error=error)
-    CALL keyword_release(keyword,error=error)
-
-    CALL keyword_create(keyword, name="psi1",&
-         description="print the value of the psi1 matrix",&
-         usage="psi1",&
-         default_l_val=.TRUE.,lone_keyword_l_val=.TRUE.,error=error)
-    CALL section_add_keyword(print_key,keyword,error=error)
-    CALL keyword_release(keyword,error=error)
-
-    CALL keyword_create(keyword, name="mo_s_inv",&
-         description="print the value of the inverse of the mo overlap matrix",&
-         usage="mo_s_inv",&
-         default_l_val=.TRUE.,lone_keyword_l_val=.TRUE.,error=error)
-    CALL section_add_keyword(print_key,keyword,error=error)
-    CALL keyword_release(keyword,error=error)
-
-    CALL section_add_subsection(print_section,print_key,error=error)
-    CALL section_release(print_key,error=error)
-
-    CALL cp_print_key_section_create(print_key,"EP_RHO_CUBE",&
-         description="Prints out a cube file with the calculated rho",&
-         print_level=debug_print_level,filename="EP_RHO",&
-         error=error)
-
-    CALL keyword_create(keyword, name="rho0",&
-         description="print the cube of rho0,the psi0 derived density matrix",&
-         usage="rho0 OFF",&
-         default_l_val=.TRUE.,lone_keyword_l_val=.TRUE.,error=error)
-    CALL section_add_keyword(print_key,keyword,error=error)
-    CALL keyword_release(keyword,error=error)
-
-    CALL keyword_create(keyword, name="rho1",&
-         description="print the value of the blocs of rho1, the psi1 (and psi0) derived density matrix",&
-         usage="rho1 F",&
-         default_l_val=.TRUE.,lone_keyword_l_val=.TRUE.,error=error)
-    CALL section_add_keyword(print_key,keyword,error=error)
-    CALL keyword_release(keyword,error=error)
-
-    CALL keyword_create(keyword, name="stride",&
-         description="The stride (X,Y,Z) used to write the cube file "//&
-         "(larger values result in smaller cube files). You can provide 3 numbers (for X,Y,Z) or"//&
-         " 1 number valid for all components.",&
-         usage="STRIDE 2 2 2",n_var=-1,default_i_vals=(/2,2,2/), type_of_var=integer_t,error=error)
-    CALL section_add_keyword(print_key,keyword,error=error)
-    CALL keyword_release(keyword,error=error)
-
-    CALL keyword_create(keyword, name="mo_s_inv",&
-         description="print the value of the inverse of the mo overlap matrix",&
-         usage="mo_s_inv",&
-         default_l_val=.TRUE.,lone_keyword_l_val=.TRUE.,error=error)
-    CALL section_add_keyword(print_key,keyword,error=error)
-    CALL keyword_release(keyword,error=error)
-
-    CALL section_add_subsection(print_section,print_key,error=error)
-    CALL section_release(print_key,error=error)
-
-    CALL section_add_subsection(section,print_section,error=error)
-    CALL section_release(print_section,error=error)
-
-  END SUBROUTINE create_ep_section
 
 ! *****************************************************************************
 !> \brief creates the dft section
@@ -1648,6 +1478,25 @@ CONTAINS
        CALL section_add_subsection(section,print_key,error=error)
        CALL section_release(print_key,error=error)
 
+       ! dielectric constant function
+       CALL cp_print_key_section_create(print_key,"dielectric_cube",&
+            description="", &
+            print_level=high_print_level,filename="",&
+            error=error)
+       CALL keyword_create(keyword, name="stride",&
+            description="",&
+            usage="STRIDE 2 2 2",n_var=-1,default_i_vals=(/2,2,2/), type_of_var=integer_t,error=error)
+       CALL section_add_keyword(print_key,keyword,error=error)
+       CALL keyword_release(keyword,error=error)
+       CALL keyword_create(keyword, name="APPEND",&
+            description="",&
+            default_l_val=.FALSE., lone_keyword_l_val=.TRUE.,error=error)
+       CALL section_add_keyword(print_key,keyword,error=error)
+       CALL keyword_release(keyword,error=error)
+
+       CALL section_add_subsection(section,print_key,error=error)
+       CALL section_release(print_key,error=error)
+
 ! ZMP adding the print section for  the v_xc cube 
        CALL cp_print_key_section_create(print_key,"v_xc_cube",&
             description="Controls the printing of a cube file with xc "//&
@@ -2765,14 +2614,6 @@ CONTAINS
        CALL keyword_release(keyword,error=error)
 
        ! Logicals
-       CALL keyword_create(keyword, name="SCP",&
-            description="Introduce additional self-consistent polarization through"//&
-            " additional response basis functions (read in through AUX_BASIS.",&
-            usage="SCP",lone_keyword_l_val=.TRUE.,&
-            default_l_val=.FALSE.,error=error)
-       CALL section_add_keyword(section,keyword,error=error)
-       CALL keyword_release(keyword,error=error)
-
        CALL keyword_create(keyword, name="LS_SCF",&
             description="Perform a linear scaling SCF",&
             usage="LS_SCF",lone_keyword_l_val=.TRUE.,&
@@ -2808,20 +2649,6 @@ CONTAINS
                         "especially for a tight EPS_SCF and a less tight EPS_DEFAULT.",&
             usage="MAP_CONSISTENT FALSE",&
             default_l_val=.TRUE.,lone_keyword_l_val=.TRUE.,error=error)
-       CALL section_add_keyword(section,keyword,error=error)
-       CALL keyword_release(keyword,error=error)
-
-       CALL keyword_create(keyword, name="CHECK_BCSR_CODE",&
-            description="Check the BCSR code on actual data, once per QS run.",&
-            usage="CHECK_BCSR_CODE TRUE",&
-            default_l_val=.FALSE.,lone_keyword_l_val=.TRUE.,error=error)
-       CALL section_add_keyword(section,keyword,error=error)
-       CALL keyword_release(keyword,error=error)
-
-       CALL keyword_create(keyword, name="BCSR_CODE",&
-            description="Selects BCSR pathway.",&
-            usage="BCSR_CODE 0",&
-            default_i_val=0,error=error)
        CALL section_add_keyword(section,keyword,error=error)
        CALL keyword_release(keyword,error=error)
 
@@ -3510,12 +3337,6 @@ CONTAINS
             "is active only for K-DSO integral screening type.",&
             "Use Ewald directly in Coulomb integral evaluation, works only with Slater screening"),&
             default_i_val=do_se_lr_none, error=error)
-       CALL section_add_keyword(section,keyword,error=error)
-       CALL keyword_release(keyword,error=error)
-
-       CALL keyword_create(keyword, name="SCP",&
-            description="Perform a SCP-NDDO calculation",&
-            usage="SCP",default_l_val=.FALSE., error=error)
        CALL section_add_keyword(section,keyword,error=error)
        CALL keyword_release(keyword,error=error)
 
@@ -5018,15 +4839,13 @@ CONTAINS
             description="Specifies which kind of outer SCF should be employed",&
             usage="TYPE DDAPC_CONSTRAINT ",&
             default_i_val=outer_scf_none,&
-            enum_c_vals=s2a( "DDAPC_CONSTRAINT", "S2_CONSTRAINT", "BECKE_CONSTRAINT",&
-             "SCP", "NONE" ),&
+            enum_c_vals=s2a( "DDAPC_CONSTRAINT", "S2_CONSTRAINT", "BECKE_CONSTRAINT", "NONE" ),&
             enum_desc=s2a("Enforce a constraint on the DDAPC, requires the corresponding section", &
             "Enforce a constraint on the S2, requires the corresponding section", &
             "Enforce a constraint on the Becke weight population,requires the corresponding section", &
-            "Enforce outer loop optimization for SCP, requires the corresponding metod (-DFT or -NDDO)", &
             "Do nothing in the outer loop, useful for resetting the inner loop,"),&
             enum_i_vals=(/outer_scf_ddapc_constraint,outer_scf_s2_constraint,&
-            outer_scf_becke_constraint,outer_scf_scp,outer_scf_none/),&
+            outer_scf_becke_constraint,outer_scf_none/),&
             error=error)
        CALL section_add_keyword(section,keyword,error=error)
        CALL keyword_release(keyword,error=error)
@@ -6511,14 +6330,6 @@ CONTAINS
             " a rotation of the occupied subspace such as non-singlet restricted calculations "//&
             " or fractional occupations.",&
             usage="ROTATION",lone_keyword_l_val=.TRUE.,&
-            default_l_val=.FALSE.,error=error)
-       CALL section_add_keyword(section,keyword,error=error)
-       CALL keyword_release(keyword,error=error)
-
-       CALL keyword_create(keyword, name="SCP_NDDO",&
-            description="Introduce additional self-consistent polarization through"//&
-            " response basis set = orbital basis set for NDDO.)",&
-            usage="SCP_NDDO",lone_keyword_l_val=.TRUE.,&
             default_l_val=.FALSE.,error=error)
        CALL section_add_keyword(section,keyword,error=error)
        CALL keyword_release(keyword,error=error)
