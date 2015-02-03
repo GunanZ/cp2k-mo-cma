@@ -129,7 +129,6 @@ MODULE paramopt_worker
 
         failure = .FALSE.
 
-        worker%m = 3
         worker%error = error
         worker%root_section => root_section
         worker%input_path = input_path
@@ -141,6 +140,7 @@ MODULE paramopt_worker
         swarm_section => section_vals_get_subs_vals(root_section, "SWARM", error=error)
         paramopt_section => section_vals_get_subs_vals(swarm_section, "PARAM_OPT", error=error)
         CALL section_vals_val_get(paramopt_section,"NUM_VAR", i_val=worker%n, error=error)
+        CALL section_vals_val_get(paramopt_section,"NUM_OBJ", i_val=worker%m, error=error)
         CALL section_vals_val_get(paramopt_section,"METHOD", i_val=worker%method, error=error) 
         IF (worker%iw>0) WRITE(worker%iw,*) "paramopt_worker_init called."
         IF (worker%iw>0) WRITE(worker%iw,*) "paramopt_worker_init done."

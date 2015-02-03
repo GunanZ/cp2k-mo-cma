@@ -147,6 +147,7 @@ MODULE paramopt_master
     powell_section => section_vals_get_subs_vals(root_section, "ATOM%POWELL", error=error)
     CALL section_vals_retain(this%paramopt_section,error=error)
     CALL section_vals_val_get(this%paramopt_section,"NUM_VAR", i_val=this%n, error=error)
+    CALL section_vals_val_get(this%paramopt_section,"NUM_OBJ", i_val=this%m, error=error)
     !------------------------------------
     n = this%n
     popsize = 30 
@@ -184,7 +185,6 @@ MODULE paramopt_master
          CALL delete_rng_stream(rng_uniform_stream,error=error)
     ENDIF
     !------------------------------------
-    this%m = 3
     m = this%m
     this%database = 2 ! 1 for the s22 and 2 for water_cluster and 3 for water27
     if (.not. this%benchmark) then 
