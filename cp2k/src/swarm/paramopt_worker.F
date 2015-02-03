@@ -309,11 +309,11 @@ MODULE paramopt_worker
     !this%D3 = this%x(1:3) 
     d3_ptr = this%D3
     !----for dftb3 param optimization-----------------
-    !! NEEDS TO BE ADJUSTED !!!!!!!!!!!!!!!!!
-    !allocate(dftb3_param(4))
-    !dftb3_param = this%x(6:9)
-    !!allocate(dftb3_param(2))
-    !!dftb3_param = this%x(6:7)
+    ! NEEDS TO BE ADJUSTED !!!!!!!!!!!!!!!!!
+    allocate(dftb3_param(4))
+    dftb3_param = this%x(6:7)
+    !allocate(dftb3_param(2))
+    !dftb3_param = this%x(6:7)
     !---for hb param optimization---------------------
     allocate(hb_para(3))
     hb_para = 0._dp
@@ -325,12 +325,12 @@ MODULE paramopt_worker
                               "FORCE_EVAL%SUBSYS%TOPOLOGY%COORD_FILE_NAME", &
                               c_val=this%inp_file, error = this%error)
 !---------------------------------------------------------------------------
-!    do i=1,size(dftb3_param)
-!        CALL section_vals_val_set(this%root_section, &
-!                                  i_rep_section=i,&
-!                                  keyword_name="FORCE_EVAL%SUBSYS%KIND%DFTB3_PARAM", &
-!                                  r_val=dftb3_param(i), error = this%error)
-!    enddo
+    do i=1,size(dftb3_param)
+        CALL section_vals_val_set(this%root_section, &
+                                  i_rep_section=i,&
+                                  keyword_name="FORCE_EVAL%SUBSYS%KIND%DFTB3_PARAM", &
+                                  r_val=dftb3_param(i), error = this%error)
+    enddo
 !-----------------------------------------------------------------------------
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%D3_SCALING", &

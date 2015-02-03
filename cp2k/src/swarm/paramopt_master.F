@@ -186,7 +186,7 @@ MODULE paramopt_master
     ENDIF
     !------------------------------------
     m = this%m
-    this%database = 1 ! 1 for the s22 and 2 for water_cluster and 3 for water27
+    this%database = 3 ! 1 for the s22 and 2 for water_cluster and 3 for water27
     if (.not. this%benchmark) then 
         if (this%database == 1) then
             this%num_ref_mol = 3*22
@@ -803,7 +803,7 @@ END SUBROUTINE do_optim
         ref_ene(3) = energies(22,1) !OHm
         ref_ene(4) = energies(11,1) !H2O8s4
         do i=1,nref
-          func_array(i) = (ref_matrix(i,2)*energies(i,1) + dot_product(ref_matrix(i,3:6),ref_ene))*kcalmol-ref_matrix(i,7)
+          func_array(i) = abs((ref_matrix(i,2)*energies(i,1) + dot_product(ref_matrix(i,3:6),ref_ene))*kcalmol-ref_matrix(i,7))
           print *,'cluster',energies(i,1),'x monomer',dot_product(ref_matrix(i,3:6),ref_ene),'f',func_array(i)
         enddo
         func = sum(abs(func_array))
