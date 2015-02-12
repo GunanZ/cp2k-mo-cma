@@ -18,12 +18,19 @@ MODULE dbcsr_dist_methods
                                              array_size
   USE dbcsr_config,                    ONLY: comm_thread_load
   USE dbcsr_error_handling,            ONLY: dbcsr_assert,&
+                                             dbcsr_error_set,&
+                                             dbcsr_error_stop,&
                                              dbcsr_error_type,&
                                              dbcsr_fatal_level,&
                                              dbcsr_internal_error,&
                                              dbcsr_wrong_args_error
-  USE dbcsr_methods,                   ONLY: dbcsr_distribution_init,&
-                                             dbcsr_distribution_release
+  USE dbcsr_methods,                   ONLY: dbcsr_col_block_sizes,&
+                                             dbcsr_distribution,&
+                                             dbcsr_distribution_init,&
+                                             dbcsr_distribution_release,&
+                                             dbcsr_nblkcols_total,&
+                                             dbcsr_nblkrows_total,&
+                                             dbcsr_row_block_sizes
   USE dbcsr_mp_methods,                ONLY: dbcsr_mp_hold,&
                                              dbcsr_mp_mypcol,&
                                              dbcsr_mp_myprow,&
@@ -31,7 +38,8 @@ MODULE dbcsr_dist_methods
                                              dbcsr_mp_nprows
   USE dbcsr_toollib,                   ONLY: sort
   USE dbcsr_types,                     ONLY: dbcsr_distribution_obj,&
-                                             dbcsr_mp_obj
+                                             dbcsr_mp_obj,&
+                                             dbcsr_obj
   USE kinds,                           ONLY: sp
   USE min_heap,                        ONLY: heap_fill,&
                                              heap_get_first,&
@@ -56,7 +64,7 @@ MODULE dbcsr_dist_methods
             dbcsr_distribution_local_rows, dbcsr_distribution_local_cols,&
             dbcsr_distribution_thread_dist, dbcsr_distribution_has_threads,&
             dbcsr_distribution_make_threads, dbcsr_distribution_no_threads,&
-            dbcsr_distribution_num_threads
+            dbcsr_distribution_num_threads, dbcsr_distribution_data_max_size_allproc
 
 CONTAINS
 
@@ -350,6 +358,57 @@ CONTAINS
 
     num_threads = dist%d%num_threads
   END FUNCTION dbcsr_distribution_num_threads
+
+! *****************************************************************************
+!> \brief Count max possible data storage for all processors used for matrix data
+!> \param[in] matrix          Count data of this matrix
+!> \retval data_size          Max data size used by matrix  for all processors
+! *****************************************************************************
+  FUNCTION dbcsr_distribution_data_max_size_allproc (matrix) RESULT (data_size)
+    TYPE(dbcsr_obj), INTENT(IN)              :: matrix
+    INTEGER                                  :: data_size
+
+    CHARACTER(len=*), PARAMETER :: &
+      routineN = 'dbcsr_distribution_data_max_size_allproc', &
+      routineP = moduleN//':'//routineN
+
+    INTEGER                                  :: col, error_handler, row
+    INTEGER, ALLOCATABLE, DIMENSION(:)       :: counts_cols, counts_rows
+    INTEGER, DIMENSION(:), POINTER           :: col_blk_sizes, pcol_blk, &
+                                                prow_blk, row_blk_sizes
+    TYPE(dbcsr_distribution_obj)             :: dist
+    TYPE(dbcsr_error_type)                   :: error
+    TYPE(dbcsr_mp_obj)                       :: mp_env
+
+    CALL dbcsr_error_set(routineN, error_handler, error)
+
+    dist = dbcsr_distribution(matrix)
+    mp_env = dbcsr_distribution_mp(dist)
+    ALLOCATE(counts_rows(0:dbcsr_mp_nprows(mp_env)-1),&
+             counts_cols(0:dbcsr_mp_npcols(mp_env)-1))
+    counts_rows = 0
+    counts_cols = 0
+    prow_blk => array_data (dbcsr_distribution_row_dist (dist))
+    pcol_blk => array_data (dbcsr_distribution_col_dist (dist))
+    row_blk_sizes => array_data (dbcsr_row_block_sizes (matrix))
+    col_blk_sizes => array_data (dbcsr_col_block_sizes (matrix))
+
+    DO row = 1, dbcsr_nblkrows_total(matrix)
+       counts_rows(prow_blk(row)) = & 
+            counts_rows(prow_blk(row)) + row_blk_sizes(row)
+    ENDDO
+
+    DO col = 1, dbcsr_nblkcols_total(matrix)
+       counts_cols(pcol_blk(col)) = & 
+            counts_cols(pcol_blk(col)) + col_blk_sizes(col)
+    ENDDO
+
+    data_size = MAXVAL(counts_rows)*MAXVAL(counts_cols)
+
+    DEALLOCATE(counts_rows,counts_cols)
+    CALL dbcsr_error_stop(error_handler, error)
+  END FUNCTION dbcsr_distribution_data_max_size_allproc
+
 
 ! *****************************************************************************
 !> \brief Creates a distribution for threads
