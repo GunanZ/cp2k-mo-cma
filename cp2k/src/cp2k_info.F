@@ -89,6 +89,11 @@ CONTAINS
     CHARACTER(len=default_string_length)     :: tmp_str
 
     flags="cp2kflags:"
+
+    ! Ensure that tmp_str is used to silence compiler warnings
+    tmp_str=""
+    flags=TRIM(flags)//TRIM(tmp_str)
+
 !$  flags=TRIM(flags)//" omp"
 
 #if defined(__LIBINT)
@@ -111,6 +116,9 @@ CONTAINS
 #endif
 #if defined(__SCALAPACK)
     flags=TRIM(flags)//" scalapack"
+#endif
+#if defined(__SCALAPACK2)
+    flags=TRIM(flags)//" scalapack2"
 #endif
 
 #if defined(__QUIP)
