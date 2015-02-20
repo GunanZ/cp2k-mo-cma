@@ -48,6 +48,9 @@ cmake_sha=b58694e545d51cde5756a894f53107e3d9e469360e1d92e7f6892b55ebc0bebf
 parmetis_ver=4.0.2
 parmetis_sha=5acbb700f457d3bda7d4bb944b559d7f21f075bb6fa4c33f42c261019ef2f0b2
 
+scotch_ver=6.0.0
+scotch_sha=e57e16c965bab68c1b03389005ecd8a03745ba20fd9c23081c0bb2336972d879
+
 superlu_ver=3.3
 superlu_sha=d2fd8dc847ae63ed7980cff2ad4db8d117640ecdf0234c9711e0f6ee1398cac2
 
@@ -162,8 +165,8 @@ fi
 cat << EOF > ${INSTALLDIR}/lsan.supp
 # known leak either related to mpi or scalapack  (e.g. showing randomly for Fist/regtest-7-2/UO2-2x2x2-genpot_units.inp)
 leak:__cp_fm_types_MOD_cp_fm_write_unformatted
-# leak in SuperLU_DIST_3.3
-leak:symbfact_dist
+# leaks related to PEXSI
+leak:PPEXSIDFTDriver
 EOF
 
 # now we need these tools and compiler to be in the path
@@ -319,6 +322,23 @@ else
   cd ../..
 fi
 
+echo "================== Installing PT-Scotch =================="
+if [ -f scotch_${scotch_ver}.tar.gz ]; then
+  echo "Installation already started, skipping it."
+else
+  wget https://gforge.inria.fr/frs/download.php/31831/scotch_6.0.0.tar.gz
+  echo "${scotch_sha} *scotch_${scotch_ver}.tar.gz" | sha256sum  --check
+  tar -xzf scotch_${scotch_ver}.tar.gz
+  cd scotch_${scotch_ver}/src
+  cat Make.inc/Makefile.inc.x86-64_pc_linux2 | \
+  sed "s|\(^CFLAGS\).*|\1 =  $CFLAGS -DCOMMON_RANDOM_FIXED_SEED -DSCOTCH_RENAME -Drestrict=__restrict -DIDXSIZE64|" > Makefile.inc
+
+  make scotch -j $nprocs >& make.log
+  make ptscotch -j $nrocs >& make.log
+  make install prefix=${INSTALLDIR} >& install.log
+  cd ../..
+fi
+
 echo "================== Installing SuperLU_DIST =================="
 
 if [ -f superlu_dist_${superlu_ver}.tar.gz ]; then
@@ -437,7 +457,12 @@ BASEFLAGS="-std=f2003 -fimplicit-none -ffree-form -fno-omit-frame-pointer -g -O1
 OPTFLAGS="-O3 -march=native -ffast-math \$(PROFOPT)"
 DFLAGS="-D__LIBINT -D__FFTW3 -D__LIBXC2 -D__LIBINT_MAX_AM=6 -D__LIBDERIV_MAX_AM1=5"
 CFLAGS="\$(DFLAGS) -I\$(CP2KINSTALLDIR)/include -fno-omit-frame-pointer -g -O1"
-LIB_PEXSI="-lpexsi_linux_v${pexsi_ver} -lsuperlu_dist_${superlu_ver} -lparmetis -lmetis"
+
+# Link to SCOTCH
+LIB_PEXSI="-lpexsi_linux_v${pexsi_ver} -lsuperlu_dist_${superlu_ver} -lptscotchparmetis -lptscotch -lptscotcherr -lscotchmetis -lscotch -lscotcherr"
+
+# Link to ParMETIS
+#LIB_PEXSI="-lpexsi_linux_v${pexsi_ver} -lsuperlu_dist_${superlu_ver} -lparmetis -lmetis"
 
 cat << EOF > ${INSTALLDIR}/arch/local.pdbg
 CC       = gcc

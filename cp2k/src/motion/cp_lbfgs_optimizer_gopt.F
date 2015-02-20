@@ -247,6 +247,7 @@ CONTAINS
        optimizer%obj_funct => obj_funct
        CALL gopt_f_retain(obj_funct, error=error)
        optimizer%max_f_per_iter=20
+       IF(PRESENT(max_f_per_iter)) optimizer%max_f_per_iter=max_f_per_iter
        optimizer%print_every=-1
        optimizer%n_iter=0
        optimizer%f=-1.0_dp
@@ -527,7 +528,6 @@ CPSourceFileRef,&
 !> \param projected_gradient ...
 !> \param converged ...
 !> \param geo_section ...
-!> \param input ...
 !> \param force_env ...
 !> \param gopt_param ...
 !> \param error variable to control error logging, stopping,...
@@ -540,13 +540,13 @@ CPSourceFileRef,&
 !>      use directly mainlb in place of setulb ??
 ! *****************************************************************************
   RECURSIVE SUBROUTINE cp_opt_gopt_step(optimizer,n_iter,f,last_f,&
-       projected_gradient, converged, geo_section, input, force_env,&
+       projected_gradient, converged, geo_section, force_env,&
        gopt_param, error)
     TYPE(cp_lbfgs_opt_gopt_type), POINTER    :: optimizer
     INTEGER, INTENT(out), OPTIONAL           :: n_iter
     REAL(kind=dp), INTENT(out), OPTIONAL     :: f, last_f, projected_gradient
     LOGICAL, INTENT(out), OPTIONAL           :: converged
-    TYPE(section_vals_type), POINTER         :: geo_section, input
+    TYPE(section_vals_type), POINTER         :: geo_section
     TYPE(force_env_type), POINTER            :: force_env
     TYPE(gopt_param_type), POINTER           :: gopt_param
     TYPE(cp_error_type), INTENT(inout)       :: error
@@ -837,7 +837,6 @@ CPSourceFileRef,&
 !> \param projected_gradient ...
 !> \param converged ...
 !> \param geo_section ...
-!> \param input ...
 !> \param force_env ...
 !> \param gopt_param ...
 !> \param error variable to control error logging, stopping,...
@@ -851,13 +850,13 @@ CPSourceFileRef,&
 !>      if you deactivate convergence control it returns never false
 ! *****************************************************************************
   RECURSIVE FUNCTION cp_opt_gopt_next(optimizer,n_iter,f,last_f,&
-       projected_gradient, converged, geo_section,input, force_env,&
+       projected_gradient, converged, geo_section,force_env,&
        gopt_param, error) RESULT(res)
     TYPE(cp_lbfgs_opt_gopt_type), POINTER    :: optimizer
     INTEGER, INTENT(out), OPTIONAL           :: n_iter
     REAL(kind=dp), INTENT(out), OPTIONAL     :: f, last_f, projected_gradient
     LOGICAL, INTENT(out)                     :: converged
-    TYPE(section_vals_type), POINTER         :: geo_section, input
+    TYPE(section_vals_type), POINTER         :: geo_section
     TYPE(force_env_type), POINTER            :: force_env
     TYPE(gopt_param_type), POINTER           :: gopt_param
     TYPE(cp_error_type), INTENT(inout)       :: error
@@ -877,7 +876,7 @@ CPSourceFileRef,&
        CALL cp_opt_gopt_step(optimizer,n_iter=n_iter,f=f,&
             last_f=last_f, projected_gradient=projected_gradient,&
             converged=converged,geo_section=geo_section,&
-            input=input,force_env=force_env,gopt_param=gopt_param,&
+            force_env=force_env,gopt_param=gopt_param,&
             error=error)
        res= (optimizer%status<40) .AND. .NOT. converged
     ELSE

@@ -16,10 +16,10 @@ MODULE input_cp2k_dft
        Fattebert2002, Guidon2010, Hu2007, Hunt2003, Iannuzzi2005, &
        Iannuzzi2006, Iannuzzi2007, Kolafa2004, Krack2000, Krack2002, &
        Kunert2003, Lippert1997, Lippert1999, Perdew1981, Porezag1995, &
-       Repasky2002, Rocha2006, Schenter2008, Seifert1996, Stewart1982, &
-       Stewart1989, Stewart2007, Thiel1992, Tozer1996, VandeVondele2003, &
-       VandeVondele2005a, VandeVondele2005b, VandeVondele2006, Weber2008, &
-       Zhao1994, Zhechkov2005
+       Rayson2009, Repasky2002, Rocha2006, Schenter2008, Seifert1996, &
+       Stewart1982, Stewart1989, Stewart2007, Thiel1992, Tozer1996, &
+       VandeVondele2003, VandeVondele2005a, VandeVondele2005b, &
+       VandeVondele2006, Weber2008, Zhao1994, Zhechkov2005
   USE cp_output_handling,              ONLY: add_last_numeric,&
                                              cp_print_key_section_create,&
                                              debug_print_level,&
@@ -29,11 +29,11 @@ MODULE input_cp2k_dft
                                              silent_print_level
   USE cp_units,                        ONLY: cp_unit_to_cp2k
   USE input_constants,                 ONLY: &
-       atomic_guess, broy_mix, broy_mix_new, cholesky_dbcsr, &
-       cholesky_inverse, cholesky_off, cholesky_reduce, cholesky_restore, &
-       constant_env, core_guess, densities_guess, diag_block_davidson, &
-       diag_block_krylov, diag_ot, diag_standard, direct_p_mix, &
-       dispersion_d3, dispersion_uff, do_admm_aux_exch_func_bee, &
+       atomic_guess, cholesky_dbcsr, cholesky_inverse, cholesky_off, &
+       cholesky_reduce, cholesky_restore, constant_env, core_guess, &
+       densities_guess, diag_block_davidson, diag_block_krylov, &
+       diag_filter_matrix, diag_ot, diag_standard, dispersion_d3, &
+       dispersion_uff, do_admm_aux_exch_func_bee, &
        do_admm_aux_exch_func_default, do_admm_aux_exch_func_none, &
        do_admm_aux_exch_func_opt, do_admm_aux_exch_func_pbex, &
        do_admm_basis_projection, do_admm_blocked_projection, &
@@ -47,7 +47,8 @@ MODULE input_cp2k_dft
        do_full_density, do_gapw_gcs, do_gapw_gct, do_gapw_log, do_loc_both, &
        do_loc_crazy, do_loc_direct, do_loc_homo, do_loc_jacobi, &
        do_loc_l1_norm_sd, do_loc_lumo, do_loc_max, do_loc_min, do_loc_none, &
-       do_lri_opt_all, do_lri_opt_coeff, do_lri_opt_exps, do_method_am1, &
+       do_lri_inv, do_lri_opt_all, do_lri_opt_coeff, do_lri_opt_exps, &
+       do_lri_pseudoinv_diag, do_lri_pseudoinv_svd, do_method_am1, &
        do_method_dftb, do_method_gapw, do_method_gapw_xc, do_method_gpw, &
        do_method_lrigpw, do_method_mndo, do_method_mndod, do_method_ofgpw, &
        do_method_pdg, do_method_pm3, do_method_pm6, do_method_pnnl, &
@@ -57,14 +58,13 @@ MODULE input_cp2k_dft
        do_se_is_slater, do_se_lr_ewald, do_se_lr_ewald_gks, &
        do_se_lr_ewald_r3, do_se_lr_none, do_spin_density, do_taylor, &
        ehrenfest, gaussian, gaussian_env, general_roks, high_spin_roks, &
-       history_guess, kerker_mix, kg_color_dsatur, kg_color_greedy, &
-       kg_tnadd_atomic, kg_tnadd_embed, ls_2pnt, ls_3pnt, ls_gold, ls_none, &
-       mopac_guess, multisec_mix, no_excitations, no_guess, no_mix, &
-       numerical, oe_gllb, oe_lb, oe_none, oe_saop, oe_sic, op_loc_berry, &
-       op_loc_boys, op_loc_pipek, orb_dx2, orb_dxy, orb_dy2, orb_dyz, &
-       orb_dz2, orb_dzx, orb_px, orb_py, orb_pz, orb_s, ot_algo_irac, &
-       ot_algo_taylor_or_diag, ot_chol_irac, ot_lwdn_irac, ot_mini_broyden, &
-       ot_mini_cg, ot_mini_diis, ot_mini_sd, ot_poly_irac, &
+       history_guess, kg_color_dsatur, kg_color_greedy, kg_tnadd_atomic, &
+       kg_tnadd_embed, ls_2pnt, ls_3pnt, ls_gold, ls_none, mopac_guess, &
+       no_excitations, no_guess, numerical, oe_gllb, oe_lb, oe_none, oe_saop, &
+       oe_sic, op_loc_berry, op_loc_boys, op_loc_pipek, orb_dx2, orb_dxy, &
+       orb_dy2, orb_dyz, orb_dz2, orb_dzx, orb_px, orb_py, orb_pz, orb_s, &
+       ot_algo_irac, ot_algo_taylor_or_diag, ot_chol_irac, ot_lwdn_irac, &
+       ot_mini_broyden, ot_mini_cg, ot_mini_diis, ot_mini_sd, ot_poly_irac, &
        ot_precond_full_all, ot_precond_full_kinetic, ot_precond_full_single, &
        ot_precond_full_single_inverse, ot_precond_none, ot_precond_s_inverse, &
        ot_precond_solver_default, ot_precond_solver_direct, &
@@ -73,7 +73,7 @@ MODULE input_cp2k_dft
        outer_scf_none, outer_scf_optimizer_bisect, outer_scf_optimizer_diis, &
        outer_scf_optimizer_none, outer_scf_optimizer_sd, &
        outer_scf_s2_constraint, plus_u_lowdin, plus_u_mulliken, &
-       plus_u_mulliken_charges, pulay_mix, pw_interp, ramp_env, random_guess, &
+       plus_u_mulliken_charges, pw_interp, ramp_env, random_guess, &
        real_time_propagation, ref_charge_atomic, ref_charge_mulliken, &
        rel_dkh, rel_none, rel_pot_erfc, rel_pot_full, rel_sczora_mp, &
        rel_trans_atom, rel_trans_full, rel_trans_molecule, rel_zora, &
@@ -127,6 +127,7 @@ MODULE input_cp2k_dft
                                              precond_spl3_3,&
                                              precond_spl3_aint,&
                                              precond_spl3_aint2
+  USE qs_density_mixing_types,         ONLY: create_mixing_section
   USE string_utilities,                ONLY: newline,&
                                              s2a
 #include "./common/cp_common_uses.f90"
@@ -1396,7 +1397,7 @@ CONTAINS
             description="It activates the print out of exponents and coefficients for the "//&
            " Gaussian expansion of the core densities, based on atom calculations for each kind."//&
            " The resulting core dansities are needed to compute the form factors."//&
-           " If GAPW the local densities are also given in terms of a Gaussian expansion,"//& 
+           " If GAPW the local densities are also given in terms of a Gaussian expansion,"//&
            " by fitting the difference between local-fhard and local-soft density for each atom."//&
            " In this case the keyword TOTAL_DENSITY is set to FALSE",&
             default_l_val=.FALSE., lone_keyword_l_val=.TRUE.,error=error)
@@ -1497,7 +1498,7 @@ CONTAINS
        CALL section_add_subsection(section,print_key,error=error)
        CALL section_release(print_key,error=error)
 
-! ZMP adding the print section for  the v_xc cube 
+! ZMP adding the print section for  the v_xc cube
        CALL cp_print_key_section_create(print_key,"v_xc_cube",&
             description="Controls the printing of a cube file with xc "//&
             " potential generated by the ZMP method (for the moment). It is "//&
@@ -1773,9 +1774,9 @@ CONTAINS
        CALL section_add_subsection(section,print_key,error=error)
        CALL section_release(print_key,error=error)
 
-       ! Hirschfeld population analysis
-       CALL cp_print_key_section_create(print_key,"HIRSCHFELD",&
-            description="Controls the printing of the Hirschfeld (spin) population analysis", &
+       ! Hirshfeld population analysis
+       CALL cp_print_key_section_create(print_key,"HIRSHFELD",&
+            description="Controls the printing of the Hirshfeld (spin) population analysis", &
             print_level=medium_print_level,filename="__STD_OUT__",&
             common_iter_levels=1, error=error)
        CALL keyword_create(keyword=keyword,name="SELF_CONSISTENT",&
@@ -1787,7 +1788,7 @@ CONTAINS
        CALL section_add_keyword(print_key,keyword,error=error)
        CALL keyword_release(keyword,error=error)
        CALL keyword_create(keyword=keyword,name="SHAPE_FUNCTION",&
-            description="Type of shape function used for Hirschfeld partitioning.",&
+            description="Type of shape function used for Hirshfeld partitioning.",&
             usage="SHAPE_FUNCTION {Gaussian,Density}",repeats=.FALSE.,required=.FALSE.,n_var=1,&
             default_i_val=shape_function_gaussian,&
             enum_c_vals=s2a("GAUSSIAN","DENSITY"),&
@@ -1798,7 +1799,7 @@ CONTAINS
        CALL section_add_keyword(print_key,keyword,error=error)
        CALL keyword_release(keyword,error=error)
        CALL keyword_create(keyword=keyword,name="REFERENCE_CHARGE",&
-            description="Charge of atomic partitioning function for Hirschfeld method.",&
+            description="Charge of atomic partitioning function for Hirshfeld method.",&
             usage="REFERENCE_CHARGE {Atomic,Mulliken}",repeats=.FALSE.,required=.FALSE.,n_var=1,&
             default_i_val=ref_charge_atomic,&
             enum_c_vals=s2a("ATOMIC","MULLIKEN"),&
@@ -2652,13 +2653,6 @@ CONTAINS
        CALL section_add_keyword(section,keyword,error=error)
        CALL keyword_release(keyword,error=error)
 
-       CALL keyword_create(keyword, name="DEBUG_LRI_INTEGRALS",&
-            description="Debug the integrals needed for LRIGPW.",&
-            usage="DEBUG_LRI_INTEGRALS TRUE",&
-            default_l_val=.FALSE.,lone_keyword_l_val=.TRUE.,error=error)
-       CALL section_add_keyword(section,keyword,error=error)
-       CALL keyword_release(keyword,error=error)
-
        ! Integers
        CALL keyword_create(keyword, name="LMAXN1",&
             variants=(/"LMAXRHO1"/),&
@@ -2780,7 +2774,7 @@ CONTAINS
             enum_desc=s2a("Gaussian and augmented plane waves method",&
                           "Gaussian and augmented plane waves method only for XC",&
                           "Gaussian and plane waves method",&
-                          "Local resolution of identity projector augmented wave method",&
+                          "Local resolution of identity method",&
                           "MNDO semiempirical","MNDO-d semiempirical","AM1 semiempirical",&
                           "PM3 semiempirical","PM6 semiempirical","PDG semiempirical",&
                           "RM1 semiempirical",&
@@ -2839,6 +2833,10 @@ CONTAINS
        CALL section_release(subsection,error=error)
 
        CALL create_s2_restraint_section(subsection,error)
+       CALL section_add_subsection(section, subsection, error=error)
+       CALL section_release(subsection,error=error)
+
+       CALL create_lrigpw_section(subsection,error)
        CALL section_add_subsection(section, subsection, error=error)
        CALL section_release(subsection,error=error)
 
@@ -4411,7 +4409,7 @@ CONTAINS
        CALL section_add_subsection(section,subsection,error=error)
        CALL section_release(subsection,error=error)
 
-       CALL create_mixing_section(subsection,error)
+       CALL create_mixing_section(subsection,error=error)
        CALL section_add_subsection(section,subsection,error=error)
        CALL section_release(subsection,error=error)
 
@@ -4686,6 +4684,13 @@ CONTAINS
 
        CALL cp_print_key_section_create(print_key,"Davidson",&
             description="Controls the printing of information on Davidson iterations.", &
+            print_level=medium_print_level,add_last=add_last_numeric,filename="__STD_OUT__",&
+            error=error)
+       CALL section_add_subsection(subsection,print_key,error=error)
+       CALL section_release(print_key,error=error)
+
+       CALL cp_print_key_section_create(print_key,"FILTER_MATRIX",&
+            description="Controls the printing of information on Filter Matrix method.", &
             print_level=medium_print_level,add_last=add_last_numeric,filename="__STD_OUT__",&
             error=error)
        CALL section_add_subsection(subsection,print_key,error=error)
@@ -5153,6 +5158,64 @@ CONTAINS
     END IF
   END SUBROUTINE create_gspace_interp_section
 
+! *****************************************************************************
+!> \brief input section for optional parameters for LRIGPW
+!>        LRI: local resolution of identity
+!> \param section the section to create
+!> \param error variable to control error logging, stopping,...
+!>        see module cp_error_handling
+!> \author Dorothea Golze [02.2015]
+! *****************************************************************************
+  SUBROUTINE create_lrigpw_section(section,error)
+    TYPE(section_type), POINTER              :: section
+    TYPE(cp_error_type), INTENT(inout)       :: error
+
+    CHARACTER(len=*), PARAMETER :: routineN = 'create_lrigpw_section', &
+      routineP = moduleN//':'//routineN
+
+    LOGICAL                                  :: failure
+    TYPE(keyword_type), POINTER              :: keyword
+
+    failure=.FALSE.
+
+    CPPrecondition(.NOT.ASSOCIATED(section),cp_failure_level,routineP,error,failure)
+    IF (.NOT. failure) THEN
+       CALL section_create(section,name="LRIGPW",&
+            description="This section specifies optional parameters for LRIGPW.",& 
+            n_keywords=2, n_subsections=0, repeats=.FALSE., required=.FALSE.,&
+            error=error)
+
+       NULLIFY(keyword)
+
+       CALL keyword_create(keyword, name="LRI_OVERLAP_MATRIX",&
+            description="Specifies whether to calculate the inverse or the "//&
+                        "pseudoinverse of the overlap matrix of the auxiliary "//&
+                        "basis set. Calculating the pseudoinverse is necessary "//&
+                        "for very large auxiliary basis sets. Using the "//&
+                        "pseudoinverse, consistent forces are not guaranteed yet.",&
+            usage="LRI_OVERLAP_MATRIX INVERSE", &
+            enum_c_vals=s2a( "INVERSE", "PSEUDO_INVERSE_SVD","PSEUDO_INVERSE_DIAG"),&
+            enum_desc=s2a("Calculate inverse of the overlap matrix.",&
+                          "Calculate the pseuodinverse of the overlap matrix "//&
+                          "using singular value decomposition.",&
+                          "Calculate the pseudoinverse of the overlap matrix "//&
+                          "by prior diagonalization."),&
+            enum_i_vals=(/do_lri_inv, do_lri_pseudoinv_svd,&
+                          do_lri_pseudoinv_diag/),&
+            default_i_val=do_lri_inv,error=error)
+       CALL section_add_keyword(section,keyword,error=error)
+       CALL keyword_release(keyword,error=error)
+
+       CALL keyword_create(keyword, name="DEBUG_LRI_INTEGRALS",&
+            description="Debug the integrals needed for LRIGPW.",&
+            usage="DEBUG_LRI_INTEGRALS TRUE",&
+            default_l_val=.FALSE.,lone_keyword_l_val=.TRUE.,error=error)
+       CALL section_add_keyword(section,keyword,error=error)
+       CALL keyword_release(keyword,error=error)
+
+    END IF
+  END SUBROUTINE create_lrigpw_section
+ 
 ! *****************************************************************************
 !> \brief input section for optimization of the auxililary basis for LRIGPW
 !> \param section the section to create
@@ -5660,7 +5723,10 @@ CONTAINS
     IF (.NOT. failure) THEN
        CALL section_create(section,name="EXTERNAL_POTENTIAL",&
             description="Section controlling the presence of an electrostatic "//&
-            "external potential dependent on the atomic positions (X,Y,Z)",&
+            "external potential dependent on the atomic positions (X,Y,Z). "//&
+            "As the external potential is currently applied via a grid, "//&
+            "it only works with DFT based methods (GPW/GAPW) that already use "//&
+            "a grid based approach to solve the Poisson equation.",&
             n_keywords=7, n_subsections=0, repeats=.FALSE., required=.TRUE.,&
             error=error)
        NULLIFY(keyword)
@@ -5737,7 +5803,7 @@ CONTAINS
 !> \param section ...
 !> \param error ...
 !> \date 03.2011
-!> \author D. Varsano [daniele.varsano@nano.cnr.it] 
+!> \author D. Varsano [daniele.varsano@nano.cnr.it]
 ! *****************************************************************************
   SUBROUTINE create_ext_den_section(section,error)
     TYPE(section_type), POINTER              :: section
@@ -5764,7 +5830,7 @@ CONTAINS
             description="Specifies the filename containing the target density in *.cube format."//&
                         "In the MGRID section it must be imposed NGRID 1, as it works with only"//&
                         "one grid. The number of points in each direction, and the spacing must"//&
-                        "be previously defined choosing the plane waves cut-off in section MGRID"//& 
+                        "be previously defined choosing the plane waves cut-off in section MGRID"//&
                         "keyword CUTOFF, and the cube dimention in section SUBSYS / CELL / keyword ABC",&
             usage="DENSITY_FILE_NAME <FILENAME>",&
             type_of_var=char_t,default_c_val="RHO_O.dat", n_var=-1, error=error)
@@ -5809,11 +5875,11 @@ CONTAINS
   END SUBROUTINE create_ext_den_section
 
 ! *****************************************************************************
-!> \brief ZMP Creates the section for creating the external v_xc 
+!> \brief ZMP Creates the section for creating the external v_xc
 !> \param section ...
 !> \param error ...
 !> \date 03.2011
-!> \author D. Varsano [daniele.varsano@nano.cnr.it] 
+!> \author D. Varsano [daniele.varsano@nano.cnr.it]
 ! *****************************************************************************
   SUBROUTINE create_ext_vxc_section(section,error)
     TYPE(section_type), POINTER              :: section
@@ -6409,12 +6475,14 @@ CONTAINS
             description="Algorithm to be used for diagonalization",&
             usage="ALGORITHM STANDARD",&
             default_i_val=diag_standard,&
-            enum_c_vals=s2a( "STANDARD","OT", "LANCZOS","DAVIDSON" ),&
+            enum_c_vals=s2a( "STANDARD","OT","LANCZOS","DAVIDSON","FILTER_MATRIX"),&
             enum_desc=s2a("Standard diagonalization: LAPACK methods or Jacobi.",&
                           "Iterative diagonalization using OT method",&
                           "Block Krylov-space approach to self-consistent diagonalisation",&
-                          "Preconditioned blocked Davidson"),&
-            enum_i_vals=(/diag_standard, diag_ot, diag_block_krylov, diag_block_davidson/),&
+                          "Preconditioned blocked Davidson",&
+                          "Filter matrix diagonalization"),&
+            enum_i_vals=(/diag_standard, diag_ot, diag_block_krylov, diag_block_davidson,&
+                          diag_filter_matrix/),&
             error=error)
        CALL section_add_keyword(section,keyword,error=error)
        CALL keyword_release(keyword,error=error)
@@ -6489,9 +6557,79 @@ CONTAINS
        CALL section_add_subsection(section,subsection,error=error)
        CALL section_release(subsection,error=error)
 
+       NULLIFY(subsection)
+       CALL create_filtermatrix_section(subsection,error)
+       CALL section_add_subsection(section,subsection,error=error)
+       CALL section_release(subsection,error=error)
+
     END IF
 
   END SUBROUTINE create_diagonalization_section
+
+
+! *****************************************************************************
+!> \brief Input section for filter matrix diagonalisation method
+!> \param section : section to be created
+!> \param error   : cp2k error container
+!> \author Lianheng Tong (LT) lianheng.tong@kcl.ac.uk
+! *****************************************************************************
+  SUBROUTINE create_filtermatrix_section(section, error)
+    TYPE(section_type), POINTER              :: section
+    TYPE(cp_error_type), INTENT(inout)       :: error
+
+    CHARACTER(len=*), PARAMETER :: routineN = 'create_filtermatrix_section', &
+      routineP = moduleN//':'//routineN
+
+    LOGICAL                                  :: failure
+    TYPE(keyword_type), POINTER              :: keyword
+
+    failure = .FALSE.
+    CPPrecondition(.NOT.ASSOCIATED(section),cp_failure_level,routineP,error,failure)
+
+    IF (.NOT. failure) THEN
+       CALL section_create(section,"FILTER_MATRIX",&
+                           description=" ",&
+                           n_keywords=1, n_subsections=0, repeats=.FALSE., required=.FALSE.,&
+                           error=error)
+
+       NULLIFY(keyword)
+
+       CALL keyword_create(keyword, &
+                           name="FILTER_TEMPERATURE", &
+                           description="Temperature used for the filter function used "//&
+                                       "to construct the filter matrix.", &
+                           required=.FALSE., &
+                           repeats=.FALSE., &
+                           n_var=1, &
+                           type_of_var=real_t, &
+                           default_r_val=cp_unit_to_cp2k(value=30000.0_dp, &
+                                                         unit_str="K", &
+                                                         error=error), &
+                           unit_str="K", &
+                           usage="FILTER_TEMPERATURE [K] 30000", &
+                           citations=(/Rayson2009/), &
+                           error=error)
+       CALL section_add_keyword(section, keyword, error=error)
+       CALL keyword_release(keyword, error=error)
+
+       CALL keyword_create(keyword, &
+                           name="AUTO_CUTOFF_SCALE", &
+                           description="Scalar constant multiplied to maximum orbital "//&
+                                       "size of each atom, used for automatically "//&
+                                       "creating cutoff radii for atomic matrices", &
+                           required=.FALSE., &
+                           repeats=.FALSE., &
+                           n_var=1, &
+                           type_of_var=real_t, &
+                           default_r_val=1.0_dp, &
+                           usage="AUTO_CUTOFF_SCALE 0.5_dp", &
+                           citations=(/Rayson2009/), &
+                           error=error)
+       CALL section_add_keyword(section, keyword, error=error)
+       CALL keyword_release(keyword, error=error)
+
+    END IF
+  END SUBROUTINE create_filtermatrix_section
 
 
 ! *****************************************************************************
@@ -6734,7 +6872,7 @@ CONTAINS
        CALL section_add_keyword(section,keyword,error=error)
        CALL keyword_release(keyword,error=error)
 
-       CALL create_mixing_section(subsection,error)
+       CALL create_mixing_section(subsection,error=error)
        CALL section_add_subsection(section,subsection,error=error)
        CALL section_release(subsection,error=error)
     END IF
@@ -7161,267 +7299,6 @@ CONTAINS
 
   END SUBROUTINE create_smear_section
 
-! *****************************************************************************
-!> \brief      Create CP2K input section for the mixing of the density matrix to
-!>             be used only with diagonalization methods, i.e. not with OT
-!> \param section ...
-!> \param error ...
-!> \date       20.02.2009
-!> \author     MI
-!> \version    1.0
-! *****************************************************************************
-  SUBROUTINE create_mixing_section(section,error)
-
-    TYPE(section_type), POINTER              :: section
-    TYPE(cp_error_type), INTENT(INOUT)       :: error
-
-    CHARACTER(LEN=*), PARAMETER :: routineN = 'create_mixing_section', &
-      routineP = moduleN//':'//routineN
-
-    LOGICAL                                  :: failure
-    TYPE(keyword_type), POINTER              :: keyword
-
-    failure = .FALSE.
-
-    CPPrecondition(.NOT.ASSOCIATED(section),cp_failure_level,routineP,error,failure)
-
-    IF (.NOT.failure) THEN
-
-      CALL section_create(section,&
-                          name="MIXING",&
-                          description="Define type and parameters for mixing"//&
-                          "procedures to be applied to the density matrix. Normally, "//&
-                          "only one type of mixing method should be accepted. The mixing "//&
-                          "procedures activated by this section are only active for diagonalization "//&
-                          "methods, i.e. not with minimization methods based on OT.",&
-                          n_keywords=16,&
-                          n_subsections=0,&
-                          repeats=.FALSE.,&
-                          required=.FALSE.,&
-                          error=error)
-
-      NULLIFY (keyword)
-
-      CALL keyword_create(keyword,&
-                          name="_SECTION_PARAMETERS_",&
-                          description="Controls the activation of the mixing procedure",&
-                          usage="&MIXING ON",&
-                          default_l_val=.TRUE.,&
-                          lone_keyword_l_val=.TRUE.,&
-                          error=error)
-      CALL section_add_keyword(section,keyword,error=error)
-      CALL keyword_release(keyword,error=error)
-
-      CALL keyword_create(keyword,&
-                          name="METHOD",&
-                          description="Mixing method to be applied",&
-                          required=.FALSE.,&
-                          repeats=.FALSE.,&
-                          usage="METHOD KERKER_MIXING",&
-                          default_i_val=direct_p_mix,&
-                          enum_c_vals=s2a("NONE",&
-                                          "DIRECT_P_MIXING",&
-                                          "KERKER_MIXING",&
-                                          "PULAY_MIXING",&
-                                          "BROYDEN_MIXING",&
-                                          "BROYDEN_MIXING_NEW",&
-                                          "MULTISECANT_MIXING"),&
-                          enum_i_vals=(/no_mix,direct_p_mix,kerker_mix,pulay_mix,broy_mix,&
-                          broy_mix_new,multisec_mix/),&
-                          enum_desc=s2a("No mixing is applied",&
-                             "Direct mixing of new and old density matrices",&
-                             "Mixing of the potential in reciprocal space using the Kerker damping",&
-                             "Pulay mixing","Broyden mixing","Broyden mixing second version",&
-                             "Multisecant scheme for mixing" ),&
-                          error=error)
-      CALL section_add_keyword(section,keyword,error=error)
-      CALL keyword_release(keyword,error=error)
-
-      CALL keyword_create(keyword,&
-                          name="ALPHA",&
-                          description="Fraction of new density to be included",&
-                          required=.FALSE.,&
-                          repeats=.FALSE.,&
-                          n_var=1,&
-                          type_of_var=real_t,&
-                          default_r_val=0.4_dp,&
-                          usage="ALPHA 0.2",&
-                          error=error)
-      CALL section_add_keyword(section,keyword,error=error)
-      CALL keyword_release(keyword,error=error)
-
-      CALL keyword_create(keyword,&
-                          name="BETA",&
-                          description="Denominator parameter in Kerker damping "//&
-                             "introduced to suppress charge sloshing: rho_mix(g) ="//&
-                             "rho_in(g) + alpha*g^2/(g^2 + beta^2)*(rho_out(g)-"//&
-                             "rho_in(g))",&
-                          required=.FALSE.,&
-                          repeats=.FALSE.,&
-                          n_var=1,&
-                          type_of_var=real_t,&
-                          default_r_val=0.5_dp,&
-                          unit_str="bohr^-1",&
-                          usage="BETA 1.5",&
-                          error=error)
-      CALL section_add_keyword(section,keyword,error=error)
-      CALL keyword_release(keyword,error=error)
-
-      CALL keyword_create(keyword,&
-                          name="PULAY_ALPHA",&
-                          description="Fraction of new density to be added to the Pulay expansion",&
-                          required=.FALSE.,&
-                          repeats=.FALSE.,&
-                          n_var=1,&
-                          type_of_var=real_t,&
-                          default_r_val=0.0_dp,&
-                          usage="PULAY_ALPHA 0.2",&
-                          error=error)
-      CALL section_add_keyword(section,keyword,error=error)
-      CALL keyword_release(keyword,error=error)
-
-      CALL keyword_create(keyword,&
-                          name="PULAY_BETA",&
-                          description="Fraction of residual contribution to be added to Pulay expansion",&
-                          required=.FALSE.,&
-                          repeats=.FALSE.,&
-                          n_var=1,&
-                          type_of_var=real_t,&
-                          default_r_val=1.0_dp,&
-                          usage="PULAY_BETA 0.2",&
-                          error=error)
-      CALL section_add_keyword(section,keyword,error=error)
-      CALL keyword_release(keyword,error=error)
-
-      CALL keyword_create(keyword, name="NMIXING",&
-            description="Minimal number of density mixing (should be greater than 0),"//&
-            "before starting DIIS",&
-            usage="NMIXING 1", default_i_val=2,error=error)
-      CALL section_add_keyword(section,keyword,error=error)
-      CALL keyword_release(keyword,error=error)
-
-      CALL keyword_create(keyword, name="NBUFFER",&
-                          variants=s2a("NPULAY","NBROYDEN","NMULTISECANT"),&
-                          description="Number of previous steps stored for the actual mixing scheme",&
-                          usage="NBUFFER 2", default_i_val=4,error=error)
-      CALL section_add_keyword(section,keyword,error=error)
-      CALL keyword_release(keyword,error=error)
-
-      CALL keyword_create(keyword,&
-                          name="BROY_W0",&
-                          description=" w0 parameter used in Broyden mixing",&
-                          required=.FALSE.,&
-                          repeats=.FALSE.,&
-                          n_var=1,&
-                          type_of_var=real_t,&
-                          default_r_val=0.01_dp,&
-                          usage="BROY_W0 0.03",&
-                          error=error)
-      CALL section_add_keyword(section,keyword,error=error)
-      CALL keyword_release(keyword,error=error)
-
-      CALL keyword_create(keyword,&
-                          name="BROY_WREF",&
-                          description="",&
-                          required=.FALSE.,&
-                          repeats=.FALSE.,&
-                          n_var=1,&
-                          type_of_var=real_t,&
-                          default_r_val=100.0_dp,&
-                          usage="BROY_WREF 0.2",&
-                          error=error)
-      CALL section_add_keyword(section,keyword,error=error)
-      CALL keyword_release(keyword,error=error)
-
-      CALL keyword_create(keyword,&
-                          name="BROY_WMAX",&
-                          description="",&
-                          required=.FALSE.,&
-                          repeats=.FALSE.,&
-                          n_var=1,&
-                          type_of_var=real_t,&
-                          default_r_val=30.0_dp,&
-                          usage="BROY_WMAX 10.0",&
-                          error=error)
-      CALL section_add_keyword(section,keyword,error=error)
-      CALL keyword_release(keyword,error=error)
-
-      CALL keyword_create(keyword,&
-                          name="REGULARIZATION",&
-                          description="Regularization parameter to stabilize "//&
-                          "the inversion of the residual matrix {Yn^t Yn} in the "//&
-                          "multisecant mixing scheme (noise)",&
-                          required=.FALSE.,&
-                          repeats=.FALSE.,&
-                          n_var=1,&
-                          type_of_var=real_t,&
-                          default_r_val=0.00001_dp,&
-                          usage="REGULARIZATION 0.000001",&
-                          error=error)
-      CALL section_add_keyword(section,keyword,error=error)
-      CALL keyword_release(keyword,error=error)
-
-      CALL keyword_create(keyword,&
-                          name="MAX_STEP",&
-                          description="Upper bound for the magnitude of the "//&
-                          "unpredicted step size in the update by the "//&
-                          "multisecant mixing scheme",&
-                          required=.FALSE.,&
-                          repeats=.FALSE.,&
-                          n_var=1,&
-                          type_of_var=real_t,&
-                          default_r_val=0.1_dp,&
-                          usage="MAX_STEP .2",&
-                          error=error)
-      CALL section_add_keyword(section,keyword,error=error)
-      CALL keyword_release(keyword,error=error)
-
-      CALL keyword_create(keyword,&
-                          name="R_FACTOR",&
-                          description="Control factor for the magnitude of the "//&
-                          "unpredicted step size in the update by the "//&
-                          "multisecant mixing scheme",&
-                          required=.FALSE.,&
-                          repeats=.FALSE.,&
-                          n_var=1,&
-                          type_of_var=real_t,&
-                          default_r_val=0.05_dp,&
-                          usage="R_FACTOR .12",&
-                          error=error)
-      CALL section_add_keyword(section,keyword,error=error)
-      CALL keyword_release(keyword,error=error)
-
-      CALL keyword_create(keyword, name="NSKIP",&
-                          variants=(/"NSKIP_MIXING"/),&
-            description="Number of initial iteration for which the mixing is skipped",&
-            usage="NSKIP 10", default_i_val=0,error=error)
-      CALL section_add_keyword(section,keyword,error=error)
-      CALL keyword_release(keyword,error=error)
-
-      CALL keyword_create(keyword, name="N_SIMPLE_MIX",&
-                          variants=(/"NSIMPLEMIX"/),&
-            description="Number of kerker damping iterations before starting other mixing procedures",&
-            usage="NSIMPLEMIX", default_i_val=0,error=error)
-      CALL section_add_keyword(section,keyword,error=error)
-      CALL keyword_release(keyword,error=error)
-
-      CALL keyword_create(keyword, name="MAX_GVEC_EXP",&
-                          description="Restricts the G-space mixing to lower part of G-vector spectrum,"//&
-                          " up to a G0, by assigning the exponent of the Gaussian that can be "//&
-                          "represented by vectors smaller than G0 within a certain accuracy. ",&
-                          required=.FALSE.,&
-                          repeats=.FALSE.,&
-                          n_var=1,&
-                          type_of_var=real_t,&
-                          default_r_val=-1._dp,&
-                          usage="MAX_GVEC_EXP 3.",&
-                          error=error)
-      CALL section_add_keyword(section,keyword,error=error)
-      CALL keyword_release(keyword,error=error)
-
-    END IF
-
-  END SUBROUTINE create_mixing_section
 
 ! *****************************************************************************
 !> \brief ...

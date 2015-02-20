@@ -63,9 +63,8 @@
        ELSE
           block_1d => pointer_view (dbcsr_get_data_p (&
                matrix%m%data_area, CMPLX(0.0, 0.0, real_8)), offset, offset+nze-1)
-          CALL dbcsr_set_block_pointer (matrix, block, stored_row, stored_col,&
-               rsize, csize, stored_tr, offset, buffer_tr=stored_tr,&
-               contiguous_pointers=.TRUE., error=error)
+          CALL dbcsr_set_block_pointer (matrix, block, rsize, csize, offset, &
+               error=error)
        ENDIF
     ELSEIF (ASSOCIATED (matrix%m%wms)) THEN
        nwms = SIZE(matrix%m%wms)
@@ -484,29 +483,18 @@
 !> \brief Sets a pointer, possibly using the buffers.
 !> \param[in] matrix           Matrix to use
 !> \param pointer_any The pointer to set
-!> \param row Row of block to point to
-!> \param col Column of block to point to
 !> \param rsize Row size of block to point to
 !> \param csize Column size of block to point to
-!> \param[in] main_tr          Whether block is transposed in the matrix
 !> \param[in] base_offset      The block pointer
-!> \param[in] buffer_tr        Whether buffer should be transposed
-!> \param[in] contiguous_pointers  (optional) Whether pointers should be made
-!>                                 contiguous
-!> \param[in] read_only        (optional) User promise not to change data
 !> \param[in,out] error        error
 ! *****************************************************************************
   SUBROUTINE dbcsr_set_block_pointer_2d_z (&
-       matrix, pointer_any, row, col,&
-       rsize, csize, main_tr, base_offset, buffer_tr, contiguous_pointers,&
-       read_only, error)
+       matrix, pointer_any, rsize, csize, base_offset, &
+       error)
     TYPE(dbcsr_obj), INTENT(IN)              :: matrix
     COMPLEX(kind=real_8), DIMENSION(:,:), POINTER         :: pointer_any
-    INTEGER, INTENT(IN)                      :: row, col, rsize, csize
-    LOGICAL, INTENT(IN)                      :: main_tr
+    INTEGER, INTENT(IN)                      :: rsize, csize
     INTEGER, INTENT(IN)                      :: base_offset
-    LOGICAL, INTENT(IN)                      :: buffer_tr
-    LOGICAL, INTENT(IN), OPTIONAL            :: contiguous_pointers, read_only
     TYPE(dbcsr_error_type), INTENT(INOUT)    :: error
 
     CHARACTER(len=*), PARAMETER :: &

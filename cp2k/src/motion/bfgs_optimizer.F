@@ -288,7 +288,7 @@ CONTAINS
 
             !Possibly dump the Hessian file
             IF (BTEST(cp_print_key_should_output(logger%iter_info,print_key,error=error),cp_p_file))THEN
-               CALL write_bfgs_hessian(geo_section,ndf,hess_mat,logger,error)
+               CALL write_bfgs_hessian(geo_section,hess_mat,logger,error)
             ENDIF
           ENDIF
        END IF
@@ -317,7 +317,7 @@ CONTAINS
           CALL rat_fun_opt(ndf,dg,eigval,work,eigvec_mat,g,para_env,error)
        END IF
        CALL geoopt_get_step(ndf,eigval,eigvec_mat,hess_tmp,dr,g,para_env,use_rfo,error)
-       CALL trust_radius(ndf,nfree,step,rad,rat,dr,output_unit)
+       CALL trust_radius(ndf,step,rad,rat,dr,output_unit)
 
        ! Update the atomic positions
        x0 = x0 + dr
@@ -360,7 +360,7 @@ CONTAINS
 
     ! Write final  information, if converged
     CALL cp_iterate(logger%iter_info,last=.TRUE.,increment=0,error=error)
-    CALL write_bfgs_hessian(geo_section,ndf,hess_mat,logger,error)
+    CALL write_bfgs_hessian(geo_section,hess_mat,logger,error)
     CALL gopt_f_io_finalize(gopt_env, force_env, x0, conv, its, root_section,&
          gopt_env%force_env%para_env, gopt_env%force_env%para_env%mepos, output_unit, error)
 
@@ -472,7 +472,7 @@ CONTAINS
             fung = fung - dg(indf)**2 /(ln-eigval(indf)**2)
          END DO
          fun = fun - ln
-         fung = fung - 1.0_dp
+         fung = fung - one
          step = fun/fung
          ln = ln - step
          IF(ABS(step) < stol )GOTO 200
@@ -553,18 +553,17 @@ CONTAINS
         DO indf = 1, ndf
            eigval(indf) = eigval(indf) * work(indf)
         END DO
-        GOTO 400
+        CYCLE
      END IF
 
      IF(.NOT. set) THEN
-        work(1:ndf)=1.0_dp
+        work(1:ndf)=one
      ENDIF
 
      DO indf = 1, ndf
        eigval(indf) = eigval(indf) - ln
      END DO
      EXIT
-400  CONTINUE
      END DO
 
      CALL timestop(handle)
@@ -605,7 +604,7 @@ CONTAINS
     CALL cp_fm_get_info(hess_mat,row_indices=row_indices,col_indices=col_indices, &
          local_data=local_hes,nrow_local=nrow_local,ncol_local=ncol_local,error=error)
 
-    work=0.0_dp
+    work=zero
     DO i=1,nrow_local
        j=row_indices(i)
        DO k=1,ncol_local
@@ -761,21 +760,20 @@ CONTAINS
 ! *****************************************************************************
 !> \brief ...
 !> \param ndf ...
-!> \param nfree ...
 !> \param step ...
 !> \param rad ...
 !> \param rat ...
 !> \param dr ...
 !> \param output_unit ...
 ! *****************************************************************************
-  SUBROUTINE trust_radius(ndf,nfree,step,rad,rat,dr,output_unit)
-    INTEGER, INTENT(IN)                      :: ndf, nfree
+  SUBROUTINE trust_radius(ndf,step,rad,rat,dr,output_unit)
+    INTEGER, INTENT(IN)                      :: ndf
     REAL(KIND=dp), INTENT(INOUT)             :: step, rad, rat, dr(ndf)
     INTEGER, INTENT(IN)                      :: output_unit
 
     CHARACTER(LEN=*), PARAMETER :: routineN = 'trust_radius', &
       routineP = moduleN//':'//routineN
-    REAL(KIND=dp), PARAMETER                 :: one = 1.0_dp, zero = 0.0_dp
+    REAL(KIND=dp), PARAMETER                 :: one = 1.0_dp
 
     INTEGER                                  :: handle
     REAL(KIND=dp)                            :: scal
@@ -824,8 +822,7 @@ CONTAINS
 
     CHARACTER(LEN=*), PARAMETER :: routineN = 'energy_predict', &
       routineP = moduleN//':'//routineN
-    REAL(KIND=dp), PARAMETER                 :: limit = 1.0E-9_dp , &
-                                                one = 1.0_dp, zero = 0.0_dp
+    REAL(KIND=dp), PARAMETER                 :: zero = 0.0_dp
 
     INTEGER                                  :: handle, i, j, k, l, &
                                                 ncol_local, nrow_local
@@ -840,7 +837,7 @@ CONTAINS
     CALL cp_fm_get_info(hess_mat,row_indices=row_indices,col_indices=col_indices, &
          local_data=local_data,nrow_local=nrow_local,ncol_local=ncol_local,error=error)
 
-    work=0.0_dp
+    work=zero
     DO i=1,nrow_local
        j=row_indices(i)
        DO k=1,ncol_local
@@ -942,15 +939,13 @@ CONTAINS
 ! *****************************************************************************
 !> \brief ...
 !> \param geo_section ...
-!> \param ndf ...
 !> \param hess_mat ...
 !> \param logger ...
 !> \param error ...
 ! *****************************************************************************
-   SUBROUTINE write_bfgs_hessian(geo_section,ndf,hess_mat,logger,error)
+   SUBROUTINE write_bfgs_hessian(geo_section,hess_mat,logger,error)
 
     TYPE(section_vals_type), POINTER         :: geo_section
-    INTEGER                                  :: ndf
     TYPE(cp_fm_type), POINTER                :: hess_mat
     TYPE(cp_logger_type), POINTER            :: logger
     TYPE(cp_error_type), INTENT(inout)       :: error

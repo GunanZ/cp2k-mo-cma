@@ -141,8 +141,9 @@ CONTAINS
       has_unit_metric, natom_mismatch, ofgpw
     REAL(dp), ALLOCATABLE, DIMENSION(:, :)   :: buff, buff2
     REAL(dp), DIMENSION(:, :), POINTER       :: DATA
-    REAL(KIND=dp)                            :: checksum, eps, maxocc, occ, &
-                                                scale, total_rho, trps1, zeff
+    REAL(KIND=dp)                            :: checksum, eps, length, &
+                                                maxocc, occ, scale, &
+                                                total_rho, trps1, zeff
     REAL(KIND=dp), DIMENSION(0:3)            :: edftb
     TYPE(array_i1d_obj)                      :: col_blk_size, col_dist
     TYPE(atom_matrix_type), DIMENSION(:), &
@@ -757,10 +758,12 @@ CALL copy_fm_to_dbcsr(mo_array(ispin)%mo_set%mo_coeff,mo_array(ispin)%mo_set%mo_
                    IF(SUM(buff**2).LT.1E-10_dp) THEN
                       WRITE(*,*) 'wrong',i,SUM(buff**2)
                    ENDIF
-                   buff=buff/SQRT(DOT_PRODUCT(buff(:,1),buff(:,1)))
+                   length = SQRT(DOT_PRODUCT(buff(:,1), buff(:,1)))
+                   buff(:,:) = buff(:,:)/length
                    DO j = i+1,nmo
                       CALL cp_fm_get_submatrix(mo_coeff,buff2,1,j,nao,1,error=error)
-                      buff2=buff2/SQRT(DOT_PRODUCT(buff2(:,1),buff2(:,1)))
+                      length = SQRT(DOT_PRODUCT(buff2(:,1), buff2(:,1)))
+                      buff2(:,:) = buff2(:,:)/length
                       IF(ABS(DOT_PRODUCT(buff(:,1),buff2(:,1))-1.0_dp).LT.1E-10_dp) THEN
                          WRITE(*,*) 'wrong2',i,j,DOT_PRODUCT(buff(:,1),buff2(:,1))
                          DO ikind=1,nao
@@ -785,7 +788,7 @@ CALL copy_fm_to_dbcsr(mo_array(ispin)%mo_set%mo_coeff,mo_array(ispin)%mo_set%mo_
                   dbcsr_distribution_row_dist(cp_dbcsr_distribution( s_sparse(1)%matrix )), col_dist)
              !
              CALL cp_dbcsr_init(mo_dbcsr, error=error)
-             CALL cp_dbcsr_from_fm(mo_dbcsr, mo_coeff, 0.0_dp, dist,&
+             CALL cp_dbcsr_from_fm(mo_dbcsr, mo_coeff, dist,&
                                 row_blk_size=cp_dbcsr_row_block_sizes (s_sparse(1)%matrix),&
                                 col_blk_size=col_blk_size,&
                                 error=error)

@@ -18,10 +18,12 @@ MODULE pw_poisson_methods
                                              MT2D
   USE ps_implicit_methods,             ONLY: implicit_poisson_solver_mixed,&
                                              implicit_poisson_solver_mixed_periodic,&
+                                             implicit_poisson_solver_neumann,&
                                              implicit_poisson_solver_periodic,&
                                              ps_implicit_create
   USE ps_implicit_types,               ONLY: MIXED_BC,&
                                              MIXED_PERIODIC_BC,&
+                                             NEUMANN_BC,&
                                              PERIODIC_BC
   USE ps_wavelet_methods,              ONLY: cp2k_distribution_to_z_slices,&
                                              ps_wavelet_create,&
@@ -232,7 +234,7 @@ CONTAINS
                       pw_pool=poisson_env%pw_pools(poisson_env%pw_level)%pool,&
                       poisson_params=poisson_env%parameters,&
                       mt_super_ref_pw_grid=poisson_env%mt_super_ref_pw_grid,&
-                      dct_pw_grid=poisson_env%dct_aux_pw_grid,&
+                      dct_pw_grid=poisson_env%dct_pw_grid,&
                       error=error)
               CALL ps_implicit_create(poisson_env%pw_pools(poisson_env%pw_level)%pool, &
                       poisson_env%parameters, &
@@ -366,6 +368,9 @@ CONTAINS
              SELECT CASE (poisson_params%ps_implicit_params%boundary_condition)
                 CASE (PERIODIC_BC)
                    CALL implicit_poisson_solver_periodic(poisson_env, rhor, vhartree_rs, &
+                                                      v_eps, ehartree=ehartree, error=error)
+                CASE (NEUMANN_BC)
+                   CALL implicit_poisson_solver_neumann(poisson_env, rhor, vhartree_rs, &
                                                       v_eps, ehartree=ehartree, error=error)
                 CASE (MIXED_PERIODIC_BC)
                    CALL implicit_poisson_solver_mixed_periodic(poisson_env, rhor, vhartree_rs, &

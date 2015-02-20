@@ -100,7 +100,7 @@ CONTAINS
               dct_env%dests_expand, dct_env%srcs_expand, dct_env%flipg_stat, &
               dct_env%dests_shrink, dct_env%srcs_shrink, error)
     CALL expansion_bounds(pw_grid, &
-              dct_env%dests_expand, dct_env%srcs_expand, dct_env%flipg_stat, &
+              dct_env%srcs_expand, dct_env%flipg_stat, &
               dct_env%bounds_shftd, dct_env%bounds_local_shftd, &
               dct_env%recv_msgs_bnds, dct_env%dct_bounds, &
               dct_env%dct_bounds_local, error)
@@ -133,7 +133,7 @@ CONTAINS
     CHARACTER(LEN=*), PARAMETER :: routineN = 'setup_dct_pw_grids', &
       routineP = moduleN//':'//routineN
 
-    INTEGER                                  :: handle, srcs_shrink
+    INTEGER                                  :: blocked, handle, srcs_shrink
     INTEGER, DIMENSION(2, 3)                 :: bounds_local_new, &
                                                 bounds_local_shftd, &
                                                 bounds_new, bounds_shftd
@@ -145,7 +145,7 @@ CONTAINS
     CALL timeset(routineN,handle)
 
     CALL get_dests_srcs_pid(pw_grid, dests_expand, srcs_expand, flipg_stat, dests_shrink, srcs_shrink, error)
-    CALL expansion_bounds(pw_grid, dests_expand, srcs_expand, flipg_stat, bounds_shftd, bounds_local_shftd, &
+    CALL expansion_bounds(pw_grid, srcs_expand, flipg_stat, bounds_shftd, bounds_local_shftd, &
                           recv_msgs_bnds, bounds_new, bounds_local_new, error)
     CALL pw_grid_create(dct_pw_grid, pw_grid%para%rs_group, local=.FALSE., error=error)
     CALL pw_grid_create(dct_aux_pw_grid, pw_grid%para%rs_group, local=.FALSE., error=error)
@@ -157,15 +157,24 @@ CONTAINS
 
     ! uses bounds_local_new that is 2*n-2 in size....this is only rarely fft-able by fftsg, and needs fftw3,
     ! where it might use sizes that are not declared available in fft_get_radix.
+
+    IF (pw_grid%para%blocked) THEN
+       blocked = 1
+    ELSE IF (pw_grid%para%ray_distribution) THEN
+       blocked = 0
+    END IF
+
     CALL pw_grid_setup(hmat2, dct_pw_grid, &
                        bounds=bounds_new, &
+                       rs_dims = pw_grid%para%rs_dims, &
+                       blocked = blocked, &
                        bounds_local=bounds_local_new, &
-                       blocked = 0, &
                        error=error)
 
     CALL pw_grid_setup(hmat2, dct_aux_pw_grid, &
                        bounds=bounds_new, &
-                       blocked = 0, &
+                       rs_dims = pw_grid%para%rs_dims, &
+                       blocked = blocked, &
                        error=error)
 
     CALL timestop(handle)
@@ -861,7 +870,6 @@ CONTAINS
 ! *****************************************************************************
 !> \brief   calculates the global and local bounds of the expanded data 
 !> \param pw_grid original plane-wave grid
-!> \param dests_expand list of the destination processes (pw_expand) 
 !> \param srcs_expand list of the source processes (pw_expand) 
 !> \param flipg_stat flipping status for the received data chunks (pw_expand) 
 !> \param bounds_shftd bounds of the original grid shifted to have g0 in the middle of the cell
@@ -874,13 +882,12 @@ CONTAINS
 !>       07.2014 created [Hossein Bani-Hashemian]
 !> \author Mohammad Hossein Bani-Hashemian
 ! *****************************************************************************
-  SUBROUTINE expansion_bounds(pw_grid, dests_expand, srcs_expand, flipg_stat, &
+  SUBROUTINE expansion_bounds(pw_grid, srcs_expand, flipg_stat, &
                               bounds_shftd, bounds_local_shftd, &
                               recv_msgs_bnds, bounds_new, bounds_local_new, error)
 
     TYPE(pw_grid_type), INTENT(IN), POINTER  :: pw_grid
-    INTEGER, DIMENSION(4), INTENT(IN)        :: dests_expand, srcs_expand, &
-                                                flipg_stat
+    INTEGER, DIMENSION(4), INTENT(IN)        :: srcs_expand, flipg_stat
     INTEGER, DIMENSION(2, 3), INTENT(OUT)    :: bounds_shftd, &
                                                 bounds_local_shftd
     INTEGER, DIMENSION(2, 3, 4), INTENT(OUT) :: recv_msgs_bnds
@@ -1518,7 +1525,7 @@ CONTAINS
     END IF
 
     ! SN , first black processes then red processes
-    IF ((color(1) .EQ. black) .AND. nnbr_exists) THEN 
+    IF ((color(2) .EQ. black) .AND. nnbr_exists) THEN 
        ! black sends to the north
        IF (should_sendn) THEN
           CALL mp_isend(n_smsg, nnbr_pid, mp_group, sn_sreq)
@@ -1530,7 +1537,7 @@ CONTAINS
           CALL mp_irecv(n_rmsg, nnbr_pid, mp_group, ns_rreq)
           CALL mp_wait(ns_rreq)
        END IF
-    ELSE IF ((color(1) .EQ. red) .AND. snbr_exists) THEN
+    ELSE IF ((color(2) .EQ. red) .AND. snbr_exists) THEN
        ! red receives from the south
        IF (should_recvs) THEN
           CALL mp_irecv(s_rmsg, snbr_pid, mp_group, sn_rreq)
@@ -1545,7 +1552,7 @@ CONTAINS
     END IF
 
     ! NS
-    IF ((color(1) .EQ. red) .AND. nnbr_exists) THEN 
+    IF ((color(2) .EQ. red) .AND. nnbr_exists) THEN 
        ! red sends to the north
        IF (should_sendn) THEN
           CALL mp_isend(n_smsg, nnbr_pid, mp_group, sn_sreq)
@@ -1557,7 +1564,7 @@ CONTAINS
           CALL mp_irecv(n_rmsg, nnbr_pid, mp_group, ns_rreq)
           CALL mp_wait(ns_rreq)
        END IF
-    ELSE IF ((color(1) .EQ. black) .AND. snbr_exists) THEN
+    ELSE IF ((color(2) .EQ. black) .AND. snbr_exists) THEN
        ! black receives from the south
        IF (should_recvs) THEN
           CALL mp_irecv(s_rmsg, snbr_pid, mp_group, sn_rreq)

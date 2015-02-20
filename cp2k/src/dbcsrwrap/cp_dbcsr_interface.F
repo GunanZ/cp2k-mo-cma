@@ -49,12 +49,12 @@ MODULE cp_dbcsr_interface
        dbcsr_func_tanh, dbcsr_function_of_elements, dbcsr_gershgorin_norm, &
        dbcsr_get_block_diag, dbcsr_get_block_p, dbcsr_get_conf_combtypes, &
        dbcsr_get_conf_comm_thread_load, dbcsr_get_conf_max_ele_block, &
-       dbcsr_get_conf_mm_driver, dbcsr_get_conf_mm_stacksize, &
-       dbcsr_get_conf_mpi_mem, dbcsr_get_conf_nstacks, &
-       dbcsr_get_conf_subcomm, dbcsr_get_conf_use_comm_thread, &
-       dbcsr_get_data_p, dbcsr_get_data_size, dbcsr_get_data_type, &
-       dbcsr_get_diag, dbcsr_get_info, dbcsr_get_matrix_type, &
-       dbcsr_get_num_blocks, dbcsr_get_occupation, &
+       dbcsr_get_conf_max_elements_images, dbcsr_get_conf_mm_driver, &
+       dbcsr_get_conf_mm_stacksize, dbcsr_get_conf_mpi_mem, &
+       dbcsr_get_conf_nstacks, dbcsr_get_conf_subcomm, &
+       dbcsr_get_conf_use_comm_thread, dbcsr_get_data_p, dbcsr_get_data_size, &
+       dbcsr_get_data_type, dbcsr_get_diag, dbcsr_get_info, &
+       dbcsr_get_matrix_type, dbcsr_get_num_blocks, dbcsr_get_occupation, &
        dbcsr_get_stored_coordinates, dbcsr_hadamard_product, &
        dbcsr_has_symmetry, dbcsr_init, dbcsr_init_lib, dbcsr_init_random, &
        dbcsr_iterator, dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, &
@@ -75,22 +75,22 @@ MODULE cp_dbcsr_interface
        dbcsr_scale, dbcsr_scale_by_vector, dbcsr_set, &
        dbcsr_set_conf_combtypes, dbcsr_set_conf_comm_thread_load, &
        dbcsr_set_conf_external_timing, dbcsr_set_conf_max_ele_block, &
-       dbcsr_set_conf_mm_driver, dbcsr_set_conf_mm_stacksize, &
-       dbcsr_set_conf_mpi_mem, dbcsr_set_conf_nstacks, &
-       dbcsr_set_conf_subcomm, dbcsr_set_conf_use_comm_thread, &
-       dbcsr_set_diag, dbcsr_setname, dbcsr_sum_replicated, &
-       dbcsr_test_arnoldi, dbcsr_test_binary_io, dbcsr_test_mm, dbcsr_trace, &
-       dbcsr_triu, dbcsr_type_antisymmetric, dbcsr_type_complex_4, &
-       dbcsr_type_complex_8, dbcsr_type_complex_default, &
-       dbcsr_type_no_symmetry, dbcsr_type_real_4, dbcsr_type_real_8, &
-       dbcsr_type_real_default, dbcsr_type_symmetric, dbcsr_valid_index, &
-       dbcsr_verify_matrix, dbcsr_wm_use_mutable, dbcsr_work_create, &
-       dbcsr_work_type, deallocate_arnoldi_data, get_selected_ritz_val, &
-       get_selected_ritz_vector, has_acc, has_mpi, heap_fill, heap_get_first, &
-       heap_new, heap_release, heap_reset_first, heap_t, mm_driver_acc, &
-       mm_driver_blas, mm_driver_matmul, mm_driver_smm, mm_name_acc, &
-       mm_name_blas, mm_name_matmul, mm_name_smm, multrec_limit, &
-       set_arnoldi_initial_vector, setup_arnoldi_data, swap
+       dbcsr_set_conf_max_elements_images, dbcsr_set_conf_mm_driver, &
+       dbcsr_set_conf_mm_stacksize, dbcsr_set_conf_mpi_mem, &
+       dbcsr_set_conf_nstacks, dbcsr_set_conf_subcomm, &
+       dbcsr_set_conf_use_comm_thread, dbcsr_set_diag, dbcsr_setname, &
+       dbcsr_sum_replicated, dbcsr_test_arnoldi, dbcsr_test_binary_io, &
+       dbcsr_test_mm, dbcsr_trace, dbcsr_triu, dbcsr_type_antisymmetric, &
+       dbcsr_type_complex_4, dbcsr_type_complex_8, &
+       dbcsr_type_complex_default, dbcsr_type_no_symmetry, dbcsr_type_real_4, &
+       dbcsr_type_real_8, dbcsr_type_real_default, dbcsr_type_symmetric, &
+       dbcsr_valid_index, dbcsr_verify_matrix, dbcsr_wm_use_mutable, &
+       dbcsr_work_create, dbcsr_work_type, deallocate_arnoldi_data, &
+       get_selected_ritz_val, get_selected_ritz_vector, has_acc, has_mpi, &
+       heap_fill, heap_get_first, heap_new, heap_release, heap_reset_first, &
+       heap_t, mm_driver_acc, mm_driver_blas, mm_driver_matmul, &
+       mm_driver_smm, mm_name_acc, mm_name_blas, mm_name_matmul, mm_name_smm, &
+       multrec_limit, set_arnoldi_initial_vector, setup_arnoldi_data, swap
   USE kinds,                           ONLY: default_string_length,&
                                              dp,&
                                              int_8,&
@@ -108,11 +108,12 @@ MODULE cp_dbcsr_interface
   !
   ! Interface to libdbcsr (contains cp2k timing and error) 
   PUBLIC :: dbcsr_error_set, dbcsr_error_stop, dbcsr_get_conf_comm_thread_load,&
+            dbcsr_get_conf_max_elements_images, &
             dbcsr_get_conf_mm_stacksize, dbcsr_get_conf_nstacks,&
             dbcsr_set_conf_combtypes, dbcsr_set_conf_external_timing, dbcsr_set_conf_mm_stacksize, dbcsr_set_conf_mpi_mem
-  PUBLIC :: dbcsr_set_conf_comm_thread_load, dbcsr_set_conf_max_ele_block, dbcsr_set_conf_mm_driver, dbcsr_set_conf_nstacks,&
-            dbcsr_set_conf_subcomm, dbcsr_set_conf_use_comm_thread, has_mpi, add_work_coordinate,&
-            create_bl_distribution
+  PUBLIC :: dbcsr_set_conf_comm_thread_load, dbcsr_set_conf_max_ele_block, dbcsr_set_conf_mm_driver,&
+            dbcsr_set_conf_max_elements_images, dbcsr_set_conf_nstacks, dbcsr_set_conf_subcomm, dbcsr_set_conf_use_comm_thread,&
+            has_mpi, add_work_coordinate, create_bl_distribution
   PUBLIC :: has_acc, dbcsr_create_dist_block_cyclic, dbcsr_create_dist_r_unrot, dbcsr_distribution_local_cols,&
             dbcsr_distribution_nlocal_rows, dbcsr_distribution_nrows, dbcsr_distribution_local_rows,&
             dbcsr_distribution_ncols, dbcsr_distribution_nlocal_cols, dbcsr_get_data_p,&
@@ -1372,7 +1373,7 @@ CONTAINS
     LOGICAL, INTENT(IN), OPTIONAL            :: local
 
     CHARACTER(len=*), PARAMETER :: routineN = 'cp_dbcsr_verify_matrix', &
-      r = moduleN//':'//routineN
+      routineP = moduleN//':'//routineN
 
     TYPE(dbcsr_error_type)                   :: dbcsr_error
 
@@ -2046,21 +2047,12 @@ CONTAINS
 !> \param a0 ...
 !> \param a1 ...
 !> \param a2 ...
-!> \param a3 ...
-!> \param a4 ...
-!> \param a5 ...
-!> \param a6 ...
-!> \param a7 ...
-!> \param a8 ...
-!> \param a9 ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE cp_dbcsr_function_of_elements(matrix_a, func, a0, a1, a2, a3, a4,& 
-    a5, a6, a7, a8, a9, error) 
+  SUBROUTINE cp_dbcsr_function_of_elements(matrix_a, func, a0, a1, a2, error) 
     TYPE(cp_dbcsr_type), INTENT(INOUT)       :: matrix_a
     INTEGER, INTENT(IN)                      :: func
-    REAL(kind=dp), INTENT(IN), OPTIONAL      :: a0, a1, a2, a3, a4, a5, a6, &
-                                                a7, a8, a9
+    REAL(kind=dp), INTENT(IN), OPTIONAL      :: a0, a1, a2
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
     CHARACTER(len=*), PARAMETER :: &
@@ -2069,8 +2061,7 @@ CONTAINS
 
     TYPE(dbcsr_error_type)                   :: dbcsr_error
 
-    CALL dbcsr_function_of_elements(matrix_a%matrix,func,a0,a1,a2,a3,a4,a5,a6,& 
-            a7,a8,a9,dbcsr_error) 
+    CALL dbcsr_function_of_elements(matrix_a%matrix,func,a0,a1,a2,dbcsr_error) 
   END SUBROUTINE cp_dbcsr_function_of_elements 
  
 ! *****************************************************************************
@@ -2650,16 +2641,18 @@ CONTAINS
 !> \param nze_total ...
 !> \param nze_local ...
 !> \param nrows_local ...
+!> \param mp_group ...
 !> \param data_type ...
 !> \param error ...
 ! *****************************************************************************
   SUBROUTINE cp_csr_create_new(csr_mat, nrows_total, ncols_total, nze_total,&
-                            nze_local, nrows_local, data_type, error)
+                               nze_local, nrows_local, mp_group, data_type, error)
 
     TYPE(csr_type), INTENT(OUT)              :: csr_mat
     INTEGER, INTENT(IN)                      :: nrows_total, ncols_total
     INTEGER(KIND=int_8)                      :: nze_total
-    INTEGER, INTENT(IN)                      :: nze_local, nrows_local
+    INTEGER, INTENT(IN)                      :: nze_local, nrows_local, &
+                                                mp_group
     INTEGER, INTENT(IN), OPTIONAL            :: data_type
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
@@ -2669,7 +2662,7 @@ CONTAINS
     TYPE(dbcsr_error_type)                   :: dbcsr_error
 
     CALL csr_create_new(csr_mat, nrows_total, ncols_total, nze_total,&
-                            nze_local, nrows_local, data_type, dbcsr_error)
+                        nze_local, nrows_local, mp_group, data_type, dbcsr_error)
   END SUBROUTINE
 
 ! *****************************************************************************
