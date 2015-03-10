@@ -39,7 +39,7 @@ MODULE mocmaes
   USE swarm_message,                   ONLY: swarm_message_add,&
                                              swarm_message_get,&
                                              swarm_message_type
-  USE cp_array_r_sort,                 ONLY: cp_1d_r_sort
+  USE cp_array_sort_r,                 ONLY: cp_1d_r_sort
 #include "../common/cp_common_uses.f90"
 
  IMPLICIT NONE
@@ -327,19 +327,21 @@ SUBROUTINE init_selection(mocmaes)
          INTEGER                                     :: j_m,j_p
          LOGICAL                                     :: variance_sorting
          LOGICAL                                     :: kernel_density
-         REAL(kind=dp),DIMENSION(:),ALLOCATABLE :: x,f
-         REAL(kind=dp)                          :: h
+         REAL(kind=dp),DIMENSION(:),ALLOCATABLE :: x,f,dens
+         REAL(kind=dp)                          :: h,var,mean
          INTEGER                                :: m
          nondominated_size=size(input_set)
          m=size(input_set(1)%p%f)
          do i = 1,nondominated_size
              input_set(i)%p%I_dist = 0._dp
+             !input_set(i)%p%I_dist = 1._dp
          enddo       
          !------------------------------------------------
          allocate(newsort(nondominated_size,m))
          allocate(idxsel(nondominated_size))
          allocate(x(nondominated_size))
          allocate(f(nondominated_size))
+         allocate(dens(nondominated_size-2))
          ! crowding-distance-assignment
          do i = 1,nondominated_size
              newsort(i,:) = input_set(i)%p%f(:)
@@ -352,6 +354,8 @@ SUBROUTINE init_selection(mocmaes)
            do i=1,size(x)
                x(i)=f(idxsel(i))
            enddo
+           !print *,'x',x
+           !print *,'f',f
            !============calculate using crowding dist NAGA-II===========
             input_set(idxsel(1))%p%I_dist = huge(1._dp) 
             input_set(idxsel(nondominated_size))%p%I_dist = huge(1._dp) 
@@ -371,9 +375,37 @@ SUBROUTINE init_selection(mocmaes)
              if ((input_set(j)%p%I_dist) .gt. huge(1._dp)) input_set(j)%p%I_dist = 0.0_dp
              !print *,'Idist'  ,(input_set(j)%I_dist)
              enddo
+           !============calculate using kde===========
+           ! n = nondominated_size
+           ! if (n .gt. 2) then
+           !     call kde(f(2:n-1),f(2:n-1),dens,h)
+           !     !mean = sum(dens)/size(dens)
+           !     !var  = variance(dens)
+           !     !dens = (dens-mean)/var
+           !     !dens = (dens-minval(dens))/(maxval(dens)-minval(dens))
+           !     !print *,'x',f(2:n-1)
+           !     !print *,'dens',dens
+           !     !print *,'maxval',maxval(dens),minval(dens)
+           !     input_set(idxsel(1))%p%I_dist = 0.0_dp
+           !     input_set(idxsel(nondominated_size))%p%I_dist = 0.0_dp
+           !     do i = 1,nondominated_size-2 
+           !        j = idxsel(i)
+           !        input_set(j)%p%I_dist = -(abs(input_set(j)%p%I_dist*abs(dens(i))))
+           !      if (isNaN(input_set(j)%p%I_dist)) input_set(j)%p%I_dist = -huge(1._dp)
+           !     enddo
+           ! else
+           !     do i = 1,nondominated_size 
+           !        input_set(i)%p%I_dist = 0._dp
+           !     enddo
+           ! endif
            !=================================================================
          enddo
-         deallocate(x,f,newsort,idxsel) 
+         !do i =1,nondominated_size
+         !       !print *,'kde',f(i),dens(i),h
+         !       j = idxsel(i)
+         !       print *,'kde',i,input_set(j)%p%I_dist
+         !enddo
+         deallocate(x,f,dens,newsort,idxsel) 
     END SUBROUTINE crowding_distance
 !===========================================================================
     SUBROUTINE new_front(global_set,input_set,output_set)
@@ -582,4 +614,72 @@ SUBROUTINE init_selection(mocmaes)
     enddo
     deallocate(offspring_list)
 END SUBROUTINE update_offspring
+
+    subroutine kde(x,z,f,h)
+    implicit none
+    real(dp),dimension(:),intent(in)   :: x,z
+    real(dp),dimension(:),allocatable  :: temp,tempf
+    real(dp),dimension(:),intent(out)  :: f
+    real(dp),intent(out)               :: h
+    real(dp)                           :: mean,sd,xj,xi
+    real(dp)                           :: from,to,step
+    integer                            :: i,j,n,m,locmin(1)
+
+    m=512
+    allocate(temp(m),tempf(m))
+    n = size(x)
+    m = size(temp)
+    from = 0.0_dp
+    to   = 9.5_dp
+    step = (to-from)/m
+    temp(1) = from
+    do i=2,m
+        temp(i) = temp(i-1) + step
+    enddo
+    mean = sum(x)/n
+    sd = sqrt(variance(x))
+    !h = 1.06_dp*sd*(n**(-1/5))
+    h = 0.9_dp*sd/(n**(1/5))
+    if (h .eq.0 ) h = 1._dp
+    !h = 0.1 
+    tempf = 0._dp
+
+    do j=1,m
+        xj = temp(j)
+ 
+        do i=1,n
+            xi = x(i)
+            tempf(j) = tempf(j) + K((xj-xi)/h)
+        enddo
+
+    enddo
+    tempf = 1.0/(n*h)*tempf
+
+    do i=1,m
+    write(99,*) temp(i),tempf(i)
+    enddo
+    do i=1,size(z)
+    xi = z(i)
+    locmin = minloc(abs(xi-temp))
+    f(i) = tempf(locmin(1))
+    !print *,"minloc",locmin,xi,tempf(locmin)
+    enddo
+    end
+
+
+    function K(u) 
+        implicit none
+        real(dp)    :: K,u,pi
+        
+        pi = 4.*atan(1.)
+        K = 1.0_dp/sqrt(2.0_dp*pi)*exp(-0.5_dp*u**2)
+    end
+    function variance(array)
+        implicit none
+        real(dp),intent(in),dimension(:) :: array
+        real(dp)                         :: variance,x
+        x = sum(array)/size(array)
+        variance = sum((array-x)**2)/size(array)
+    end
+
 END MODULE mocmaes

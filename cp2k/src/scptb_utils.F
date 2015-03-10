@@ -137,7 +137,6 @@ CONTAINS
         endif
         CALL cp_print_key_finished_output(output_unit,logger,print_section,"KINDS",error=error)
       END IF
-
       !initialization
 
       IF (scptb_parameter%defined) THEN
@@ -169,14 +168,12 @@ CONTAINS
                IF(l==3) WRITE(symbol(is),'(I1,A1)') nq(is),"F"
             END DO
          END DO
-
          IF (nshell > 0) THEN
             CALL set_sto_basis_set(sto_basis,name=scptb_parameter%atomname,&
                  nshell=nshell,symbol=symbol,nq=nq,lq=lq,zet=zet)
             CALL create_gto_from_sto_basis(sto_basis, qs_kind_set(ikind)%orb_basis_set,&
                                            scptb_control%sto_ng,error=error)
          END IF
-
          DEALLOCATE (nq,lq,zet,symbol,STAT=stat)
          CPPrecondition(stat==0,cp_failure_level,routineP,error,failure)
 

@@ -1073,6 +1073,14 @@ CPSourceFileRef,&
             qs_control%scptb_control%xopt(4) = scal(4)
             qs_control%scptb_control%xopt(5) = scal(5)
             qs_control%scptb_control%xopt(6) = scal(6) 
+            qs_control%scptb_control%xopt(7) = scal(7) 
+            qs_control%scptb_control%xopt(8) = scal(8) 
+            qs_control%scptb_control%xopt(9) = scal(9) 
+            qs_control%scptb_control%xopt(10) = scal(10) 
+            qs_control%scptb_control%xopt(11) = scal(11) 
+            qs_control%scptb_control%xopt(12) = scal(12) 
+            qs_control%scptb_control%xopt(13) = scal(13) 
+            qs_control%scptb_control%xopt(14) = scal(14) 
        CALL section_vals_val_get(scptb_section,"STO_NG",&
             i_val=qs_control%scptb_control%sto_ng,error=error)
        CALL section_vals_val_get(scptb_section,"DISPERSION_PARAMETER_FILE",&

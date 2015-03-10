@@ -78,13 +78,14 @@ CONTAINS
        param%ag                    = 4.0_dp
        param%energy                = -0.5_dp
        IF (present(xopt)) then
+            param%lmaxscp = 0
+            param%ag = 0.2363_dp 
+            param%ag = xopt(1) !charge_width
             param%energy = -1.2010034_dp
-            param%energy = xopt(3)
             param%zeta(1,0) = 1.2619947_dp
             param%zeta(1,0) = xopt(2)
             param%hcore(1,0) = -0.991475_dp 
-            param%hcore(1,0) = xopt(1)
-            param%ag = 0.2363_dp 
+            param%hcore(1,0) = xopt(3)
             param%crep(1:3) = xopt(4:6)
        endif
 !   CASE (2)
@@ -117,14 +118,21 @@ CONTAINS
        param%ag                    = 1.0_dp
        param%energy                = -0.5_dp
        IF (present(xopt)) then
+            param%lmaxscp = 0
+            param%ag = 0.24483_dp
+            param%ag = xopt(7)
             param%energy = -27.3762533_dp 
             param%zeta(1,0) = 2.1163084_dp
-            param%zeta(1,1) = 2.2871721_dp
+            param%zeta(1,0) = xopt(8)
             param%hcore(1,0) = -2.6715280_dp
+            param%hcore(1,0) = xopt(9)
+            !--------
+            param%zeta(1,1) = 2.2871721_dp
+            param%zeta(1,1) = xopt(10)
             param%hcore(1,1) = -4.0763620_dp
-            param%ag = 0.24483_dp 
+            param%hcore(1,1) = xopt(11)
             param%crep(1:3) = (/4.59,273.0,41.07/)
-            param%crep(1:3) = xopt(4:6)
+            !param%crep(1:3) = xopt(12:14)
        endif
     CASE ("F")
        !Fluorine

@@ -330,6 +330,10 @@ MODULE paramopt_worker
     !hb_para(1) = this%x(1)
     !hb_para(2) = this%x(2)
     !hb_para(3) = this%x(3)
+    !--------for scptb--------------------------------
+    allocate(xopt_ptr(size(this%x)))
+    xopt_ptr = this%x
+
    !-------------------------------------------------
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%SUBSYS%TOPOLOGY%COORD_FILE_NAME", &
@@ -356,27 +360,26 @@ MODULE paramopt_worker
                               r_vals_ptr=hb_para, error = this%error)
     endif 
 !--------------------------------------------------------------------------
-!    allocate(xopt_ptr(size(this%x)))
-!    xopt_ptr = this%x
-!    CALL section_vals_val_set(this%root_section, &
-!                              "FORCE_EVAL%DFT%QS%SCPTB%XOPT", &
-!                              r_vals_ptr=xopt_ptr, error= this%error)
-!   !print *,'after xopt set' 
-!--------------------------------------------------------------------------                              
-!        CALL section_vals_val_set(this%root_section, &
-!                                  "FORCE_EVAL%DFT%CHARGE", &
-!                                  i_val=this%charge, error = this%error)
-!        !here LSD should be enabled if charge is not 0 
-!        if(this%charge .ne. 0) then
-!            CALL section_vals_val_set(this%root_section, &
-!                                  "FORCE_EVAL%DFT%LSD", &
-!                                  l_val=.TRUE., error = this%error)
-!        else
-!            CALL section_vals_val_set(this%root_section, &
-!                                  "FORCE_EVAL%DFT%LSD", &
-!                                  l_val=.FALSE., error = this%error)
-!        endif
-!    
+    if (associated(xopt_ptr)) then
+     CALL section_vals_val_set(this%root_section, &
+                               "FORCE_EVAL%DFT%QS%SCPTB%XOPT", &
+                               r_vals_ptr=xopt_ptr, error= this%error)
+    !print *,'after xopt set' 
+    endif
+    !--------------------------------------------------------------------------                              
+    CALL section_vals_val_set(this%root_section, &
+                               "FORCE_EVAL%DFT%CHARGE", &
+                               i_val=this%charge, error = this%error)
+    !here LSD should be enabled if charge is not 0 
+    if(this%charge .ne. 0) then
+         CALL section_vals_val_set(this%root_section, &
+                               "FORCE_EVAL%DFT%LSD", &
+                               l_val=.TRUE., error = this%error)
+    else
+         CALL section_vals_val_set(this%root_section, &
+                               "FORCE_EVAL%DFT%LSD", &
+                               l_val=.FALSE., error = this%error)
+    endif
     !-------------------create force env------------------------
     CALL create_force_env(this%f_env_id, &
                             input_declaration=this%input_declaration,&
@@ -401,7 +404,6 @@ MODULE paramopt_worker
                                                         "SUBSYS",error=this%error)
     CALL calc_energy_force(this%f_env_id, .TRUE. ,ierr)
     CALL get_energy(this%f_env_id,energy,ierr)
-    print *,'yannick',energy
     if (this%force_env%qs_env%converged) then
        this%converged = 1
     else
@@ -428,7 +430,6 @@ MODULE paramopt_worker
                 this%converged = 0
                 energy = huge(1._dp)
            endif
-           print *,'yannick2',energy,rmsd
            deallocate(pos,pos2,g)!
         else 
             energy = huge(1._dp)
