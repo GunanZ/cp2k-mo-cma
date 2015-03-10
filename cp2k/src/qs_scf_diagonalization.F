@@ -11,7 +11,7 @@
 !>      05.2009
 ! *****************************************************************************
 MODULE qs_scf_diagonalization
-  USE cp_array_r_utils,                ONLY: cp_1d_r_p_type
+  USE cp_array_utils_r,                ONLY: cp_1d_r_p_type
   USE cp_cfm_basic_linalg,             ONLY: cp_cfm_add_fm
   USE cp_cfm_diag,                     ONLY: cp_cfm_geeig
   USE cp_cfm_types,                    ONLY: cp_cfm_create,&
@@ -325,7 +325,6 @@ CONTAINS
 !> \param matrix_s     Overlap matrices (RS indices, global)
 !> \param kpoints      Kpoint environment
 !> \param scf_control  SCF control variables
-!> \param scf_section  SCF section (input)
 !> \param diis_step    Have we done a DIIS step
 !> \param error        CP2K error handling
 !> \par History
@@ -333,14 +332,13 @@ CONTAINS
 ! *****************************************************************************
 
   SUBROUTINE do_general_diag_kp(scf_env,matrix_ks,matrix_s,kpoints,&
-                                scf_control,scf_section,diis_step,error)
+                                scf_control,diis_step,error)
 
     TYPE(qs_scf_env_type), POINTER           :: scf_env
     TYPE(cp_dbcsr_p_type), DIMENSION(:, :), &
       POINTER                                :: matrix_ks, matrix_s
     TYPE(kpoint_type), POINTER               :: kpoints
     TYPE(scf_control_type), POINTER          :: scf_control
-    TYPE(section_vals_type), POINTER         :: scf_section
     LOGICAL, INTENT(INOUT)                   :: diis_step
     TYPE(cp_error_type), INTENT(inout)       :: error
 
@@ -652,8 +650,8 @@ CONTAINS
 
     ! mixing storage allocation
     IF (subspace_env%mixing_method>=gspace_mixing_nr) THEN
-         CALL mixing_allocate(qs_env,scf_env,nspins=nspin,mixing_method=subspace_env%mixing_method,&
-                mixing_store=subspace_env%mixing_store, error=error)
+         CALL mixing_allocate(qs_env,subspace_env%mixing_method,scf_env%p_mix_new, &
+                              scf_env%p_delta,nspin,subspace_env%mixing_store,error)
          IF(dft_control%qs_control%gapw) THEN
             CALL get_qs_env(qs_env=qs_env,&
                  rho_atom_set=rho_atom,error=error)
@@ -744,8 +742,8 @@ CONTAINS
       CALL qs_rho_update_rho(rho, qs_env=qs_env, error=error)
       ! Mixing in reciprocal space
       IF(subspace_env%mixing_method>=gspace_mixing_nr) THEN
-         CALL gspace_mixing(qs_env, scf_env, subspace_env%mixing_store, &
-            rho, para_env, error=error)
+         CALL gspace_mixing(qs_env, scf_env%mixing_method, subspace_env%mixing_store, &
+            rho, para_env, scf_env%iter_count, error=error)
       END IF
 
       ene_diff =  energy%total-ene_old

@@ -8,10 +8,11 @@ from glob import glob
 from itertools import product, chain
 from optparse import OptionParser
 
-from kernels.cusmm_dnt_largeDB import Kernel_dnt_largeDB
-from kernels.cusmm_dnt_medium  import Kernel_dnt_medium
-from kernels.cusmm_dnt_small   import Kernel_dnt_small
-from kernels.cusmm_dnt_tiny    import Kernel_dnt_tiny
+from kernels.cusmm_dnt_largeDB  import Kernel_dnt_largeDB
+from kernels.cusmm_dnt_largeDB2 import Kernel_dnt_largeDB2
+from kernels.cusmm_dnt_medium   import Kernel_dnt_medium
+from kernels.cusmm_dnt_small    import Kernel_dnt_small
+from kernels.cusmm_dnt_tiny     import Kernel_dnt_tiny
 
 #===============================================================================
 def main():
@@ -31,7 +32,7 @@ def main():
     usage = "Generator of LibCuSMM. The Library for Cuda Small Matrix Multiplications."
     parser = OptionParser(usage)
     parser.add_option("-p", "--params", metavar="filename.txt",
-        default="parameters.txt",
+        default="parameters_K20X.txt",
         help="Default: %default")
 
     (options, args) = parser.parse_args()
@@ -67,10 +68,10 @@ def make_plan(triples, param_fn):
 
 #===============================================================================
 def gen_library(plan):
-    output  = "/******************************************************************************\n"
-    output += "*  CP2K: A general program to perform molecular dynamics simulations\n"
-    output += "*  Copyright (C) 2000 - 2013 the CP2K developers group\n"
-    output += "*****************************************************************************/\n"
+    output  = "/*****************************************************************************\n"
+    output += " *  CP2K: A general program to perform molecular dynamics simulations        *\n"
+    output += " *  Copyright (C) 2000 - 2015  CP2K developers group                         *\n"
+    output += " *****************************************************************************/\n"
 
     for i in get_includes(plan):
         output += '#include "%s"\n'%i
@@ -172,7 +173,7 @@ def gen_process(plan):
 def gen_list(plan):
     output  = "void libcusmm_list_blocksizes_d(const int **list, int *length) {\n"
     output += "static const int blocksizes_d[] = { \n"
-    for mnk in plan.keys():
+    for mnk in sorted(plan.keys()):
         output += " %d, %d, %d,\n"%mnk
     output += "};\n\n"
 

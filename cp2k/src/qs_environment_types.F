@@ -47,9 +47,6 @@ MODULE qs_environment_types
                                              ewald_pw_type
   USE fist_nonbond_env_types,          ONLY: fist_nonbond_env_release,&
                                              fist_nonbond_env_type
-  USE ga_environment_types,            ONLY: ga_env_release,&
-                                             ga_env_retain,&
-                                             ga_environment_type
   USE global_types,                    ONLY: global_environment_type
   USE hartree_local_types,             ONLY: ecoul_1center_type,&
                                              get_hartree_local,&
@@ -224,7 +221,6 @@ MODULE qs_environment_types
     REAL(KIND=dp),DIMENSION(:),POINTER                    :: image_coeff
     INTEGER,DIMENSION(:),POINTER                          :: ipiv
     INTEGER                                               :: sim_step
-    TYPE(ga_environment_type), POINTER                    :: ga_env
     TYPE(ls_scf_env_type), POINTER                        :: ls_scf_env
     TYPE(transport_env_type), POINTER                     :: transport_env
     TYPE(cell_type), POINTER                              :: super_cell
@@ -436,7 +432,6 @@ CONTAINS
 !> \param mp2_env ...
 !> \param kg_env ...
 !> \param WannierCentres ...
-!> \param ga_env ...
 !> \param atprop ...
 !> \param ls_scf_env ...
 !> \param do_transport ...
@@ -472,7 +467,7 @@ CONTAINS
        outer_scf_history,outer_scf_ihistory,x_data,et_coupling,dftb_potential,results,&
        se_taper,se_store_int_env,se_nddo_mpole,se_nonbond_env, admm_env, admm_dm, &
        lri_env,lri_density,dispersion_env, vee,rho_external,external_vxc,mask,&
-       mp2_env,kg_env,WannierCentres,ga_env,atprop,ls_scf_env,do_transport, transport_env,v_hartree_rspace,&
+       mp2_env,kg_env,WannierCentres,atprop,ls_scf_env,do_transport, transport_env,v_hartree_rspace,&
        s_mstruct_changed,rho_changed,potential_changed,forces_up_to_date,mscfg_env,&
        error)
     TYPE(qs_environment_type), POINTER       :: qs_env
@@ -623,8 +618,6 @@ CONTAINS
       POINTER                                :: kg_env
     TYPE(wannier_centres_type), &
       DIMENSION(:), OPTIONAL, POINTER        :: WannierCentres
-    TYPE(ga_environment_type), OPTIONAL, &
-      POINTER                                :: ga_env
     TYPE(atprop_type), OPTIONAL, POINTER     :: atprop
     TYPE(ls_scf_env_type), OPTIONAL, POINTER :: ls_scf_env
     LOGICAL, OPTIONAL                        :: do_transport
@@ -653,7 +646,6 @@ CONTAINS
 
     IF (PRESENT(outer_scf_history)) outer_scf_history=>qs_env%outer_scf_history
     IF (PRESENT(outer_scf_ihistory)) outer_scf_ihistory=qs_env%outer_scf_ihistory
-    IF (PRESENT(ga_env)) ga_env => qs_env%ga_env
     IF (PRESENT(mp2_env)) mp2_env => qs_env%mp2_env
     IF (PRESENT(kg_env)) kg_env => qs_env%kg_env
     IF (PRESENT(super_cell)) super_cell => qs_env%super_cell
@@ -843,7 +835,6 @@ CONTAINS
     NULLIFY (qs_env%image_matrix)
     NULLIFY (qs_env%ipiv)
     NULLIFY (qs_env%image_coeff)
-    NULLIFY (qs_env%ga_env)
     NULLIFY (qs_env%super_cell)
     NULLIFY (qs_env%mos)
     NULLIFY (qs_env%mos_aux_fit)
@@ -981,7 +972,6 @@ CONTAINS
 !> \param mp2_env ...
 !> \param kg_env ...
 !> \param WannierCentres ...
-!> \param ga_env ...
 !> \param error ...
 !> \date    23.01.2002
 !> \author  MK
@@ -1000,7 +990,7 @@ CONTAINS
        outer_scf_history,outer_scf_ihistory,x_data,et_coupling,dftb_potential,&
        se_taper,se_store_int_env,se_nddo_mpole,se_nonbond_env,admm_env,ls_scf_env,&
        do_transport, transport_env,lri_env,lri_density,dispersion_env,mp2_env,kg_env,&
-       WannierCentres,ga_env,error)
+       WannierCentres,error)
 
     TYPE(qs_environment_type), POINTER       :: qs_env
     TYPE(cell_type), OPTIONAL, POINTER       :: super_cell
@@ -1089,8 +1079,6 @@ CONTAINS
       POINTER                                :: kg_env
     TYPE(wannier_centres_type), &
       DIMENSION(:), OPTIONAL, POINTER        :: WannierCentres
-    TYPE(ga_environment_type), OPTIONAL, &
-      POINTER                                :: ga_env
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
     CHARACTER(len=*), PARAMETER :: routineN = 'set_qs_env', &
@@ -1101,11 +1089,6 @@ CONTAINS
     failure=.FALSE.
 !    CPPrecondition(ASSOCIATED(qs_env),cp_failure_level,routineP,error,failure)
     CPPrecondition(qs_env%ref_count>0,cp_failure_level,routineP,error,failure)
-    IF (PRESENT(ga_env)) THEN
-       CALL ga_env_retain(ga_env, error)
-       CALL ga_env_release(qs_env%ga_env,error)
-       qs_env%ga_env => ga_env
-    END IF
     IF (PRESENT(mp2_env)) qs_env%mp2_env=>mp2_env
     IF (PRESENT(kg_env)) qs_env%kg_env => kg_env
     IF (PRESENT(super_cell)) THEN
@@ -1346,7 +1329,6 @@ CONTAINS
        CPPrecondition(qs_env%ref_count>0,cp_failure_level,routineP,error,failure)
        qs_env%ref_count=qs_env%ref_count-1
        IF (qs_env%ref_count<1) THEN
-          CALL ga_env_release(qs_env%ga_env,error=error)
           CALL cell_release(qs_env%super_cell,error=error)
           IF (ASSOCIATED(qs_env%mos)) THEN
              DO i=1,SIZE(qs_env%mos)

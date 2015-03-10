@@ -15,7 +15,7 @@ MODULE xas_tp_scf
                                              get_atomic_kind
   USE cell_types,                      ONLY: cell_type,&
                                              pbc
-  USE cp_array_r_utils,                ONLY: cp_2d_r_p_type
+  USE cp_array_utils_r,                ONLY: cp_2d_r_p_type
   USE cp_blacs_env,                    ONLY: cp_blacs_env_type
   USE cp_control_types,                ONLY: dft_control_type
   USE cp_dbcsr_interface,              ONLY: cp_dbcsr_copy,&
@@ -349,7 +349,8 @@ CONTAINS
        ! ** update qs_env%rho
        CALL qs_rho_update_rho(rho, qs_env=qs_env, error=error)
        IF(scf_env%mixing_method>=gspace_mixing_nr) THEN
-          CALL gspace_mixing(qs_env, scf_env, scf_env%mixing_store, rho, para_env, error=error)
+          CALL gspace_mixing(qs_env, scf_env%mixing_method, scf_env%mixing_store, rho, para_env, &
+                             scf_env%iter_count, error=error)
        END IF
 
        CALL qs_ks_did_change(ks_env,rho_changed=.TRUE.,error=error)

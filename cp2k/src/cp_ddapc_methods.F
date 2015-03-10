@@ -273,11 +273,8 @@ CONTAINS
                    idim2 = (iparticle2-1)*SIZE(radii)+igauss2
                    my_Amw(s_dim:igmax) = my_Am(s_dim:igmax)*gfunc_sq(s_dim:igmax,igauss1,igauss2)
 !NB no loss of accuracy in my test cases
-#ifdef ACCURATE_SUMS
-                   tmp = accurate_sum(my_Amw)
-#else
+                   !tmp = accurate_sum(my_Amw)
                    tmp = SUM(my_Amw)
-#endif
                    Am (idim2,idim1) = tmp
                    Am (idim1,idim2) = tmp
                 END DO
@@ -669,7 +666,7 @@ CONTAINS
        CALL prep_g_dot_rvec_sin_cos(rho_tot_g, particle_set, gcut, g_dot_rvec_sin, g_dot_rvec_cos, error)
        CALL build_A_matrix(Am, gfunc, w, particle_set, radii, rho_tot_g, gcut, g_dot_rvec_sin, g_dot_rvec_cos, error)
        CALL cleanup_g_dot_rvec_sin_cos(g_dot_rvec_sin, g_dot_rvec_cos, error)
-       Am = Am / (Vol*Vol)
+       Am(:,:) = Am(:,:) / (Vol*Vol)
        CALL mp_sum(Am,rho_tot_g%pw_grid%para%group)
        IF (iw>0) THEN
           ! Checking conditions numbers and eigenvalues

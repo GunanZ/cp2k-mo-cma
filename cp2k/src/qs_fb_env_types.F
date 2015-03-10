@@ -1,3 +1,8 @@
+!-----------------------------------------------------------------------------!
+!   CP2K: A general program to perform molecular dynamics simulations         !
+!   Copyright (C) 2000 - 2015  CP2K developers group                          !
+!-----------------------------------------------------------------------------!
+
 MODULE qs_fb_env_types
 
   USE kinds,                           ONLY: dp
@@ -140,8 +145,9 @@ CONTAINS
           DEALLOCATE(fb_env%obj, STAT=stat)
           CPPostcondition(stat==0, cp_failure_level, routineP, error, failure)
        END IF
+    ELSE
+       NULLIFY(fb_env%obj)
     END IF
-    NULLIFY(fb_env%obj)
   END SUBROUTINE fb_env_release
 
 

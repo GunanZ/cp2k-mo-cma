@@ -17,7 +17,7 @@ MODULE qs_loc_utils
   USE block_p_types,                   ONLY: block_p_type
   USE cell_types,                      ONLY: cell_type,&
                                              pbc
-  USE cp_array_r_utils,                ONLY: cp_1d_r_p_type
+  USE cp_array_utils_r,                ONLY: cp_1d_r_p_type
   USE cp_dbcsr_interface,              ONLY: cp_dbcsr_copy,&
                                              cp_dbcsr_get_block_p,&
                                              cp_dbcsr_init,&
@@ -197,7 +197,7 @@ CONTAINS
     ALLOCATE(eigenvalues(ncol))
     CALL choose_eigv_solver(o2,o3,eigenvalues,error=error)
     CALL cp_fm_to_fm(o3,o4,error=error)
-    eigenvalues=1.0_dp/SQRT(eigenvalues)
+    eigenvalues(:) = 1.0_dp/SQRT(eigenvalues(:))
     CALL cp_fm_column_scale(o4,eigenvalues)
     CALL cp_gemm('N','T',ncol,ncol,ncol,1.0_dp,o3,o4,0.0_dp,o2,error=error)
 

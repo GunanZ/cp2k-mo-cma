@@ -1,3 +1,8 @@
+!-----------------------------------------------------------------------------!
+!   CP2K: A general program to perform molecular dynamics simulations         !
+!   Copyright (C) 2000 - 2015  CP2K developers group                          !
+!-----------------------------------------------------------------------------!
+
 MODULE qs_fb_atomic_halo_types
 
   USE atomic_kind_types,               ONLY: atomic_kind_type,&
@@ -11,6 +16,8 @@ MODULE qs_fb_atomic_halo_types
   USE kinds,                           ONLY: default_string_length
   USE particle_types,                  ONLY: particle_type
   USE string_utilities,                ONLY: compress
+  USE timings,                         ONLY: timeset,&
+                                             timestop
   USE util,                            ONLY: locate,&
                                              sort
 #include "./common/cp_common_uses.f90"
@@ -53,7 +60,7 @@ MODULE qs_fb_atomic_halo_types
   INTEGER, PRIVATE, SAVE :: last_fb_atomic_halo_list_id = 0
 
 
-!**********************************************************************
+! *****************************************************************************
 !> \brief derived type containing the list of atoms in an atomic halo,
 !>        used by filtered-basis diagonalisation method
 !> \param id_nr            : unique id for the object
@@ -65,7 +72,7 @@ MODULE qs_fb_atomic_halo_types
 !> \param halo_atoms       : the list of global id of atoms in the halo
 !> \param sorted           : whether the halo_atoms list is sorted or not
 !> \author Lianheng Tong (LT) lianheng.tong@kcl.ac.uk
-!**********************************************************************
+! *****************************************************************************
   TYPE fb_atomic_halo_data
      INTEGER :: id_nr, ref_count
      INTEGER :: owner_atom
@@ -77,16 +84,16 @@ MODULE qs_fb_atomic_halo_types
   END TYPE fb_atomic_halo_data
 
 
-!**********************************************************************
+! *****************************************************************************
 !> \brief defines a fb_atomic_halo object
 !> \author Lianheng Tong (LT) lianheng.tong@kcl.ac.uk
-!**********************************************************************
+! *****************************************************************************
   TYPE fb_atomic_halo_obj
      TYPE(fb_atomic_halo_data), POINTER, PRIVATE :: obj
   END TYPE fb_atomic_halo_obj
 
 
-!**********************************************************************
+! *****************************************************************************
 !> \brief derived type describing an atomic halo list used by
 !>        filtered-basis diagonalisation method
 !> \param id_nr     : unique id for the object
@@ -95,7 +102,7 @@ MODULE qs_fb_atomic_halo_types
 !> \param max_nhalos : maximum of the number of halos amongst all of the procs
 !> \param halos   : halos(ihalo) gives the ihalo-th fb_atomic_halo object
 !> \author Lianheng Tong (LT) lianheng.tong@kcl.ac.uk
-!**********************************************************************
+! *****************************************************************************
   TYPE fb_atomic_halo_list_data
      INTEGER :: id_nr, ref_count
      INTEGER :: nhalos
@@ -104,10 +111,10 @@ MODULE qs_fb_atomic_halo_types
   END TYPE fb_atomic_halo_list_data
 
 
-!**********************************************************************
+! *****************************************************************************
 !> \brief defines a fb_atomic_halo_list object
 !> \author Lianheng Tong (LT) lianheng.tong@kcl.ac.uk
-!**********************************************************************
+! *****************************************************************************
   TYPE fb_atomic_halo_list_obj
      TYPE(fb_atomic_halo_list_data), POINTER, PRIVATE :: obj
   END TYPE fb_atomic_halo_list_obj
@@ -116,7 +123,7 @@ MODULE qs_fb_atomic_halo_types
 CONTAINS
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Retains an fb_atomic_halo object
 !> \param atomic_halo the fb_atomic_halo object, its content must
 !>                     not be NULL or UNDEFINED
@@ -143,12 +150,12 @@ CONTAINS
   END SUBROUTINE fb_atomic_halo_retain
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Releases an fb_atomic_halo object
 !> \param atomic_halo the fb_atomic_halo object, its content must
 !>                     not be UNDEFINED, and the subroutine does nothing
 !>                     if the content points to NULL
-!> \param error CP2K data container for error logging 
+!> \param error CP2K data container for error logging
 !> \author Lianheng Tong (LT) lianheng.tong@kcl.ac.uk
 ! *****************************************************************************
   SUBROUTINE fb_atomic_halo_release(atomic_halo, error)
@@ -164,27 +171,33 @@ CONTAINS
     failure = .FALSE.
     IF (ASSOCIATED(atomic_halo%obj)) THEN
        CPPreconditionNoFail(atomic_halo%obj%ref_count>0, cp_failure_level, routineP, error)
-       IF (ASSOCIATED(atomic_halo%obj%halo_atoms)) THEN
-          ! note that if there are other pointers associated to the memory pointed
-          ! by atomic_halo%obj%halo_atoms, their behaviour becomes undefined per
-          ! FORTRAN standard (and thus becomes compiler dependent and unreliable)
-          ! after the following DEALLOCATE
-          DEALLOCATE(atomic_halo%obj%halo_atoms, stat=stat)
+       atomic_halo%obj%ref_count = atomic_halo%obj%ref_count - 1
+       IF (atomic_halo%obj%ref_count == 0) THEN
+          atomic_halo%obj%ref_count = 1
+          IF (ASSOCIATED(atomic_halo%obj%halo_atoms)) THEN
+             ! note that if there are other pointers associated to the memory pointed
+             ! by atomic_halo%obj%halo_atoms, their behaviour becomes undefined per
+             ! FORTRAN standard (and thus becomes compiler dependent and unreliable)
+             ! after the following DEALLOCATE
+             DEALLOCATE(atomic_halo%obj%halo_atoms, STAT=stat)
+             CPPostcondition(stat==0, cp_failure_level, routineP, error, failure)
+          END IF
+          atomic_halo%obj%ref_count = 0
+          DEALLOCATE(atomic_halo%obj, STAT=stat)
           CPPostcondition(stat==0, cp_failure_level, routineP, error, failure)
        END IF
-       DEALLOCATE(atomic_halo%obj, stat=stat)
-       CPPostcondition(stat==0, cp_failure_level, routineP, error, failure)
+    ELSE
+       NULLIFY(atomic_halo%obj)
     END IF
-    NULLIFY(atomic_halo%obj)
   END SUBROUTINE fb_atomic_halo_release
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Nullifies a fb_atomic_halo object, note that it does not
 !>        release the original object. This procedure is used to nullify
 !>        the pointer contained in the object which is used to associate
 !>        to the actual object content
-!> \param atomic_halo the fb_atomic_halo object 
+!> \param atomic_halo the fb_atomic_halo object
 !> \author Lianheng Tong (LT) lianheng.tong@kcl.ac.uk
 ! *****************************************************************************
   SUBROUTINE fb_atomic_halo_nullify(atomic_halo)
@@ -197,10 +210,10 @@ CONTAINS
   END SUBROUTINE fb_atomic_halo_nullify
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Associates one fb_atomic_halo object to another
-!> \param a the fb_atomic_halo object to be associated 
-!> \param b the fb_atomic_halo object that a is to be associated to 
+!> \param a the fb_atomic_halo object to be associated
+!> \param b the fb_atomic_halo object that a is to be associated to
 !> \author Lianheng Tong (LT) lianheng.tong@kcl.ac.uk
 ! *****************************************************************************
   SUBROUTINE fb_atomic_halo_associate(a, b)
@@ -214,16 +227,15 @@ CONTAINS
   END SUBROUTINE fb_atomic_halo_associate
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Checks if a fb_atomic_halo object is associated with an actual
 !>        data content or not
-!> \param atomic_halo the fb_atomic_halo object 
+!> \param atomic_halo the fb_atomic_halo object
 !> \retval res ...
 !> \author Lianheng Tong (LT) lianheng.tong@kcl.ac.uk
 ! *****************************************************************************
   FUNCTION fb_atomic_halo_has_data(atomic_halo) RESULT(res)
-    TYPE(fb_atomic_halo_list_obj), &
-      INTENT(IN)                             :: atomic_halo
+    TYPE(fb_atomic_halo_obj), INTENT(IN)     :: atomic_halo
     LOGICAL                                  :: res
 
     CHARACTER(len=*), PARAMETER :: routineN = 'fb_atomic_halo_has_data', &
@@ -233,11 +245,11 @@ CONTAINS
   END FUNCTION fb_atomic_halo_has_data
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Creates and initialises an empty fb_atomic_halo object
 !> \param atomic_halo the fb_atomic_halo object, its content must
-!>                     be NULL and cannot be UNDEFINED 
-!> \param error CP2K data container for error logging 
+!>                     be NULL and cannot be UNDEFINED
+!> \param error CP2K data container for error logging
 !> \author Lianheng Tong (LT) lianheng.tong@kcl.ac.uk
 ! *****************************************************************************
   SUBROUTINE fb_atomic_halo_create(atomic_halo, error)
@@ -268,10 +280,10 @@ CONTAINS
   END SUBROUTINE fb_atomic_halo_create
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Initialises an fb_atomic_halo object, and makes it empty
 !> \param atomic_halo the fb_atomic_halo object, its content must
-!>                     not be NULL or UNDEFINED 
+!>                     not be NULL or UNDEFINED
 !> \param error CP2K data container for error logging
 !> \author Lianheng Tong (LT) lianheng.tong@kcl.ac.uk
 ! *****************************************************************************
@@ -303,12 +315,12 @@ CONTAINS
   END SUBROUTINE fb_atomic_halo_init
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Gets attributes from a fb_atomic_halo object, one should
 !>        only access the data content in a fb_atomic_halo outside
 !>        this module via this procedure.
 !> \param atomic_halo the fb_atomic_halo object, its content must
-!>                     not be NULL or UNDEFINED 
+!>                     not be NULL or UNDEFINED
 !> \param owner_atom [OPTIONAL]: if present, outputs atmic_halo%obj%owner_atom
 !> \param owner_id_in_halo ...
 !> \param natoms [OPTIONAL]: if present, outputs atomic_halo%obj%natoms
@@ -352,7 +364,7 @@ CONTAINS
   END SUBROUTINE fb_atomic_halo_get
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Sets attributes in a fb_atomic_halo object, one should
 !>        only set the data content in a fb_atomic_halo from outside
 !>        this module via this procedure.
@@ -411,11 +423,11 @@ CONTAINS
   END SUBROUTINE fb_atomic_halo_set
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Sort the list of atomic indices in the halo in accending order.
 !>        The atomic_halo must not be empty
 !> \param atomic_halo  the atomic_halo object
-!> \param error CP2K data container for error logging 
+!> \param error CP2K data container for error logging
 !> \author Lianheng Tong (LT) lianheng.tong@kcl.ac.uk
 ! *****************************************************************************
   SUBROUTINE fb_atomic_halo_sort(atomic_halo, error)
@@ -440,7 +452,7 @@ CONTAINS
   END SUBROUTINE fb_atomic_halo_sort
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Given a global atomic index, convert it to its index in a
 !>        given atomic halo, if found.
 !>        The atomic_halo object must already have been sorted
@@ -449,7 +461,7 @@ CONTAINS
 !> \param iatom_halo  the atomic index inside the halo
 !> \param found  returns true if given atom is in the halo, otherwise
 !>                false
-!> \param error CP2K data container for error logging 
+!> \param error CP2K data container for error logging
 !> \author Lianheng Tong (LT) lianheng.tong@kcl.ac.uk
 ! *****************************************************************************
   SUBROUTINE fb_atomic_halo_atom_global2halo(atomic_halo, &
@@ -467,7 +479,10 @@ CONTAINS
       routineN = 'fb_atomic_halo_atom_global2halo', &
       routineP = moduleN//':'//routineN
 
+    INTEGER                                  :: handle
     LOGICAL                                  :: failure
+
+    CALL timeset(routineN, handle)
 
     failure = .FALSE.
     CPPrecondition(atomic_halo%obj%sorted, cp_failure_level, routineP, error, failure)
@@ -477,11 +492,13 @@ CONTAINS
     ELSE
        found = .TRUE.
     END IF
+
+    CALL timestop(handle)
+
   END SUBROUTINE fb_atomic_halo_atom_global2halo
 
 
-
-! **********************************************************************
+! *****************************************************************************
 !> \brief Estimates the total number of electrons in a halo using atomic
 !>        numbers
 !> \param atomic_halo the atomic_halo object
@@ -518,7 +535,7 @@ CONTAINS
   END FUNCTION fb_atomic_halo_nelectrons_estimate_Z
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Retains an fb_atomic_halo_list object
 !> \param atomic_halos the fb_atomic_halo object, its content must
 !>                      not be NULL or UNDEFINED
@@ -544,7 +561,7 @@ CONTAINS
   END SUBROUTINE fb_atomic_halo_list_retain
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Releases an fb_atomic_halo_list object
 !> \param atomic_halos the fb_atomic_halo object, its content must
 !>                      not be UNDEFINED, and does nothing if it is NULL
@@ -579,12 +596,13 @@ CONTAINS
           DEALLOCATE(atomic_halos%obj, STAT=stat)
           CPPostcondition(stat==0, cp_failure_level, routineP, error, failure)
        END IF
+    ELSE
+       NULLIFY(atomic_halos%obj)
     END IF
-    NULLIFY(atomic_halos%obj)
   END SUBROUTINE fb_atomic_halo_list_release
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Nullifies a fb_atomic_halo_list object, note that it does
 !>        not release the original object. This procedure is used to
 !>        nullify the pointer contained in the object which is used to
@@ -603,7 +621,7 @@ CONTAINS
   END SUBROUTINE fb_atomic_halo_list_nullify
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Checks if a fb_atomic_halo_list object is associated with
 !>        an actual data content or not
 !> \param atomic_halos the fb_atomic_halo_list object
@@ -622,7 +640,7 @@ CONTAINS
   END FUNCTION fb_atomic_halo_list_has_data
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Associates one fb_atomic_halo_list object to another
 !> \param a the fb_atomic_halo_list object to be associated
 !> \param b the fb_atomic_halo_list object that a is to be associated to
@@ -642,7 +660,7 @@ CONTAINS
   END SUBROUTINE fb_atomic_halo_list_associate
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Creates and initialises an empty fb_atomic_halo_list object
 !> \param atomic_halos the fb_atomic_halo object, its content must
 !>                      not be NULL or UNDEFINED
@@ -675,7 +693,7 @@ CONTAINS
   END SUBROUTINE fb_atomic_halo_list_create
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Initialises an fb_atomic_halo_list object and make it empty
 !> \param atomic_halos the fb_atomic_halo object, its content must
 !>                      not be NULL or UNDEFINED
@@ -711,7 +729,7 @@ CONTAINS
   END SUBROUTINE fb_atomic_halo_list_init
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Gets attributes from an fb_atomic_halo_list object, one should
 !>        only access the data content in a fb_atomic_halo_list outside
 !>        this module via this procedure.
@@ -746,7 +764,7 @@ CONTAINS
   END SUBROUTINE fb_atomic_halo_list_get
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Sets attributes from an fb_atomic_halo_list object, one should
 !>        only set the data content in a fb_atomic_halo_list outside
 !>        this module via this procedure.
@@ -779,11 +797,6 @@ CONTAINS
        IF (PRESENT(nhalos)) atomic_halos%obj%nhalos = nhalos
        IF (PRESENT(max_nhalos)) atomic_halos%obj%max_nhalos = max_nhalos
        IF (PRESENT(halos)) THEN
-          IF (ASSOCIATED(halos)) THEN
-             DO ihalo = 1, SIZE(halos)
-                CALL fb_atomic_halo_retain(halos(ihalo), error)
-             END DO
-          END IF
           IF (ASSOCIATED(atomic_halos%obj%halos)) THEN
              DO ihalo = 1, SIZE(atomic_halos%obj%halos)
                 CALL fb_atomic_halo_release(atomic_halos%obj%halos(ihalo), error)
@@ -797,7 +810,7 @@ CONTAINS
   END SUBROUTINE fb_atomic_halo_list_set
 
 
-! **********************************************************************
+! *****************************************************************************
 !> \brief Writes out the atomic halo list from an fb_atomic_halo_list
 !>        object using information
 !> \param atomic_halos the fb_atomic_halo object

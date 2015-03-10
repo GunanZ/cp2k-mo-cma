@@ -1,7 +1,8 @@
 !-----------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations         !
-!   Copyright (C) 2014  CP2K developers group   !
+!   Copyright (C) 2000 - 2015  CP2K developers group                          !
 !-----------------------------------------------------------------------------!
+
 ! *****************************************************************************
 !> \brief   This is the start of a dbcsr_api, all publically needed functions
 !>          are exported here. The others remain private to the library.
@@ -37,12 +38,11 @@ MODULE dbcsr_api
        accdrv_do_inhomogenous, accdrv_min_flop_process, accdrv_min_flop_sort, &
        accdrv_posterior_buffers, accdrv_posterior_streams, &
        accdrv_priority_buffers, accdrv_priority_streams, &
-       dbcsr_get_conf_combtypes, dbcsr_get_conf_comm_thread_load, &
-       dbcsr_get_conf_max_ele_block, dbcsr_get_conf_max_elements_images, &
-       dbcsr_get_conf_mm_driver, dbcsr_get_conf_mm_stacksize, &
-       dbcsr_get_conf_mpi_mem, dbcsr_get_conf_nstacks, &
-       dbcsr_get_conf_subcomm, dbcsr_get_conf_use_comm_thread, &
-       dbcsr_set_conf_combtypes, dbcsr_set_conf_comm_thread_load, &
+       dbcsr_get_conf_comm_thread_load, dbcsr_get_conf_max_ele_block, &
+       dbcsr_get_conf_max_elements_images, dbcsr_get_conf_mm_driver, &
+       dbcsr_get_conf_mm_stacksize, dbcsr_get_conf_mpi_mem, &
+       dbcsr_get_conf_nstacks, dbcsr_get_conf_subcomm, &
+       dbcsr_get_conf_use_comm_thread, dbcsr_set_conf_comm_thread_load, &
        dbcsr_set_conf_external_timing, dbcsr_set_conf_max_ele_block, &
        dbcsr_set_conf_max_elements_images, dbcsr_set_conf_mm_driver, &
        dbcsr_set_conf_mm_stacksize, dbcsr_set_conf_mpi_mem, &
@@ -55,7 +55,7 @@ MODULE dbcsr_api
        convert_csr_to_dbcsr, convert_dbcsr_to_csr, csr_create, &
        csr_create_from_dbcsr, csr_create_new, csr_create_template, &
        csr_dbcsr_blkrow_dist, csr_destroy, csr_eqrow_ceil_dist, &
-       csr_eqrow_floor_dist, csr_type, csr_write
+       csr_eqrow_floor_dist, csr_print_sparsity, csr_type, csr_write
   USE dbcsr_data_methods,              ONLY: &
        dbcsr_data_clear_pointer, dbcsr_data_init, dbcsr_data_new, &
        dbcsr_data_release, dbcsr_get_data_p, dbcsr_scalar, &
@@ -244,7 +244,6 @@ MODULE dbcsr_api
             dbcsr_gershgorin_norm,&
             dbcsr_get_block_diag,&
             dbcsr_get_block_p,&
-            dbcsr_get_conf_combtypes,&
             dbcsr_get_conf_comm_thread_load,&
             dbcsr_get_conf_max_ele_block,&
             dbcsr_get_conf_mm_driver,&
@@ -323,7 +322,6 @@ MODULE dbcsr_api
             dbcsr_scale,&
             dbcsr_scale_by_vector,&
             dbcsr_set,&
-            dbcsr_set_conf_combtypes,&
             dbcsr_set_conf_comm_thread_load,&
             dbcsr_set_conf_external_timing,&
             dbcsr_set_conf_max_ele_block,&
@@ -382,5 +380,6 @@ MODULE dbcsr_api
             csr_dbcsr_blkrow_dist,& 
             csr_eqrow_ceil_dist,&
             csr_eqrow_floor_dist,&
+            csr_print_sparsity,&
             dbcsr_get_nze
 END MODULE dbcsr_api
