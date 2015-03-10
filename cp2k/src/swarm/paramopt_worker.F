@@ -73,6 +73,7 @@ MODULE paramopt_worker
    REAL(KIND=dp),DIMENSION(:),POINTER       :: func
    INTEGER                                  :: n
    INTEGER                                  :: m
+   INTEGER                                  :: database
    TYPE(cp_error_type)                      :: error
    TYPE(cp_para_env_type), POINTER          :: para_env
    INTEGER                                  :: f_env_id
@@ -142,6 +143,7 @@ MODULE paramopt_worker
         CALL section_vals_val_get(paramopt_section,"NUM_VAR", i_val=worker%n, error=error)
         CALL section_vals_val_get(paramopt_section,"NUM_OBJ", i_val=worker%m, error=error)
         CALL section_vals_val_get(paramopt_section,"METHOD", i_val=worker%method, error=error) 
+        CALL section_vals_val_get(paramopt_section,"REF_DATABASE", i_val=worker%database, error=error) 
         IF (worker%iw>0) WRITE(worker%iw,*) "paramopt_worker_init called."
         IF (worker%iw>0) WRITE(worker%iw,*) "paramopt_worker_init done."
         allocate(worker%D3(3))
@@ -277,7 +279,7 @@ MODULE paramopt_worker
     LOGICAL                                  :: converged
     INTEGER                                  :: ierr
     INTEGER                                  :: iter,i_inp,charge,i
-    INTEGER                                  :: natoms
+    INTEGER                                  :: natoms,xsize
     REAL(KIND=dp),DIMENSION(:),POINTER       :: x => Null()
     REAL(KIND=dp),POINTER                    :: energy
     REAL(KIND=dp),POINTER                    :: rmsd
@@ -293,6 +295,7 @@ MODULE paramopt_worker
     rmsd => this%func(2)
     energy = 0._dp
     rmsd = 0._dp
+    xsize = size(this%x)
     !CALL swarm_message_get(cmd,"input",input_file)
     !CALL swarm_message_get(cmd,"coord",coord_file)
     !CALL swarm_message_get(cmd,"num_inp",i_inp)
@@ -303,44 +306,55 @@ MODULE paramopt_worker
     !print *,'this is charge', this%charge
     !print *,'this is inp',this%inp_file
     !----for D3 optimization---------------------------
-    allocate(d3_ptr(3)) !gets deallocated automatically ??? at least it seems
-    this%D3 = (/1.0_dp,this%x(4:5)/)
-    !this%D3 = (/1._dp,this%x(1:2)/)
-    !this%D3 = this%x(1:3) 
-    d3_ptr = this%D3
+    !allocate(d3_ptr(3)) !gets deallocated automatically ??? at least it seems
+    !this%D3 = (/1.0_dp,this%x(4:5)/)
+    !!this%D3 = (/1._dp,this%x(1:2)/)
+    !!this%D3 = this%x(1:3) 
+    !d3_ptr = this%D3
     !----for dftb3 param optimization-----------------
-    ! NEEDS TO BE ADJUSTED !!!!!!!!!!!!!!!!!
-    allocate(dftb3_param(4))
-    dftb3_param = this%x(6:7)
-    !allocate(dftb3_param(2))
-    !dftb3_param = this%x(6:7)
+    !!! NEEDS TO BE ADJUSTED !!!!!!!!!!!!!!!!!
+    !if (this%database .eq. 1) then
+    !        allocate(dftb3_param(4))
+    !else 
+    !        allocate(dftb3_param(2))
+    !endif
+    !!dftb3_param = this%x(6:xsize)
+    !dftb3_param = this%x(4:xsize)
+    !!dftb3_param = this%x(3:xsize)
+    !!dftb3_param = this%x(1:xsize)
+    !!allocate(dftb3_param(2))
+    !!dftb3_param = this%x(6:7)
     !---for hb param optimization---------------------
-    allocate(hb_para(3))
-    hb_para = 0._dp
-    hb_para(1) = this%x(1)
-    hb_para(2) = this%x(2)
-    hb_para(3) = this%x(3)
+    !allocate(hb_para(3))
+    !hb_para = 0._dp
+    !hb_para(1) = this%x(1)
+    !hb_para(2) = this%x(2)
+    !hb_para(3) = this%x(3)
    !-------------------------------------------------
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%SUBSYS%TOPOLOGY%COORD_FILE_NAME", &
                               c_val=this%inp_file, error = this%error)
 !---------------------------------------------------------------------------
-    do i=1,size(dftb3_param)
-        CALL section_vals_val_set(this%root_section, &
-                                  i_rep_section=i,&
-                                  keyword_name="FORCE_EVAL%SUBSYS%KIND%DFTB3_PARAM", &
-                                  r_val=dftb3_param(i), error = this%error)
-    enddo
+    if (associated(dftb3_param)) then
+        do i=1,size(dftb3_param)
+            CALL section_vals_val_set(this%root_section, &
+                                      i_rep_section=i,&
+                                      keyword_name="FORCE_EVAL%SUBSYS%KIND%DFTB3_PARAM", &
+                                      r_val=dftb3_param(i), error = this%error)
+        enddo
+    endif
 !-----------------------------------------------------------------------------
+    if (associated(d3_ptr)) then
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%D3_SCALING", &
                               r_vals_ptr=d3_ptr, error = this%error)
-    
+    endif
 !-----------------------------------------------------------------------------
+    if (associated(hb_para)) then
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%HB_SR_PARAM", &
                               r_vals_ptr=hb_para, error = this%error)
-    
+    endif 
 !--------------------------------------------------------------------------
 !    allocate(xopt_ptr(size(this%x)))
 !    xopt_ptr = this%x
@@ -349,19 +363,20 @@ MODULE paramopt_worker
 !                              r_vals_ptr=xopt_ptr, error= this%error)
 !   !print *,'after xopt set' 
 !--------------------------------------------------------------------------                              
-    CALL section_vals_val_set(this%root_section, &
-                              "FORCE_EVAL%DFT%CHARGE", &
-                              i_val=this%charge, error = this%error)
-    !here LSD should be enabled if charge is not 0 
-    if(this%charge .ne. 0) then
-        CALL section_vals_val_set(this%root_section, &
-                              "FORCE_EVAL%DFT%LSD", &
-                              l_val=.TRUE., error = this%error)
-    else
-        CALL section_vals_val_set(this%root_section, &
-                              "FORCE_EVAL%DFT%LSD", &
-                              l_val=.FALSE., error = this%error)
-    endif
+!        CALL section_vals_val_set(this%root_section, &
+!                                  "FORCE_EVAL%DFT%CHARGE", &
+!                                  i_val=this%charge, error = this%error)
+!        !here LSD should be enabled if charge is not 0 
+!        if(this%charge .ne. 0) then
+!            CALL section_vals_val_set(this%root_section, &
+!                                  "FORCE_EVAL%DFT%LSD", &
+!                                  l_val=.TRUE., error = this%error)
+!        else
+!            CALL section_vals_val_set(this%root_section, &
+!                                  "FORCE_EVAL%DFT%LSD", &
+!                                  l_val=.FALSE., error = this%error)
+!        endif
+!    
     !-------------------create force env------------------------
     CALL create_force_env(this%f_env_id, &
                             input_declaration=this%input_declaration,&
@@ -386,8 +401,9 @@ MODULE paramopt_worker
                                                         "SUBSYS",error=this%error)
     CALL calc_energy_force(this%f_env_id, .TRUE. ,ierr)
     CALL get_energy(this%f_env_id,energy,ierr)
+    print *,'yannick',energy
     if (this%force_env%qs_env%converged) then
-        this%converged = 1
+       this%converged = 1
     else
         this%converged = 0
     endif
@@ -407,11 +423,12 @@ MODULE paramopt_worker
                                  0, U,center2,center1, rmsd,.FALSE.,g)
           !----------------calc energy--------------------
            if (this%force_env%qs_env%converged) then
-                this%converged = 1
+               this%converged = 1
            else
                 this%converged = 0
                 energy = huge(1._dp)
            endif
+           print *,'yannick2',energy,rmsd
            deallocate(pos,pos2,g)!
         else 
             energy = huge(1._dp)

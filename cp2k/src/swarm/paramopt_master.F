@@ -148,9 +148,10 @@ MODULE paramopt_master
     CALL section_vals_retain(this%paramopt_section,error=error)
     CALL section_vals_val_get(this%paramopt_section,"NUM_VAR", i_val=this%n, error=error)
     CALL section_vals_val_get(this%paramopt_section,"NUM_OBJ", i_val=this%m, error=error)
+    CALL section_vals_val_get(this%paramopt_section,"REF_DATABASE", i_val=this%database, error=error)
     !------------------------------------
     n = this%n
-    popsize = 30 
+    popsize = 62 
     if (mod(popsize,2) .ne. 0) then
         STOP "popsize wrong"
     endif
@@ -186,7 +187,8 @@ MODULE paramopt_master
     ENDIF
     !------------------------------------
     m = this%m
-    this%database = 3 ! 1 for the s22 and 2 for water_cluster and 3 for water27
+    ! this is now set from input
+    !this%database = 3 ! 1 for the s22 and 2 for water_cluster and 3 for water27
     if (.not. this%benchmark) then 
         if (this%database == 1) then
             this%num_ref_mol = 3*22
@@ -378,6 +380,7 @@ SUBROUTINE do_grid_search(this,report,cmd,should_stop)
                                         this%ref_matrix,this%database,func_array)
                 this%f(1,1) = sum(func_array)
                 this%f(1,2) = sum(this%rmsd(1,:,:))
+                this%f(1,3) = func_array(2)
                 CALL open_file(file_name="output", file_status="UNKNOWN",&
                     file_action="WRITE", file_position="APPEND",unit_number=iounit)
                     write(iounit,*) var_trans(this%x(1,:),this%u_bound,this%l_bound), &
@@ -518,6 +521,7 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
             !if (this%converged(id,ind(2),ind(3)) .eq. 0) STOP "not converged"
             this%energies(id,ind(2),ind(3)) = func(1)
             this%rmsd(id,ind(2),ind(3))     = func(2) 
+
             if (this%num_input_rcvd .eq. offspringsize*this%num_ref_mol) then
                 do i = 1,offspringsize
                     input = this%offspring_list(i)
@@ -526,7 +530,13 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                     this%f(input,1) = sum(func_array)
                     !this%f(input,2) = sum(this%rmsd(input,:,:))
                     ! this also is only first dim...so dimer of s22 yannick
-                    this%f(input,2) = sum(this%rmsd(input,:,1))
+                    if (this%database .eq. 1) then 
+                        ! s22 is database 1
+                        this%f(input,2) = sum(this%rmsd(input,:,1))
+                    else
+                        this%f(input,2) = sum(this%rmsd(input,:,:))
+                    endif
+                    this%f(input,3) = func_array(2)
                     CALL open_file(file_name="output", file_status="UNKNOWN",&
                         file_action="WRITE", file_position="APPEND",unit_number=iounit)
                     write(iounit,*) var_trans(this%x(input,:), &
