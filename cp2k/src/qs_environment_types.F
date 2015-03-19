@@ -214,6 +214,7 @@ MODULE qs_environment_types
     LOGICAL :: linres_run
     LOGICAL :: calc_image_preconditioner
     LOGICAL :: converged
+    LOGICAL :: geo_conv=.TRUE.
     LOGICAL :: do_transport
     REAL(KIND=dp)                                         :: sim_time
     REAL(KIND=dp) :: start_time, target_time

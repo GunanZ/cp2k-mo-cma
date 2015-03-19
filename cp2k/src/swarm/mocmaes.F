@@ -559,6 +559,7 @@ SUBROUTINE init_selection(mocmaes)
     implicit none
     type(mo_cmaes_type),POINTER                    :: a_k
     TYPE(cp_error_type),POINTER                    :: error
+    REAL(kind=dp)                                  :: tmp
     INTEGER                                        :: i,n
     !generate new population 
      n=a_k%n
@@ -570,11 +571,21 @@ SUBROUTINE init_selection(mocmaes)
      !print *,'xold',a_k%x,'sigma',a_k%sigma,'Az',a_k%Az
      !print *,"C",a_k%C
      a_k%x = a_k%x+ a_k%sigma * a_k%Az
-     a_k%dx = norm2(a_k%x-a_k%xold)
      do i=1,size(a_k%x)
         if (a_k%x(i) .lt. a_k%l_bound(i)) a_k%x(i) = a_k%l_bound(i)
         if (a_k%x(i) .gt. a_k%u_bound(i)) a_k%x(i) = a_k%u_bound(i)
      enddo
+
+     !!yannick specific hack DANGEROUSE 
+     !if (abs(a_k%x(9)) .gt. abs(a_k%x(11))) then
+     !   tmp = a_k%x(9)
+     !   a_k%x(9) = a_k%x(11)
+     !   a_k%x(11) = tmp
+     !endif
+
+
+     a_k%dx = norm2(a_k%x-a_k%xold)
+    
     end subroutine gen_pop
 
 ! *****************************************************************************
