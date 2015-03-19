@@ -65,6 +65,7 @@ MODULE gopt_param_types
      REAL(KIND = dp)          :: max_dr, max_force, rms_dr, rms_force
      REAL(KIND = dp)          :: dimer_angle_tol
      TYPE(cg_ls_param_type)   :: cg_ls
+     LOGICAL                  :: conv=.TRUE.
   END TYPE gopt_param_type
 
 CONTAINS

@@ -151,7 +151,9 @@ MODULE paramopt_master
     CALL section_vals_val_get(this%paramopt_section,"REF_DATABASE", i_val=this%database, error=error)
     !------------------------------------
     n = this%n
+    !popsize = 200
     popsize = 62 
+    !popsize = 2 
     if (mod(popsize,2) .ne. 0) then
         STOP "popsize wrong"
     endif
@@ -205,6 +207,12 @@ MODULE paramopt_master
         else if (this%database == 3) then
             this%num_ref_mol = 30 
             CALL read_ref_data(this%database,"WATER27structures/reference_data",this%ref_matrix) 
+            allocate(this%energies(popsize,this%num_ref_mol,1))
+            allocate(this%rmsd(popsize,this%num_ref_mol,1))
+            allocate(this%converged(popsize,this%num_ref_mol,1))
+        else if (this%database == 4) then
+            this%num_ref_mol = 7  
+            CALL read_ref_data(this%database,"atomic_structures/reference_data",this%ref_matrix) 
             allocate(this%energies(popsize,this%num_ref_mol,1))
             allocate(this%rmsd(popsize,this%num_ref_mol,1))
             allocate(this%converged(popsize,this%num_ref_mol,1))
@@ -416,6 +424,14 @@ SUBROUTINE do_grid_search(this,report,cmd,should_stop)
                         charge = -1
                 end select
             endif
+            if (this%database .eq. 4) then
+                select case(ind(2))
+                    case(1:2,4)
+                        charge = 0
+                    case(3)
+                        charge = 1
+                end select
+            endif
             CALL swarm_message_add(cmd, "charge", charge)
             CALL swarm_message_add(cmd, "x",&
             var_trans(this%x(1,:),this%u_bound,this%l_bound))
@@ -442,6 +458,7 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
     INTEGER                                    :: input
     REAL(kind=dp)                              :: myresult
     INTEGER                                    :: charge=0
+    INTEGER                                    :: spinmult=1
     INTEGER                                    :: i,j 
     INTEGER                                    :: iounit 
     INTEGER                                    :: id=1 
@@ -536,7 +553,13 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                     else
                         this%f(input,2) = sum(this%rmsd(input,:,:))
                     endif
-                    this%f(input,3) = func_array(2)
+                    if (this%m .gt. 2) then
+                      if (this%database .eq. 4) then
+                        this%f(input,3) = func_array(7)
+                      else
+                        this%f(input,3) = func_array(2)
+                      endif
+                    endif
                     CALL open_file(file_name="output", file_status="UNKNOWN",&
                         file_action="WRITE", file_position="APPEND",unit_number=iounit)
                     write(iounit,*) var_trans(this%x(input,:), &
@@ -581,7 +604,30 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                         charge = -1
                 end select
             endif
+            if (this%database .eq. 4) then
+                select case(ind(2))
+                case(1:2,4:7)
+                        charge = 0
+                    case(3)
+                        charge = 1
+                end select
+                select case(ind(2))
+                case(1)
+                    spinmult = 2
+                case(2)
+                    spinmult = 3
+                case(3)
+                    spinmult = 4
+                case(4)
+                    spinmult = 1
+                case(5)
+                    spinmult = 3
+                case(6:7)
+                    spinmult = 1
+                end select
+            endif
             CALL swarm_message_add(cmd, "charge", charge)
+            CALL swarm_message_add(cmd, "spinmult", spinmult)
             CALL swarm_message_add(cmd, "x",&
             var_trans(this%x(input,:),this%u_bound,this%l_bound))
             this%current_inp = this%current_inp + 1
@@ -609,6 +655,7 @@ SUBROUTINE do_optim(this,report,cmd,method,should_stop)
     INTEGER                                    :: input
     REAL(kind=dp)                              :: myresult
     INTEGER                                    :: charge=0
+    INTEGER                                    :: spinmult=1
     REAL(kind=dp)                              :: penalty
     INTEGER                                    :: iounit 
     INTEGER                                    :: method 
@@ -739,6 +786,7 @@ SUBROUTINE do_optim(this,report,cmd,method,should_stop)
                 end select
             endif
             CALL swarm_message_add(cmd, "charge", charge)
+            CALL swarm_message_add(cmd, "spinmult", spinmult)
             CALL swarm_message_add(cmd, "x", this%x(1,:))
             this%current_inp = this%current_inp + 1
           else
@@ -808,13 +856,25 @@ END SUBROUTINE do_optim
         enddo
         func = sum(abs(func_array))
       case(3)
-        ref_ene(1) = energies(1,1) !H2O
+        ref_ene(1) = energies(1,1)  !H2O
         ref_ene(2) = energies(16,1) !H3Op
         ref_ene(3) = energies(22,1) !OHm
         ref_ene(4) = energies(11,1) !H2O8s4
         do i=1,nref
           func_array(i) = abs((ref_matrix(i,2)*energies(i,1) + dot_product(ref_matrix(i,3:6),ref_ene))*kcalmol-ref_matrix(i,7))
           print *,'cluster',energies(i,1),'x monomer',dot_product(ref_matrix(i,3:6),ref_ene),'f',func_array(i)
+        enddo
+        func = sum(abs(func_array))
+     case(4)
+        ref_ene(1) = energies(2,1)  !O 
+        ref_ene(2) = energies(4,1)  !H2
+        ref_ene(3) = energies(5,1)  !O2
+        ref_ene(4) = energies(6,1)  !H2O
+        do i=1,nref
+          print *,'energies',ref_matrix(i,2)*energies(i,1)*kcalmol,dot_product(ref_matrix(i,3:6),ref_ene)*kcalmol,ref_matrix(i,7)
+          print *,'test',abs((ref_matrix(i,2)*energies(i,1) + dot_product(ref_matrix(i,3:6),ref_ene))*kcalmol) ,ref_matrix(i,7)
+          func_array(i) = abs(abs((ref_matrix(i,2)*energies(i,1) + dot_product(ref_matrix(i,3:6),ref_ene))*kcalmol)-ref_matrix(i,7))
+          print *,'cluster ',i,energies(i,1),'x monomer',dot_product(ref_matrix(i,3:6),ref_ene),'f',func_array(i)
         enddo
         func = sum(abs(func_array))
     end select
@@ -849,7 +909,7 @@ END SUBROUTINE energy2function
            DO n=1,k
                 READ(ref_unit,*)  ref_matrix(n,:)
            ENDDO
-        CASE(3) 
+        CASE(3,4) 
            allocate(ref_matrix(k,7))
            REWIND(ref_unit)
            READ(ref_unit,*) test
@@ -926,6 +986,13 @@ END SUBROUTINE energy2function
 
   CASE(3)
     input_file="WATER27structures/water"
+    tmp_str = trim(str(i))
+    if (len_trim(tmp_str) == 1 ) tmp_str = trim(str(0)) // trim(tmp_str)
+    input_file = trim(input_file) // tmp_str
+    input_file = trim(input_file) // ".xyz"
+
+  CASE(4)
+    input_file="atomic_structures/water"
     tmp_str = trim(str(i))
     if (len_trim(tmp_str) == 1 ) tmp_str = trim(str(0)) // trim(tmp_str)
     input_file = trim(input_file) // tmp_str

@@ -283,6 +283,10 @@ CONTAINS
              CPPostcondition(PRESENT(dx),cp_failure_level,routineP,error,failure)
              CPPostcondition(PRESENT(xi),cp_failure_level,routineP,error,failure)
              CALL check_converg(ndf,dx,xi,output_unit,conv,gopt_param,error=error)
+             ! yannick
+             if (associated(force_env%qs_env)) then
+             force_env%qs_env%geo_conv = gopt_param%conv
+             endif
           END IF
        ELSE
           CALL update_dimer_vec(gopt_env%dimer_env, gopt_env%motion_section, error)
@@ -647,7 +651,10 @@ CONTAINS
 
     IF (conv_dx .AND. conv_rdx .AND. conv_g .AND. conv_rg .AND. conv_p) conv = .TRUE.
     !yannicks ugly hack max. gradient > 1 abort :(
-    IF (maxdum(3) .gt. 1._dp) conv = .TRUE. 
+    IF (maxdum(3) .gt. 1._dp) THEN
+        conv = .TRUE. 
+        gopt_param%conv = .FALSE. 
+    ENDIF
 
     IF ((conv).AND.(output_unit>0)) THEN
        WRITE (UNIT=output_unit,FMT="(/,T2,A)") REPEAT("*",79)

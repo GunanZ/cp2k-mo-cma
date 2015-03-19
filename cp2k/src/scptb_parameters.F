@@ -78,7 +78,7 @@ CONTAINS
        param%ag                    = 4.0_dp
        param%energy                = -0.5_dp
        IF (present(xopt)) then
-            param%lmaxscp = 0
+            param%lmaxscp =  0
             param%ag = 0.2363_dp 
             param%ag = xopt(1) !charge_width
             param%energy = -1.2010034_dp
@@ -118,7 +118,7 @@ CONTAINS
        param%ag                    = 1.0_dp
        param%energy                = -0.5_dp
        IF (present(xopt)) then
-            param%lmaxscp = 0
+            param%lmaxscp = 0 
             param%ag = 0.24483_dp
             param%ag = xopt(7)
             param%energy = -27.3762533_dp 

@@ -80,6 +80,7 @@ MODULE paramopt_worker
    INTEGER                                  :: method
    INTEGER                                  :: inp_num
    INTEGER                                  :: charge 
+   INTEGER                                  :: spinmult 
    INTEGER                                  :: pop_id 
    INTEGER                                  :: converged=0
    TYPE(f_env_type), POINTER                :: f_env
@@ -190,6 +191,7 @@ MODULE paramopt_worker
                CALL swarm_message_get(cmd, "inp_num", worker%inp_num)
                CALL swarm_message_get(cmd, "inp_file", worker%inp_file)
                CALL swarm_message_get(cmd, "charge", worker%charge)
+               CALL swarm_message_get(cmd, "spinmult", worker%spinmult)
                CALL swarm_message_get(cmd, "x", worker%x)
                !-----------------------------------------------
                CALL paramopt_energy(worker,cmd,command,report)
@@ -238,6 +240,7 @@ MODULE paramopt_worker
             CALL swarm_message_get(cmd, "pop_id", worker%pop_id)
             CALL swarm_message_get(cmd, "inp_file", worker%inp_file)
             CALL swarm_message_get(cmd, "charge", worker%charge)
+            CALL swarm_message_get(cmd, "spinmult", worker%spinmult)
             CALL swarm_message_get(cmd, "x", worker%x)
             !------------do calc here------------
             CALL paramopt_energy(worker,cmd,command,report)
@@ -278,7 +281,7 @@ MODULE paramopt_worker
     LOGICAL                                  :: failure
     LOGICAL                                  :: converged
     INTEGER                                  :: ierr
-    INTEGER                                  :: iter,i_inp,charge,i
+    INTEGER                                  :: iter,i_inp,charge,spinmult,i
     INTEGER                                  :: natoms,xsize
     REAL(KIND=dp),DIMENSION(:),POINTER       :: x => Null()
     REAL(KIND=dp),POINTER                    :: energy
@@ -370,16 +373,19 @@ MODULE paramopt_worker
     CALL section_vals_val_set(this%root_section, &
                                "FORCE_EVAL%DFT%CHARGE", &
                                i_val=this%charge, error = this%error)
+    CALL section_vals_val_set(this%root_section, &
+                               "FORCE_EVAL%DFT%MULTIPLICITY", &
+                               i_val=this%spinmult, error = this%error)
     !here LSD should be enabled if charge is not 0 
-    if(this%charge .ne. 0) then
-         CALL section_vals_val_set(this%root_section, &
-                               "FORCE_EVAL%DFT%LSD", &
-                               l_val=.TRUE., error = this%error)
-    else
-         CALL section_vals_val_set(this%root_section, &
-                               "FORCE_EVAL%DFT%LSD", &
-                               l_val=.FALSE., error = this%error)
-    endif
+    !if(this%charge .ne. 0) then
+    !     CALL section_vals_val_set(this%root_section, &
+    !                           "FORCE_EVAL%DFT%LSD", &
+    !                           l_val=.TRUE., error = this%error)
+    !else
+    !     CALL section_vals_val_set(this%root_section, &
+    !                           "FORCE_EVAL%DFT%LSD", &
+    !                           l_val=.FALSE., error = this%error)
+    !endif
     !-------------------create force env------------------------
     CALL create_force_env(this%f_env_id, &
                             input_declaration=this%input_declaration,&
@@ -410,6 +416,8 @@ MODULE paramopt_worker
         this%converged = 0
     endif
     !-----------------geo opt------------------------------------
+   if (natoms .gt. 1) then 
+    !
     if (this%method .eq. paramopt_do_mocma .or. &
         this%method .eq. paramopt_do_grid) then
         if (this%converged .eq. 1) then
@@ -430,11 +438,22 @@ MODULE paramopt_worker
                 this%converged = 0
                 energy = huge(1._dp)
            endif
+           !---------------------------------------------
+           if (this%force_env%qs_env%geo_conv) then
+                !everything is okay...geo opt converged
+           else
+               !geo opt was aborted due to big gradient
+               rmsd = huge(1._dp)
+               this%converged = 0
+           endif
+
            deallocate(pos,pos2,g)!
         else 
             energy = huge(1._dp)
         endif
     endif
+    !
+   endif
     !------------------cleanup------------------------------------------------------
     CALL destroy_force_env(this%f_env_id, ierr)
     IF(ierr /= 0) STOP "paramopt_worker: destroy_force_env failed" 
