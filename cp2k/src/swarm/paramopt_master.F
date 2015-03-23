@@ -863,6 +863,7 @@ END SUBROUTINE do_optim
         do i=1,nref
           func_array(i) = abs((ref_matrix(i,2)*energies(i,1) + dot_product(ref_matrix(i,3:6),ref_ene))*kcalmol-ref_matrix(i,7))
           print *,'cluster',energies(i,1),'x monomer',dot_product(ref_matrix(i,3:6),ref_ene),'f',func_array(i)
+          if (ref_matrix(i,7) .ne. 0) func_array(i) = func_array(i)/ref_matrix(i,7)
         enddo
         func = sum(abs(func_array))
      case(4)
@@ -875,6 +876,7 @@ END SUBROUTINE do_optim
           print *,'test',abs((ref_matrix(i,2)*energies(i,1) + dot_product(ref_matrix(i,3:6),ref_ene))*kcalmol) ,ref_matrix(i,7)
           func_array(i) = abs(abs((ref_matrix(i,2)*energies(i,1) + dot_product(ref_matrix(i,3:6),ref_ene))*kcalmol)-ref_matrix(i,7))
           print *,'cluster ',i,energies(i,1),'x monomer',dot_product(ref_matrix(i,3:6),ref_ene),'f',func_array(i)
+          if (ref_matrix(i,7) .ne. 0) func_array(i) = func_array(i)/ref_matrix(i,7)
         enddo
         func = sum(abs(func_array))
     end select
