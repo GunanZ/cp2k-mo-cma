@@ -560,6 +560,7 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                         this%f(input,3) = func_array(2)
                       endif
                     endif
+                    if (any(this%f(input,1:3) .gt. 1e10)) this%f(input,1:3) = huge(1._dp)
                     CALL open_file(file_name="output", file_status="UNKNOWN",&
                         file_action="WRITE", file_position="APPEND",unit_number=iounit)
                     write(iounit,*) var_trans(this%x(input,:), &
@@ -598,10 +599,13 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                 select case(ind(2))
                     case(1:15,30)
                         charge = 0
+                        spinmult = 1 
                     case(16:21)
                         charge = 1
+                        spinmult = 1
                     case(22:29)
                         charge = -1
+                        spinmult = 1 
                 end select
             endif
             if (this%database .eq. 4) then

@@ -576,12 +576,12 @@ SUBROUTINE init_selection(mocmaes)
         if (a_k%x(i) .gt. a_k%u_bound(i)) a_k%x(i) = a_k%u_bound(i)
      enddo
 
-     !!yannick specific hack DANGEROUSE 
-     !if (abs(a_k%x(9)) .gt. abs(a_k%x(11))) then
-     !   tmp = a_k%x(9)
-     !   a_k%x(9) = a_k%x(11)
-     !   a_k%x(11) = tmp
-     !endif
+     !yannick specific hack DANGEROUSE 
+     if (abs(a_k%x(8)) .lt. abs(a_k%x(10))) then
+        tmp = a_k%x(8)
+        a_k%x(8) = a_k%x(10)
+        a_k%x(10) = tmp
+     endif
 
 
      a_k%dx = norm2(a_k%x-a_k%xold)
