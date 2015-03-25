@@ -79,11 +79,11 @@ MODULE cp_dbcsr_operations
   END INTERFACE
 
   ! CP2K API emulation
-  PUBLIC :: cp_dbcsr_from_fm, copy_fm_to_dbcsr, copy_dbcsr_to_fm,&
+  PUBLIC :: copy_fm_to_dbcsr, copy_dbcsr_to_fm,&
             copy_dbcsr_to_cfm, copy_cfm_to_dbcsr,&
             cp_dbcsr_sm_fm_multiply, cp_dbcsr_plus_fm_fm_t,&
             copy_dbcsr_to_fm_bc, copy_fm_to_dbcsr_bc, cp_fm_to_dbcsr_row_template,&
-            cp_dbcsr_m_by_n_from_template
+            cp_dbcsr_m_by_n_from_template, cp_dbcsr_m_by_n_from_row_template
 
   ! distribution_2d_type compatibility
   PUBLIC :: cp_dbcsr_dist2d_to_dist
@@ -174,8 +174,9 @@ CONTAINS
 
     INTEGER                                  :: mypcol, myproc, myprow, &
                                                 numproc
-    INTEGER, DIMENSION(:), POINTER           :: col_dist_data, row_dist_data
-    INTEGER, DIMENSION(:, :), POINTER        :: pgrid
+    INTEGER, DIMENSION(:), POINTER           :: tmp_data_p
+    INTEGER, DIMENSION(:, :), POINTER        :: col_dist_data, pgrid, &
+                                                row_dist_data
     TYPE(array_i1d_obj)                      :: cd, rd
     TYPE(cp_blacs_env_type), POINTER         :: blacs_env
     TYPE(cp_para_env_type), POINTER          :: para_env
@@ -203,8 +204,10 @@ CONTAINS
     ENDIF
     CALL array_nullify (rd)
     CALL array_nullify (cd)
-    CALL array_new(rd, row_dist_data)
-    CALL array_new(cd, col_dist_data)
+    tmp_data_p=>row_dist_data(:,1)
+    CALL array_new(rd, tmp_data_p)
+    tmp_data_p=>col_dist_data(:,1)
+    CALL array_new(cd, tmp_data_p)
     CALL dbcsr_distribution_new(dist, mp_env, rd, cd)
     CALL cp_dbcsr_mp_release (mp_env)
     CALL array_release (rd)
@@ -675,41 +678,6 @@ CONTAINS
     CALL timestop(timing_handle)
 
   END SUBROUTINE cp_dbcsr_plus_fm_fm_t_native
-
-! *****************************************************************************
-!> \brief Converts a cp2k full matrix into a DBCSR matrix.
-!> \param[out] matrix         the created BCSR matrix
-!> \param[in] fm              the cpk full matrix
-!> \param[in] distribution    the distribution to use for the new matrix
-!> \param[in] row_blk_size sizes of row blocks
-!> \param[in] col_blk_size sizes of column blocks
-!> \param[in,out] error       cp2k error
-! *****************************************************************************
-  SUBROUTINE cp_dbcsr_from_fm(matrix, fm, distribution, row_blk_size,&
-       col_blk_size, error)
-    TYPE(cp_dbcsr_type), INTENT(OUT)         :: matrix
-    TYPE(cp_fm_type), POINTER                :: fm
-    TYPE(dbcsr_distribution_obj)             :: distribution
-    TYPE(array_i1d_obj), INTENT(IN)          :: row_blk_size, col_blk_size
-    TYPE(cp_error_type), INTENT(INOUT)       :: error
-
-    CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_dbcsr_from_fm', &
-      routineP = moduleN//':'//routineN
-
-    INTEGER                                  :: timing_handle
-
-    CALL timeset(routineN, timing_handle)
-
-    !CALL cp_dbcsr_init (matrix, error)! the matrix should already be initialized
-    CALL cp_dbcsr_create(matrix, fm%name, distribution, dbcsr_type_no_symmetry,&
-         row_blk_size, col_blk_size,&
-         0, 0, dbcsr_type_real_8, error=error)
-    CALL copy_fm_to_dbcsr(fm, matrix, error=error)
-    CALL cp_dbcsr_verify_matrix(matrix, error)
-    CALL timestop(timing_handle)
-
-  END SUBROUTINE cp_dbcsr_from_fm
-
 
 ! *****************************************************************************
 !> \brief   Copy a BLACS matrix to a dbcsr matrix.
@@ -1727,12 +1695,14 @@ CONTAINS
 !> \param m global row size of output matrix
 !> \param n global col size of output matrix
 !> \param sym ...
+!> \param data_type ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE cp_dbcsr_m_by_n_from_template(matrix,template,m,n,sym,error)
+  SUBROUTINE cp_dbcsr_m_by_n_from_template(matrix,template,m,n,sym,data_type,error)
     TYPE(cp_dbcsr_type), INTENT(INOUT)       :: matrix, template
     INTEGER                                  :: m, n
     CHARACTER, OPTIONAL                      :: sym
+    INTEGER, OPTIONAL                        :: data_type
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 
     CHARACTER(LEN=*), PARAMETER :: &
@@ -1740,12 +1710,15 @@ CONTAINS
       routineP = moduleN//':'//routineN
 
     CHARACTER                                :: mysym
+    INTEGER                                  :: my_data_type
     TYPE(array_i1d_obj)                      :: col_blk_size, col_dist, &
                                                 row_blk_size, row_dist
     TYPE(dbcsr_distribution_obj)             :: dist_m_n
 
     mysym=cp_dbcsr_get_matrix_type(template)
     IF(PRESENT(sym))mysym=sym
+    my_data_type=cp_dbcsr_get_data_type(template)
+    IF(PRESENT(data_type))my_data_type=data_type
 
     CALL cp_create_bl_distribution (row_dist, row_blk_size, m, &
          dbcsr_mp_nprows(dbcsr_distribution_mp(cp_dbcsr_distribution(template))))
@@ -1755,13 +1728,60 @@ CONTAINS
          row_dist, col_dist)
 
     CALL cp_dbcsr_create(matrix, "m_n_template", dist_m_n, mysym,&
-            row_blk_size, col_blk_size, 0, 0, cp_dbcsr_get_data_type(template), error=error)
+            row_blk_size, col_blk_size, 0, 0, my_data_type, error=error)
 
     CALL array_release (row_dist); CALL array_release (col_dist)
     CALL array_release (row_blk_size); CALL array_release (col_blk_size)
     CALL dbcsr_distribution_release(dist_m_n)
 
   END SUBROUTINE cp_dbcsr_m_by_n_from_template
+
+! *****************************************************************************
+!> \brief Utility function to create dbcsr matrix, m x n matrix (n arbitrary)
+!>        with the same processor grid and row distribution  as the template matrix
+!>        col sizes are evenly blocked with the internal
+!>        dbcsr_conversion size (32 is the current default)
+!> \param matrix dbcsr matrix to be created
+!> \param template template dbcsr matrix giving its mp_env
+!> \param n global col size of output matrix
+!> \param sym ...
+!> \param data_type ...
+!> \param error ...
+! *****************************************************************************
+  SUBROUTINE cp_dbcsr_m_by_n_from_row_template(matrix,template,n,sym,data_type,error)
+    TYPE(cp_dbcsr_type), INTENT(INOUT)       :: matrix, template
+    INTEGER                                  :: n
+    CHARACTER, OPTIONAL                      :: sym
+    INTEGER, OPTIONAL                        :: data_type
+    TYPE(cp_error_type), INTENT(INOUT)       :: error
+
+    CHARACTER(LEN=*), PARAMETER :: &
+      routineN = 'cp_dbcsr_m_by_n_from_row_template', &
+      routineP = moduleN//':'//routineN
+
+    CHARACTER                                :: mysym
+    INTEGER                                  :: my_data_type
+    TYPE(array_i1d_obj)                      :: col_blk_size, col_dist
+    TYPE(dbcsr_distribution_obj)             :: dist_m_n
+
+    mysym=cp_dbcsr_get_matrix_type(template)
+    IF(PRESENT(sym))mysym=sym
+    my_data_type=cp_dbcsr_get_data_type(template)
+    IF(PRESENT(data_type))my_data_type=data_type
+
+    CALL cp_create_bl_distribution (col_dist, col_blk_size, n, &
+         dbcsr_mp_npcols(dbcsr_distribution_mp(cp_dbcsr_distribution(template))))
+    CALL dbcsr_distribution_new (dist_m_n, dbcsr_distribution_mp (cp_dbcsr_distribution(template)),&
+         dbcsr_distribution_row_dist(cp_dbcsr_distribution(template)), col_dist)
+
+    CALL cp_dbcsr_create(matrix, "m_n_template", dist_m_n, mysym,&
+            cp_dbcsr_row_block_sizes(template), col_blk_size, 0, 0, my_data_type, error=error)
+
+    CALL array_release (col_dist)
+    CALL array_release (col_blk_size)
+    CALL dbcsr_distribution_release(dist_m_n)
+
+  END SUBROUTINE cp_dbcsr_m_by_n_from_row_template  
     
 
 
