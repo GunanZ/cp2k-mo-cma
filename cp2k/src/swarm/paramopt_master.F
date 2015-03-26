@@ -80,7 +80,7 @@ MODULE paramopt_master
    REAL(KIND=dp),DIMENSION(:,:),POINTER                :: f
    REAL(KIND=dp),DIMENSION(:),POINTER                  :: u_bound
    REAL(KIND=dp),DIMENSION(:),POINTER                  :: l_bound
-   INTEGER                                             :: n,m
+   INTEGER                                             :: n,m,popsize
    REAL(KIND=dp)                                       :: step_size
    REAL(KIND=dp)                                       :: penalty=0._dp
    LOGICAL                                             :: randinput
@@ -125,7 +125,7 @@ MODULE paramopt_master
     INTEGER                                  :: n,m
     INTEGER                                  :: i
     INTEGER                                  :: j
-    INTEGER                                  :: popsize
+    INTEGER                                  :: popsize=1
     LOGICAL                                  :: explicit_key
     REAL(KIND=dp),DIMENSION(:),POINTER       :: init_x
     !------------------
@@ -148,12 +148,14 @@ MODULE paramopt_master
     CALL section_vals_retain(this%paramopt_section,error=error)
     CALL section_vals_val_get(this%paramopt_section,"NUM_VAR", i_val=this%n, error=error)
     CALL section_vals_val_get(this%paramopt_section,"NUM_OBJ", i_val=this%m, error=error)
+    CALL section_vals_val_get(this%paramopt_section,"POPSIZE", i_val=this%popsize, error=error)
     CALL section_vals_val_get(this%paramopt_section,"REF_DATABASE", i_val=this%database, error=error)
     !------------------------------------
     n = this%n
     !popsize = 200
-    popsize = 62 
+    !popsize = 62 
     !popsize = 2 
+    popsize = this%popsize
     if (mod(popsize,2) .ne. 0) then
         STOP "popsize wrong"
     endif
@@ -576,6 +578,7 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                     this%offspring_list = mocmaes(1)%offspring_list
                     end select
                 !---reset----------
+                this%converged   = 1
                 this%current_inp = 1
                 this%num_input_rcvd = 0
                 this%i_iteration = this%i_iteration + 1
@@ -583,12 +586,19 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
           endif
           if (this%current_inp .le.offspringsize*this%num_ref_mol .and. &
             (report_status .eq. "wait_done" .or. report_status .eq. "initial_hello")) then
-            CALL swarm_message_add(cmd, "command", "energy")
-            CALL swarm_message_add(cmd, "inp_num", this%current_inp )
+            !-----------------------------------------------------------------
             CALL index2grid(this%current_inp,(/offspringsize,&
                             size(this%energies,dim=2),&
                             size(this%energies,dim=3)/),ind)
             input = this%offspring_list(ind(1))
+
+            if (any(this%converged(input,:,:).eq.0)) then
+                CALL swarm_message_add(cmd, "command", "skip")
+            else
+                CALL swarm_message_add(cmd, "command", "energy")
+            endif
+            CALL swarm_message_add(cmd, "inp_num", this%current_inp )
+
             print *,'iter',this%current_inp,ind
             CALL swarm_message_add(cmd, "pop_id", input )
             CALL gen_input_file(ind(2),ind(3),this%database,input_file)

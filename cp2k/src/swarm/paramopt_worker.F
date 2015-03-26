@@ -250,6 +250,23 @@ MODULE paramopt_worker
             CALL swarm_message_add(report, "pop_id", worker%pop_id)
             CALL swarm_message_add(report, "result", worker%func)
             CALL swarm_message_add(report, "converged", worker%converged)
+         ELSE IF (TRIM(command) == "skip") THEN
+            nullify(worker%x)
+            CALL swarm_message_get(cmd, "inp_num", worker%inp_num)
+            CALL swarm_message_get(cmd, "pop_id", worker%pop_id)
+            CALL swarm_message_get(cmd, "inp_file", worker%inp_file)
+            CALL swarm_message_get(cmd, "charge", worker%charge)
+            CALL swarm_message_get(cmd, "spinmult", worker%spinmult)
+            CALL swarm_message_get(cmd, "x", worker%x)
+            !------------do calc here------------
+            worker%func = huge(1._dp)
+            worker%converged = 0 
+            !------------------------------------ 
+            CALL swarm_message_add(report, "status", "done") 
+            CALL swarm_message_add(report, "inp_num", worker%inp_num)
+            CALL swarm_message_add(report, "pop_id", worker%pop_id)
+            CALL swarm_message_add(report, "result", worker%func)
+            CALL swarm_message_add(report, "converged", worker%converged)
           ENDIF
        CASE DEFAULT
         STOP "Unkown glbopt_method"
