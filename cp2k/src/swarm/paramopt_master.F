@@ -562,7 +562,15 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                         this%f(input,3) = func_array(2)
                       endif
                     endif
-                    if (any(this%f(input,1:3) .gt. 1e10)) this%f(input,1:3) = huge(1._dp)
+                    if (this%m .gt. 3) then
+                      if (this%database .eq. 4) then
+                        this%f(input,4) = this%rmsd(input,6,1)
+                      else
+                        this%f(input,4) = this%rmsd(input,1,1)
+                      endif
+                    endif
+                    !------------
+                    if (any(this%f(input,:) .gt. 1e10)) this%f(input,:) = huge(1._dp)
                     CALL open_file(file_name="output", file_status="UNKNOWN",&
                         file_action="WRITE", file_position="APPEND",unit_number=iounit)
                     write(iounit,*) var_trans(this%x(input,:), &
