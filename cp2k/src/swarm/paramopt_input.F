@@ -101,6 +101,12 @@ MODULE paramopt_input
     CALL section_add_keyword(paramopt_section, keyword, error=error)
     CALL keyword_release(keyword,error=error) 
     
+    CALL keyword_create(keyword, name="POPSIZE",&
+         description="balba TODO.",&
+         default_i_val= 2,error=error)
+    CALL section_add_keyword(paramopt_section, keyword, error=error)
+    CALL keyword_release(keyword,error=error) 
+    
     CALL keyword_create(keyword, name="REF_DATABASE",&
          description="balba TODO.",&
          default_i_val= 1,error=error)
