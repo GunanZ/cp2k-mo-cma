@@ -293,8 +293,7 @@ CONTAINS
     TYPE(pw_p_type)                          :: dvg( 3 )
     TYPE(pw_poisson_parameter_type), POINTER :: poisson_params
     TYPE(pw_pool_type), POINTER              :: pw_pool
-    TYPE(pw_type), POINTER                   :: rhog, rhor, tmpg, v_eps, &
-                                                vhartree_rs
+    TYPE(pw_type), POINTER                   :: rhog, rhor, tmpg, vhartree_rs
 
     CALL timeset(routineN,handle)
 
@@ -368,22 +367,23 @@ CONTAINS
              SELECT CASE (poisson_params%ps_implicit_params%boundary_condition)
                 CASE (PERIODIC_BC)
                    CALL implicit_poisson_solver_periodic(poisson_env, rhor, vhartree_rs, &
-                                                      v_eps, ehartree=ehartree, error=error)
+                                                         ehartree=ehartree, error=error)
                 CASE (NEUMANN_BC)
                    CALL implicit_poisson_solver_neumann(poisson_env, rhor, vhartree_rs, &
-                                                      v_eps, ehartree=ehartree, error=error)
+                                                         ehartree=ehartree, error=error)
                 CASE (MIXED_PERIODIC_BC)
                    CALL implicit_poisson_solver_mixed_periodic(poisson_env, rhor, vhartree_rs, &
-                                                      v_eps, ehartree=ehartree, error=error)
+                                                         ehartree=ehartree, error=error)
                 CASE (MIXED_BC)
                    CALL implicit_poisson_solver_mixed(poisson_env, rhor, vhartree_rs, &
-                                                      v_eps, ehartree=ehartree, error=error)
+                                                         ehartree=ehartree, error=error)
              END SELECT
 
              IF (PRESENT(vhartree)) THEN
-                CALL pw_axpy(v_eps, vhartree_rs, - 1.0_dp, error=error)
+                ! functional derivative of the Hartree energy wrt the density 
+                ! in the presence of dielectric (= vhartree + v_eps)
+                CALL pw_axpy(poisson_env%implicit_env%v_eps, vhartree_rs, error=error)
                 CALL pw_transfer(vhartree_rs, vhartree, error=error)
-                CALL pw_pool_give_back_pw(pw_pool, v_eps, error=error)
              END IF
 
              IF (PRESENT(dvhartree)) CALL pw_transfer(rhor,rhog,error=error)

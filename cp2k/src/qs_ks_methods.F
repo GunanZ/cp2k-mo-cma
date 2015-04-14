@@ -90,6 +90,7 @@ MODULE qs_ks_methods
                                              pw_zero
   USE pw_poisson_methods,              ONLY: pw_poisson_solve
   USE pw_poisson_types,                ONLY: PS_IMPLICIT,&
+                                             pw_poisson_implicit,&
                                              pw_poisson_type
   USE pw_pool_types,                   ONLY: pw_pool_create_pw,&
                                              pw_pool_give_back_pw,&
@@ -406,6 +407,13 @@ CONTAINS
                                  use_data=REALDATA3D,&
                                  in_space=REALSPACE,&
                                  error=error)
+
+          IF (poisson_env%parameters%solver .EQ. pw_poisson_implicit) THEN
+             CALL cp_assert(.FALSE., cp_failure_level, cp_assertion_failed, routineP,&
+                       "The implicit Poisson solver cannot be used together with SCCS.",&
+                       error, failure)
+          END IF
+
           IF (use_virial.AND.calculate_forces) THEN
              CALL sccs(qs_env,rho_tot_gspace%pw,v_hartree_gspace%pw,v_sccs_rspace%pw,&
                        h_stress=h_stress,error=error)
@@ -440,7 +448,7 @@ CONTAINS
        ! In case decouple periodic images and/or apply restraints to charges
        IF (do_ddapc) THEN
           CALL qs_ks_ddapc(qs_env, auxbas_pw_pool, rho_tot_gspace, v_hartree_gspace,&
-               v_spin_ddapc_rest_r, energy, calculate_forces, ks_env, ks_matrix,    &
+               v_spin_ddapc_rest_r, energy, calculate_forces, ks_matrix,    &
                just_energy, error)
        ELSE
           dft_control%qs_control%ddapc_explicit_potential = .FALSE.
@@ -1344,8 +1352,8 @@ CONTAINS
 ! *****************************************************************************
  SUBROUTINE rebuild_ks_matrix(qs_env,calculate_forces,just_energy,print_active,error)
     TYPE(qs_environment_type), POINTER       :: qs_env
-    LOGICAL, INTENT(IN)                      :: calculate_forces, &
-                                                just_energy, print_active
+    LOGICAL, INTENT(IN)                      :: calculate_forces, just_energy
+    LOGICAL, INTENT(IN), OPTIONAL            :: print_active
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     CHARACTER(LEN=*), PARAMETER :: routineN = 'rebuild_ks_matrix', &

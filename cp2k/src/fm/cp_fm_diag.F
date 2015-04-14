@@ -48,7 +48,7 @@ MODULE cp_fm_diag
   USE termination,                     ONLY: stop_program
   USE timings,                         ONLY: timeset,&
                                              timestop
-#if defined (__ELPA)
+#if defined (__ELPA)  || defined(__ELPA2)
   USE ELPA1
   USE ELPA2
 #endif
@@ -63,6 +63,7 @@ MODULE cp_fm_diag
 
   ! these saved variables are DIAGONALIZATION global
    INTEGER, SAVE :: diag_type = 0
+   INTEGER, SAVE :: kernel_type = 0
 
   ! Public subroutines
 
@@ -83,12 +84,14 @@ CONTAINS
 !>         It should change library to Scalapack if others are not available
 !> \param diag_lib diag_library flag from GLOBAL section in input
 !> \param switched ...
+!> \param k_elpa ...
 !> \param error ...
 !> \author  MI 11.2013       
 ! *****************************************************************************
-  SUBROUTINE diag_init(diag_lib,switched,error)
+  SUBROUTINE diag_init(diag_lib,switched,k_elpa,error)
     CHARACTER(LEN=*), INTENT(IN)             :: diag_lib
     LOGICAL, INTENT(INOUT)                   :: switched
+    INTEGER, INTENT(IN)                      :: k_elpa
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     CHARACTER(len=*), PARAMETER :: routineN = 'diag_init', &
@@ -108,7 +111,7 @@ CONTAINS
     IF(try_library) THEN
         IF(diag_lib.EQ."ELPA") THEN
 
-#if defined (__ELPA)
+#if defined (__ELPA)  || defined (__ELPA2)
             diag_type = 3
 #else
           ! ELPA library not linked, switch to SL
@@ -125,6 +128,10 @@ CONTAINS
              switched = .TRUE.
 #endif
          END IF
+    END IF
+
+    IF(diag_type == 3) THEN
+       kernel_type = k_elpa
     END IF
 
     ! Check that one of the diagonalization type is set
@@ -954,6 +961,7 @@ CONTAINS
                                                 myprow, n, n_rows, nblk, neig
     INTEGER, DIMENSION(9)                    :: descm, descv
     LOGICAL                                  :: failure
+    LOGICAL                                  :: success
     REAL(KIND=dp), DIMENSION(:), POINTER     :: eval
     REAL(KIND=dp), DIMENSION(:, :), POINTER  :: m, m1, v
     TYPE(cp_blacs_env_type), POINTER         :: context
@@ -964,6 +972,7 @@ CONTAINS
 #if defined(__SCALAPACK)
 
     failure = .FALSE.
+    success = .TRUE.
 
     n = matrix%matrix_struct%nrow_global
     m => matrix%local_data
@@ -997,9 +1006,21 @@ CONTAINS
     ! the full eigenvalues vector is needed
     ALLOCATE(eval(n),STAT=istat)
     CPPrecondition(istat==0,cp_failure_level,routineP,error,failure)
-#if defined (__ELPA)
+
     ! Calculate eigenvalues/eigenvectors
+#if defined (__ELPA) || defined (__ELPA2)
+
+
+#if defined (__ELPA)
     CALL solve_evp_real_2stage(n,neig,m,n_rows, eval,v,n_rows,nblk,comm_row,comm_col,group)
+#else
+    success = solve_evp_real_2stage(n,neig,m,n_rows, eval,v,n_rows,nblk,comm_row,comm_col,group,&
+              THIS_REAL_ELPA_KERNEL_API=kernel_type,useQR=.FALSE.)
+#endif
+
+ 
+    CPPrecondition(success,cp_failure_level,routineP,error,failure)
+
 #else
     CPPrecondition(.FALSE.,cp_failure_level,routineP,error,failure)
 #endif
