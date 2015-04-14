@@ -50,6 +50,7 @@ MODULE scptb_types
     REAL(KIND=dp), DIMENSION(1:3)          :: pol        !polarization for SCP
     REAL(KIND=dp)                          :: ag         !width of SCP charge
     REAL(KIND=dp)                          :: rcpair     !cutoff radius for core pair potentials
+    REAL(KIND=dp)                          :: charge
   END TYPE scptb_parameter_type
 
   TYPE scptb_parameter_p_type
@@ -138,6 +139,7 @@ CONTAINS
     scptb_parameter % pol = 0.0_dp
     scptb_parameter % ag = 0.0_dp
     scptb_parameter % rcpair = 0.0_dp
+    scptb_parameter % charge = 0.0_dp
 
   END SUBROUTINE allocate_scptb_parameter
 
@@ -188,7 +190,7 @@ CONTAINS
 !> \param error ...
 ! *****************************************************************************
   SUBROUTINE get_scptb_parameter(scptb_parameter,key,atomname,parameterization,defined,z,zeff,natorb,&
-    lmaxorb,lmaxscp,norb,nqm,zeta,hcore,occupation,energy,crep,pol,ag,rcpair,error)
+    lmaxorb,lmaxscp,norb,nqm,zeta,hcore,occupation,energy,crep,pol,ag,rcpair,charge,error)
 
     TYPE(scptb_parameter_type), POINTER      :: scptb_parameter
     CHARACTER(LEN=*), INTENT(OUT), OPTIONAL  :: key, atomname, &
@@ -204,7 +206,7 @@ CONTAINS
     REAL(KIND=dp), OPTIONAL                  :: energy
     REAL(KIND=dp), DIMENSION(3), OPTIONAL    :: crep
     REAL(KIND=dp), DIMENSION(1:3), OPTIONAL  :: pol
-    REAL(KIND=dp), OPTIONAL                  :: ag, rcpair
+    REAL(KIND=dp), OPTIONAL                  :: ag, rcpair, charge
     TYPE(cp_error_type), INTENT(INOUT), &
       OPTIONAL                               :: error
 
@@ -234,6 +236,7 @@ CONTAINS
     IF (PRESENT(pol)) pol = scptb_parameter%pol
     IF (PRESENT(ag)) ag = scptb_parameter%ag
     IF (PRESENT(rcpair)) rcpair = scptb_parameter%rcpair
+    IF (PRESENT(charge)) charge = scptb_parameter%charge
 
   END SUBROUTINE get_scptb_parameter
 
@@ -262,7 +265,7 @@ CONTAINS
 !> \param error ...
 ! *****************************************************************************
   SUBROUTINE set_scptb_parameter(scptb_parameter,key,atomname,parameterization,defined,z,zeff,natorb,&
-    lmaxorb,lmaxscp,norb,nqm,zeta,hcore,occupation,energy,crep,pol,ag,rcpair,error)
+    lmaxorb,lmaxscp,norb,nqm,zeta,hcore,occupation,energy,crep,pol,ag,rcpair,charge,error)
 
     TYPE(scptb_parameter_type), POINTER      :: scptb_parameter
     CHARACTER(LEN=*), OPTIONAL               :: key, atomname, &
@@ -278,7 +281,7 @@ CONTAINS
     REAL(KIND=dp), OPTIONAL                  :: energy
     REAL(KIND=dp), DIMENSION(3), OPTIONAL    :: crep
     REAL(KIND=dp), DIMENSION(1:3), OPTIONAL  :: pol
-    REAL(KIND=dp), OPTIONAL                  :: ag, rcpair
+    REAL(KIND=dp), OPTIONAL                  :: ag, rcpair, charge
     TYPE(cp_error_type), INTENT(INOUT), &
       OPTIONAL                               :: error
 
@@ -308,6 +311,7 @@ CONTAINS
     IF (PRESENT(pol)) scptb_parameter%pol = pol
     IF (PRESENT(ag)) scptb_parameter%ag = ag
     IF (PRESENT(rcpair)) scptb_parameter%rcpair = rcpair
+    IF (PRESENT(charge)) scptb_parameter%charge = charge
 
   END SUBROUTINE set_scptb_parameter
 

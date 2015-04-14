@@ -148,6 +148,7 @@ CONTAINS
           scptb_kind_b => scptb_kind_param(jkind)%scptb_param
           dr1 = DOT_PRODUCT(rij,rij)
           enucij = 0._dp
+          !print *,'yannick dr',dr1,rij
           IF ( dr1 > 0.00001_dp ) THEN
              ! Core-Core energy and derivatives
              IF(calculate_forces) THEN
@@ -228,7 +229,8 @@ CONTAINS
     a = SQRT(sepi%crep(1)*sepj%crep(1))
     c = 0.5_dp*(sepi%crep(2)+sepj%crep(2))
     d = 0.5_dp*(sepi%crep(3)+sepj%crep(3))
-
+    
+    !print *,'test yannick',a,c,d
     x = SQRT(rij(1)**2 + rij(2)**2 + rij(3)**2)
     expa = EXP(-(a*x))
 

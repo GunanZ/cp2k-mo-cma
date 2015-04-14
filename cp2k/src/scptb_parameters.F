@@ -86,7 +86,10 @@ CONTAINS
             param%zeta(1,0) = xopt(2)
             param%hcore(1,0) = -0.991475_dp 
             param%hcore(1,0) = xopt(3)
+            !if (size(xopt) .gt. 4) then
             param%crep(1:3) = xopt(4:6)
+            !endif
+            !print *,'param set for H',param%crep(1:3)
        endif
 !   CASE (2)
 !      !Helium
@@ -118,6 +121,7 @@ CONTAINS
        param%ag                    = 1.0_dp
        param%energy                = -0.5_dp
        IF (present(xopt)) then
+            !if (size(xopt) .gt. 7) then
             param%lmaxscp = 0 
             param%ag = 0.24483_dp
             param%ag = xopt(7)
@@ -132,7 +136,9 @@ CONTAINS
             param%hcore(1,1) = -4.0763620_dp
             param%hcore(1,1) = xopt(11)
             param%crep(1:3) = (/4.59,273.0,41.07/)
-            !param%crep(1:3) = xopt(12:14)
+            param%crep(1:3) = xopt(12:14)
+            !print *,'param set for O',param%crep(1:3)
+            !endif
        endif
     CASE ("F")
        !Fluorine

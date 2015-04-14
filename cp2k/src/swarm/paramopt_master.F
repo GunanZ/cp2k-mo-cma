@@ -73,6 +73,7 @@ MODULE paramopt_master
    !--------------------------
    REAL(KIND=dp),ALLOCATABLE,DIMENSION(:,:,:)          :: energies
    REAL(KIND=dp),ALLOCATABLE,DIMENSION(:,:,:)          :: rmsd
+   REAL(KIND=dp)                                      :: mcharge
    INTEGER,ALLOCATABLE,DIMENSION(:,:,:)                :: converged
    REAL(KIND=dp),ALLOCATABLE,DIMENSION(:,:)            :: ref_matrix
    INTEGER                                             :: database=1
@@ -214,6 +215,12 @@ MODULE paramopt_master
             allocate(this%converged(popsize,this%num_ref_mol,1))
         else if (this%database == 4) then
             this%num_ref_mol = 7  
+            CALL read_ref_data(this%database,"atomic_structures/reference_data",this%ref_matrix) 
+            allocate(this%energies(popsize,this%num_ref_mol,1))
+            allocate(this%rmsd(popsize,this%num_ref_mol,1))
+            allocate(this%converged(popsize,this%num_ref_mol,1))
+        else if (this%database == 5) then
+            this%num_ref_mol = 35 
             CALL read_ref_data(this%database,"atomic_structures/reference_data",this%ref_matrix) 
             allocate(this%energies(popsize,this%num_ref_mol,1))
             allocate(this%rmsd(popsize,this%num_ref_mol,1))
@@ -426,6 +433,17 @@ SUBROUTINE do_grid_search(this,report,cmd,should_stop)
                         charge = -1
                 end select
             endif
+            if (this%database .eq. 5) then
+                select case(ind(2))
+                case(1:15,30:32,34:35)
+                        charge = 0
+                    case(16:21,33)
+                        charge = 1
+                    case(22:29)
+                        charge = -1
+                end select
+            endif
+
             if (this%database .eq. 4) then
                 select case(ind(2))
                     case(1:2,4)
@@ -540,6 +558,7 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
             !if (this%converged(id,ind(2),ind(3)) .eq. 0) STOP "not converged"
             this%energies(id,ind(2),ind(3)) = func(1)
             this%rmsd(id,ind(2),ind(3))     = func(2) 
+            if (this%m .eq. 5) this%mcharge  = this%mcharge + func(5)
 
             if (this%num_input_rcvd .eq. offspringsize*this%num_ref_mol) then
                 do i = 1,offspringsize
@@ -552,6 +571,11 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                     if (this%database .eq. 1) then 
                         ! s22 is database 1
                         this%f(input,2) = sum(this%rmsd(input,:,1))
+                    else if (this%database .eq. 5) then
+                        this%f(input,1) = sum(func_array(1:30))
+                        this%f(input,2) = sum(this%rmsd(input,:,:))
+                        if (this%m .ne. 5) STOP "not enough objectives"
+                        this%f(input,5) = sum(func_array(31:35))
                     else
                         this%f(input,2) = sum(this%rmsd(input,:,:))
                     endif
@@ -569,6 +593,15 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                         this%f(input,4) = this%rmsd(input,1,1)
                       endif
                     endif
+                    if (this%m .gt. 4) then
+                      if (this%database .eq. 4) then
+                        this%f(input,5) = this%mcharge
+                      else
+                        this%f(input,5) = this%mcharge
+                      endif
+                    endif
+                    print *,'test',this%f(input,:)
+                    !print *,'test',this%f(input,5)
                     !------------
                     if (any(this%f(input,:) .gt. 1e10)) this%f(input,:) = huge(1._dp)
                     CALL open_file(file_name="output", file_status="UNKNOWN",&
@@ -587,6 +620,7 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                     end select
                 !---reset----------
                 this%converged   = 1
+                this%mcharge     = 0._dp
                 this%current_inp = 1
                 this%num_input_rcvd = 0
                 this%i_iteration = this%i_iteration + 1
@@ -624,6 +658,34 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                     case(22:29)
                         charge = -1
                         spinmult = 1 
+                end select
+            endif
+            if (this%database .eq. 5) then
+                select case(ind(2))
+                    case(1:15,30)
+                        charge = 0
+                        spinmult = 1 
+                    case(16:21)
+                        charge = 1
+                        spinmult = 1
+                    case(22:29)
+                        charge = -1
+                        spinmult = 1
+                    case(31)
+                        charge = 0
+                        spinmult = 2
+                    case(32)
+                        charge = 0
+                        spinmult = 3
+                    case(33)
+                        charge = 1
+                        spinmult = 4
+                    case(34)
+                        charge = 0
+                        spinmult = 1
+                    case(35)
+                        charge = 0
+                        spinmult = 3
                 end select
             endif
             if (this%database .eq. 4) then
@@ -858,7 +920,7 @@ END SUBROUTINE do_optim
     REAL(KIND=dp)                                   :: kcalmol=6.27509468713739E+02_dp 
     INTEGER                                         :: i,k,n
     INTEGER                                         :: nref    
-    REAL(KIND=dp),DIMENSION(4)                      :: ref_ene
+    REAL(KIND=dp),DIMENSION(:),ALLOCATABLE          :: ref_ene
     select case(database)
       case(1)
         print *,'nref',nref/3
@@ -878,6 +940,7 @@ END SUBROUTINE do_optim
         enddo
         func = sum(abs(func_array))
       case(3)
+      allocate(ref_ene(4))
         ref_ene(1) = energies(1,1)  !H2O
         ref_ene(2) = energies(16,1) !H3Op
         ref_ene(3) = energies(22,1) !OHm
@@ -889,15 +952,31 @@ END SUBROUTINE do_optim
         enddo
         func = sum(abs(func_array))
      case(4)
+     allocate(ref_ene(4))
         ref_ene(1) = energies(2,1)  !O 
         ref_ene(2) = energies(4,1)  !H2
         ref_ene(3) = energies(5,1)  !O2
         ref_ene(4) = energies(6,1)  !H2O
         do i=1,nref
           print *,'energies',ref_matrix(i,2)*energies(i,1)*kcalmol,dot_product(ref_matrix(i,3:6),ref_ene)*kcalmol,ref_matrix(i,7)
-          print *,'test',abs((ref_matrix(i,2)*energies(i,1) + dot_product(ref_matrix(i,3:6),ref_ene))*kcalmol) ,ref_matrix(i,7)
-          func_array(i) = abs(abs((ref_matrix(i,2)*energies(i,1) + dot_product(ref_matrix(i,3:6),ref_ene))*kcalmol)-ref_matrix(i,7))
+          !print *,'test',abs((ref_matrix(i,2)*energies(i,1) + dot_product(ref_matrix(i,3:6),ref_ene))*kcalmol) ,ref_matrix(i,7)
+          func_array(i) = abs(((ref_matrix(i,2)*energies(i,1) + dot_product(ref_matrix(i,3:6),ref_ene))*kcalmol)-ref_matrix(i,7))
           print *,'cluster ',i,energies(i,1),'x monomer',dot_product(ref_matrix(i,3:6),ref_ene),'f',func_array(i)
+          if (ref_matrix(i,7) .ne. 0) func_array(i) = func_array(i)/ref_matrix(i,7)
+        enddo
+        func = sum(abs(func_array))
+     case(5)
+     allocate(ref_ene(7))
+        ref_ene(1) = energies(1,1)  !H2O
+        ref_ene(2) = energies(16,1) !H3Op
+        ref_ene(3) = energies(22,1) !OHm
+        ref_ene(4) = energies(11,1) !H2O8s4
+        ref_ene(5) = energies(32,1) !O
+        ref_ene(6) = energies(34,1) !H2
+        ref_ene(7) = energies(35,1) !O2
+        do i=1,nref
+          func_array(i) = abs((ref_matrix(i,2)*energies(i,1) + dot_product(ref_matrix(i,3:6),ref_ene))*kcalmol-ref_matrix(i,7))
+          print *,'cluster',energies(i,1),'x monomer',dot_product(ref_matrix(i,3:6),ref_ene),'f',func_array(i)
           if (ref_matrix(i,7) .ne. 0) func_array(i) = func_array(i)/ref_matrix(i,7)
         enddo
         func = sum(abs(func_array))
@@ -935,6 +1014,13 @@ END SUBROUTINE energy2function
            ENDDO
         CASE(3,4) 
            allocate(ref_matrix(k,7))
+           REWIND(ref_unit)
+           READ(ref_unit,*) test
+           DO n=1,k
+                READ(ref_unit,*)  ref_matrix(n,:)
+           ENDDO
+        CASE(5) 
+           allocate(ref_matrix(k,10))
            REWIND(ref_unit)
            READ(ref_unit,*) test
            DO n=1,k
