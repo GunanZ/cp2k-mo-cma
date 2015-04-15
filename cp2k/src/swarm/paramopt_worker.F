@@ -498,7 +498,7 @@ MODULE paramopt_worker
             !print *,'hallo',mcharge,this%inp_file
             if (aname .eq. 'O') then
                 mcharge=tcharge
-                this%func(5) = abs(-0.7_dp-mcharge)
+                this%func(5) = abs(-0.66_dp-mcharge)
                  print *,'charge_err',this%func(5),mcharge
             endif
          !   DO iatom=1,natom_kind

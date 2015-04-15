@@ -73,7 +73,7 @@ MODULE paramopt_master
    !--------------------------
    REAL(KIND=dp),ALLOCATABLE,DIMENSION(:,:,:)          :: energies
    REAL(KIND=dp),ALLOCATABLE,DIMENSION(:,:,:)          :: rmsd
-   REAL(KIND=dp)                                      :: mcharge
+   REAL(KIND=dp),ALLOCATABLE,DIMENSION(:)              :: mcharge
    INTEGER,ALLOCATABLE,DIMENSION(:,:,:)                :: converged
    REAL(KIND=dp),ALLOCATABLE,DIMENSION(:,:)            :: ref_matrix
    INTEGER                                             :: database=1
@@ -201,30 +201,35 @@ MODULE paramopt_master
             allocate(this%energies(popsize,this%num_ref_mol/3,3))
             allocate(this%rmsd(popsize,this%num_ref_mol/3,3))
             allocate(this%converged(popsize,this%num_ref_mol/3,3))
+            allocate(this%mcharge(popsize))
         else if (this%database == 2) then
             this%num_ref_mol = 39
             CALL read_ref_data(this%database,"water_clusters/reference_data",this%ref_matrix) 
             allocate(this%energies(popsize,this%num_ref_mol,1))
             allocate(this%rmsd(popsize,this%num_ref_mol,1))
             allocate(this%converged(popsize,this%num_ref_mol,1))
+            allocate(this%mcharge(popsize))
         else if (this%database == 3) then
             this%num_ref_mol = 30 
             CALL read_ref_data(this%database,"WATER27structures/reference_data",this%ref_matrix) 
             allocate(this%energies(popsize,this%num_ref_mol,1))
             allocate(this%rmsd(popsize,this%num_ref_mol,1))
             allocate(this%converged(popsize,this%num_ref_mol,1))
+            allocate(this%mcharge(popsize))
         else if (this%database == 4) then
             this%num_ref_mol = 7  
             CALL read_ref_data(this%database,"atomic_structures/reference_data",this%ref_matrix) 
             allocate(this%energies(popsize,this%num_ref_mol,1))
             allocate(this%rmsd(popsize,this%num_ref_mol,1))
             allocate(this%converged(popsize,this%num_ref_mol,1))
+            allocate(this%mcharge(popsize))
         else if (this%database == 5) then
             this%num_ref_mol = 35 
             CALL read_ref_data(this%database,"atomic_structures/reference_data",this%ref_matrix) 
             allocate(this%energies(popsize,this%num_ref_mol,1))
             allocate(this%rmsd(popsize,this%num_ref_mol,1))
             allocate(this%converged(popsize,this%num_ref_mol,1))
+            allocate(this%mcharge(popsize))
         endif
     else 
         allocate(this%energies(popsize,this%num_ref_mol,1))
@@ -557,8 +562,8 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
             CALL swarm_message_get(report, "converged", this%converged(id,ind(2),ind(3)))
             !if (this%converged(id,ind(2),ind(3)) .eq. 0) STOP "not converged"
             this%energies(id,ind(2),ind(3)) = func(1)
-            this%rmsd(id,ind(2),ind(3))     = func(2) 
-            if (this%m .eq. 5) this%mcharge  = this%mcharge + func(5)
+            this%rmsd(id,ind(2),ind(3))     = func(2)
+            if (this%m .eq. 5) this%mcharge(id)  = this%mcharge(id) + func(5)
 
             if (this%num_input_rcvd .eq. offspringsize*this%num_ref_mol) then
                 do i = 1,offspringsize
@@ -594,11 +599,8 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                       endif
                     endif
                     if (this%m .gt. 4) then
-                      if (this%database .eq. 4) then
-                        this%f(input,5) = this%mcharge
-                      else
-                        this%f(input,5) = this%mcharge
-                      endif
+                        this%f(input,5) = this%mcharge(input)
+                        print *,'end charge',this%mcharge(input)
                     endif
                     print *,'test',this%f(input,:)
                     !print *,'test',this%f(input,5)
