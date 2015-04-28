@@ -174,6 +174,7 @@ CONTAINS
                 CALL corecore (scptb_kind_a,scptb_kind_b,rij,enuc=enuc,error=error)
              END IF
              enucij = enucij + enuc
+          print *,'yannick',dr1,rij,'ba',enucij
           END IF
           IF (atener) THEN
             atprop%atecc(iatom) = atprop%atecc(iatom) + 0.5_dp*enucij
@@ -228,7 +229,8 @@ CONTAINS
     a = SQRT(sepi%crep(1)*sepj%crep(1))
     c = 0.5_dp*(sepi%crep(2)+sepj%crep(2))
     d = 0.5_dp*(sepi%crep(3)+sepj%crep(3))
-
+    
+    !print *,'test yannick',a,c,d
     x = SQRT(rij(1)**2 + rij(2)**2 + rij(3)**2)
     expa = EXP(-(a*x))
 

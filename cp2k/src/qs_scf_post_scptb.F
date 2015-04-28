@@ -36,6 +36,16 @@ MODULE qs_scf_post_scptb
                                              qs_subsys_type
   USE timings,                         ONLY: timeset,&
                                              timestop
+  USE kinds,                           ONLY: default_string_length,&
+                                             dp
+  USE scptb_types,                     ONLY: get_scptb_parameter, &
+                                             set_scptb_parameter, &
+                                             scptb_parameter_type
+  USE mulliken,                      ONLY: mulliken_charges
+  USE atomic_kind_types,               ONLY: atomic_kind_type,&
+                                             get_atomic_kind
+  USE qs_kind_types,                   ONLY: get_qs_kind,&
+                                             qs_kind_type
 #include "./common/cp_common_uses.f90"
 
   IMPLICIT NONE
@@ -107,6 +117,16 @@ CONTAINS
     TYPE(section_vals_type), POINTER         :: dft_section, input, &
                                                 print_key, print_section, &
                                                 wfn_mix_section
+    TYPE(cp_dbcsr_p_type), DIMENSION(:), &
+      POINTER                                :: matrix_p, matrix_s
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:) :: mcharge
+    REAL(KIND=dp), DIMENSION(:, :), POINTER  :: charges
+    TYPE(scptb_parameter_type), POINTER      :: scptb_kind
+    INTEGER                                  :: iat,iatom,nkind,ikind,istat,nat
+    INTEGER                                  :: natom,nspins
+    REAL(kind=dp)                            :: zeff
+    TYPE(qs_kind_type), DIMENSION(:), &
+      POINTER                                :: qs_kind_set
 
     CALL timeset(routineN,handle)
     failure=.FALSE.
@@ -122,14 +142,41 @@ CONTAINS
                        particle_set=particle_set,&
                        rho=rho,&
                        input=input,&
+                       matrix_s=matrix_s,&
+                       natom=natom,&
                        cell=cell,&
                        subsys=subsys,&
                        para_env=para_env,&
+                       qs_kind_set=qs_kind_set,&
                        error=error)
 
        dft_section => section_vals_get_subs_vals(input,"DFT",error=error)
        print_section => section_vals_get_subs_vals(dft_section,"PRINT",error=error)
        CALL qs_subsys_get(subsys,particles=particles,error=error)
+
+       !-----yannick----------
+       nspins = dft_control%nspins
+       CALL qs_rho_get(rho, rho_ao=matrix_p, error=error)
+       ! Mulliken charges
+       ALLOCATE(charges(natom,nspins),mcharge(natom),STAT=istat)
+       CPPostcondition(istat==0,cp_failure_level,routineP,error,failure)
+       !
+       CALL mulliken_charges(matrix_p,matrix_s(1)%matrix,para_env,charges,error=error)
+       !
+       nkind = SIZE(atomic_kind_set)
+       DO ikind=1,nkind
+          CALL get_atomic_kind(atomic_kind_set(ikind), natom=nat)
+          CALL get_qs_kind(qs_kind_set(ikind),scptb_parameter=scptb_kind)
+          CALL get_scptb_parameter(scptb_kind,zeff=zeff)
+          DO iatom=1,nat
+             iat = atomic_kind_set(ikind)%atom_list(iatom)
+             mcharge(iat) = zeff - SUM(charges(iat,1:nspins))
+             !print *,'mcharge',mcharge(iat)
+             CALL set_scptb_parameter(scptb_kind,charge=mcharge(iat))
+          END DO
+       END DO
+
+
 
        ! Dipole Moments
        print_key => section_vals_get_subs_vals(print_section,"MOMENTS", error=error)

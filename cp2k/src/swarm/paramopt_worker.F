@@ -8,6 +8,9 @@
 !> \author Ole Schuett
 ! *****************************************************************************
 MODULE paramopt_worker
+  USE atomic_kind_types,               ONLY: atomic_kind_type,&
+                                             get_atomic_kind,&
+                                             get_atomic_kind_set
   USE cp_para_types,                   ONLY: cp_para_env_type
   USE cp_subsys_types,                 ONLY: cp_subsys_get,&
                                              cp_subsys_type,&
@@ -50,9 +53,13 @@ MODULE paramopt_worker
                                              kelvin
   USE qs_environment_types,            ONLY: get_qs_env,&
                                              qs_environment_type
+  USE qs_kind_types,                   ONLY: get_qs_kind,&
+                                             qs_kind_type
   USE swarm_message,                   ONLY: swarm_message_add,&
                                              swarm_message_get,&
                                              swarm_message_type
+  USE scptb_types,                     ONLY: get_scptb_parameter, &
+                                             scptb_parameter_type
 #include "../common/cp_common_uses.f90"
 
  IMPLICIT NONE
@@ -311,6 +318,15 @@ MODULE paramopt_worker
     REAL(dp), DIMENSION(3, 3)                :: U
     REAL(dp), DIMENSION(3)                   :: center1, center2
     REAL(dp), ALLOCATABLE, DIMENSION(:, :)   :: g
+    TYPE(atomic_kind_type), DIMENSION(:), &
+      POINTER                                :: atomic_kind_set
+    INTEGER                                  :: nkind,ikind,natom_kind
+    REAL(dp)                                 :: tcharge,mcharge=0._dp
+    TYPE(scptb_parameter_type), POINTER      :: scptb_kind
+        TYPE(qs_kind_type), DIMENSION(:), &
+      POINTER                                :: qs_kind_set
+    CHARACTER(LEN=default_string_length)     :: aname
+    this%func = 0._dp
     energy => this%func(1)
     rmsd => this%func(2)
     energy = 0._dp
@@ -351,8 +367,8 @@ MODULE paramopt_worker
     !hb_para(2) = this%x(2)
     !hb_para(3) = this%x(3)
     !--------for scptb--------------------------------
-    allocate(xopt_ptr(size(this%x)))
-    xopt_ptr = this%x
+    !allocate(xopt_ptr(size(this%x)))
+    !xopt_ptr = this%x
 
    !-------------------------------------------------
     CALL section_vals_val_set(this%root_section, &
@@ -471,11 +487,36 @@ MODULE paramopt_worker
     endif
     !
    endif
+   !if (this%inp_file .eq. 'atomic_structures/water06.xyz') then
+   if (natoms .eq. 3 .and. associated(xopt_ptr)) then
+   CALL get_qs_env(qs_env=this%qs_env,qs_kind_set=qs_kind_set,atomic_kind_set=atomic_kind_set,error=this%error)
+   nkind = SIZE(atomic_kind_set)
+         DO ikind=1,nkind
+            !CALL get_atomic_kind(atomic_kind_set(ikind),natom=natom_kind)
+            CALL get_qs_kind(qs_kind_set(ikind),scptb_parameter=scptb_kind)
+            CALL get_scptb_parameter(scptb_kind,charge=tcharge,atomname=aname)
+            !print *,'hallo',mcharge,this%inp_file
+            if (aname .eq. 'O') then
+                mcharge=tcharge
+                this%func(5) = abs(-0.66_dp-mcharge)
+                 print *,'charge_err',this%func(5),mcharge
+            endif
+         !   DO iatom=1,natom_kind
+         !     atom_a = atomic_kind_set(ikind)%atom_list(iatom)
+         !     mcharge(atom_a) = zeff - SUM(charges(atom_a,1:nspins))
+         !     ! yannick hack
+         !       CALL get_qs_kind(qs_kind_set(ikind), scptb_parameter=scptb_kind)
+         !       CALL set_scptb_parameter(scptb_kind,charge=mcharge(atom_a))
+         !   END DO
+         END DO
+    endif
+    !print *,'mcharge',mcharge
+    !print *,'charge_err',this%func(3),mcharge
     !------------------cleanup------------------------------------------------------
     CALL destroy_force_env(this%f_env_id, ierr)
     IF(ierr /= 0) STOP "paramopt_worker: destroy_force_env failed" 
-    !work_section => section_vals_get_subs_vals(this%subsys_section,"COORD",error=this%error)
-    !CALL section_vals_remove_values(work_section, this%error)
+    work_section => section_vals_get_subs_vals(this%subsys_section,"COORD",error=this%error)
+    CALL section_vals_remove_values(work_section, this%error)
    END SUBROUTINE paramopt_energy
 ! *****************************************************************************
 !> \brief Finalizes worker for global optimization

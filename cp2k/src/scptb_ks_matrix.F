@@ -86,7 +86,7 @@ MODULE scptb_ks_matrix
   USE qs_rho_types,                    ONLY: qs_rho_get,&
                                              qs_rho_type
   USE scptb_types,                     ONLY: &
-       get_scptb_parameter, scp_vector_add, scp_vector_copy, &
+       get_scptb_parameter,set_scptb_parameter, scp_vector_add, scp_vector_copy, &
        scp_vector_create, scp_vector_dot, scp_vector_mult, scp_vector_p_type, &
        scp_vector_release, scp_vector_set, scp_vector_type, &
        scptb_parameter_type
