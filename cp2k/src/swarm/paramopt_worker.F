@@ -367,8 +367,8 @@ MODULE paramopt_worker
     !hb_para(2) = this%x(2)
     !hb_para(3) = this%x(3)
     !--------for scptb--------------------------------
-    allocate(xopt_ptr(size(this%x)))
-    xopt_ptr = this%x
+    !allocate(xopt_ptr(size(this%x)))
+    !xopt_ptr = this%x
 
    !-------------------------------------------------
     CALL section_vals_val_set(this%root_section, &
@@ -488,7 +488,7 @@ MODULE paramopt_worker
     !
    endif
    !if (this%inp_file .eq. 'atomic_structures/water06.xyz') then
-   if (natoms .eq. 3) then
+   if (natoms .eq. 3 .and. associated(xopt_ptr)) then
    CALL get_qs_env(qs_env=this%qs_env,qs_kind_set=qs_kind_set,atomic_kind_set=atomic_kind_set,error=this%error)
    nkind = SIZE(atomic_kind_set)
          DO ikind=1,nkind
@@ -515,8 +515,8 @@ MODULE paramopt_worker
     !------------------cleanup------------------------------------------------------
     CALL destroy_force_env(this%f_env_id, ierr)
     IF(ierr /= 0) STOP "paramopt_worker: destroy_force_env failed" 
-    !work_section => section_vals_get_subs_vals(this%subsys_section,"COORD",error=this%error)
-    !CALL section_vals_remove_values(work_section, this%error)
+    work_section => section_vals_get_subs_vals(this%subsys_section,"COORD",error=this%error)
+    CALL section_vals_remove_values(work_section, this%error)
    END SUBROUTINE paramopt_energy
 ! *****************************************************************************
 !> \brief Finalizes worker for global optimization
