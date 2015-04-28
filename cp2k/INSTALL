@@ -77,6 +77,9 @@ available alternatives:
     that makes installing ScaLAPACK easier:
     http://www.netlib.org/scalapack/scalapack_installer.tgz
 
+For some experimental features MPI version 3 is required.
+To enable these you have to compile with -D__MPI_VERSION=3 .
+
 ==== 2e. FFTW ====
 FFTW can be used to improve FFT speed on a wide range of architectures.
 It is strongly recommended to install and use FFTW3. The current version
@@ -165,7 +168,9 @@ Library ELPA for the solution of the eigenvalue problem
     http://elpa.rzg.mpg.de/elpa-tar-archive ) and installed.
     During the installation the libelpa.a (or libelpa_mt.a if omp active) is created.
     We tested the version of November 2013, with generic kernel and with/without omp
-  * Add -D__ELPA to  DFLAGS and -L$(ELPA_DIR) -lelpa to LIBS
+  * Add -D__ELPA to  DFLAGS for versions of the library released before June 2014
+  * Add -D__ELPA2 to  DFLAGS for versions of the library released from June 2014  on
+  * Add -L$(ELPA_DIR) -lelpa to LIBS
   * ELPA replaces the ScaLapack SYEVD to improve the performance of the diagonalization
   * For specific architectures it can be better to install specifically
     optimized kernels (see BG) and/or employ a higher optimization level to compile it.
@@ -274,7 +279,8 @@ Some options controlling MPI behavior and capabilities:
   * -D__HAS_NO_SHARED_GLIBC should be defined on systems where a shared glibc is
     not available at runtime for some reason e.g. on HPC systems
     where some file systems are not available on the compute nodes
-  * -D__DATA_DIR=<path> optional flag which points at a central parameter file directory.
+  * -D__DATA_DIR='"<path>"' optional flag which points at a central parameter file directory (/.../cp2k/data/).
+    The double quotes are necessary, and the path must be absolute and end with a slash.
 
 ==== 3c. Compiler tweaks ====
 CP2K currently assumes Fortran2003 compliance, even though few features are used.

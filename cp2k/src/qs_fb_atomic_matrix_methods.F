@@ -5,8 +5,7 @@
 
 MODULE qs_fb_atomic_matrix_methods
 
-  USE cp_dbcsr_interface,              ONLY: array_data,&
-                                             cp_dbcsr_col_block_sizes,&
+  USE cp_dbcsr_interface,              ONLY: cp_dbcsr_col_block_sizes,&
                                              cp_dbcsr_get_block_p,&
                                              cp_dbcsr_get_info,&
                                              cp_dbcsr_get_stored_coordinates,&
@@ -91,8 +90,8 @@ CONTAINS
 
     NULLIFY(halo_atoms, row_block_size_data, col_block_size_data)
 
-    row_block_size_data => array_data(cp_dbcsr_row_block_sizes(dbcsr_mat))
-    col_block_size_data => array_data(cp_dbcsr_col_block_sizes(dbcsr_mat))
+    row_block_size_data => cp_dbcsr_row_block_sizes(dbcsr_mat)
+    col_block_size_data => cp_dbcsr_col_block_sizes(dbcsr_mat)
     CALL fb_atomic_halo_get(atomic_halo=atomic_halo, &
                             natoms=natoms_in_halo, &
                             halo_atoms=halo_atoms, &
@@ -211,8 +210,8 @@ CONTAINS
     numprocs = para_env%num_pe
 
     ! get dbcsr row and col block sizes
-    row_block_size_data => array_data(cp_dbcsr_row_block_sizes(dbcsr_mat))
-    col_block_size_data => array_data(cp_dbcsr_col_block_sizes(dbcsr_mat))
+    row_block_size_data => cp_dbcsr_row_block_sizes(dbcsr_mat)
+    col_block_size_data => cp_dbcsr_col_block_sizes(dbcsr_mat)
 
     ! allocate temporary arrays for send
     ALLOCATE(send_sizes(numprocs), STAT=stat)
@@ -388,7 +387,8 @@ CONTAINS
     TYPE(cp_dbcsr_type), POINTER             :: dbcsr_mat
     TYPE(fb_atomic_halo_obj), INTENT(IN)     :: atomic_halo
     TYPE(cp_para_env_type), POINTER          :: para_env
-    TYPE(fb_com_atom_pairs_obj), INTENT(OUT) :: atom_pairs_send, &
+    TYPE(fb_com_atom_pairs_obj), &
+      INTENT(INOUT)                          :: atom_pairs_send, &
                                                 atom_pairs_recv
     TYPE(cp_error_type), INTENT(INOUT)       :: error
 

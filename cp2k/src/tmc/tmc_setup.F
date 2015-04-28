@@ -299,8 +299,11 @@ CONTAINS
         END DO
         CALL do_tmc_worker(tmc_env=tmc_env, ana_list=tmc_ana_env_list, error=error_sub) ! start the worker routine for analysis
         DO i=1, tmc_env%params%nr_temp
+          IF(ASSOCIATED(tmc_ana_env_list(i)%temp%last_elem)) &
+            CALL deallocate_sub_tree_node(tree_elem=tmc_ana_env_list(i)%temp%last_elem, error=error)
           CALL tmc_ana_env_release(tmc_ana_env_list(i)%temp, error)
         END DO
+        DEALLOCATE(tmc_ana_env_list)
         IF (bcast_output_unit .NE. output_unit) THEN
           CALL close_file(unit_number=tmc_env%m_env%io_unit)
         ENDIF
@@ -463,6 +466,9 @@ CONTAINS
           CALL deallocate_sub_tree_node(tree_elem=ana_list(temp)%temp%last_elem, error=error)
         IF(ASSOCIATED(elem)) &
           CALL deallocate_sub_tree_node(tree_elem=elem, error=error)
+
+        IF(ASSOCIATED(ana_list(temp)%temp%last_elem)) &
+          CALL deallocate_sub_tree_node(tree_elem=ana_list(temp)%temp%last_elem, error=error)
 
         CALL tmc_ana_env_release(ana_list(temp)%temp, error)
       END DO
