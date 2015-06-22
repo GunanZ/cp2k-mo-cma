@@ -383,86 +383,86 @@ SUBROUTINE do_grid_search(this,report,cmd,should_stop)
     INTEGER,DIMENSION(3)                       :: ind
     REAL(kind=dp),DIMENSION(:),ALLOCATABLE     :: func_array
     REAL(kind=dp),DIMENSION(:),POINTER         :: func
-    allocate(func_array(size(this%energies,dim=2)))
-          CALL swarm_message_get(report, "worker_id", wid)
-          CALL swarm_message_get(report, "status", report_status)
-          if (trim(report_status) .eq. "done") then
-            this%num_input_rcvd = this%num_input_rcvd + 1
-            CALL swarm_message_get(report, "pop_id",id)
-            CALL swarm_message_get(report, "inp_num",input)
-            CALL index2grid(input,(/1,size(this%energies,dim=2),size(this%energies,dim=3)/),ind)
-            CALL swarm_message_get(report, "result", func)
-            this%energies(id,ind(2),ind(3)) = func(1)
-            this%rmsd(id,ind(2),ind(3))     = func(2) 
-            CALL swarm_message_get(report, "converged", this%converged(id,ind(2),ind(3)))
-            if (this%num_input_rcvd .eq. this%num_ref_mol) then
-                CALL energy2function(this%num_ref_mol,this%energies(1,:,:), &
-                                        this%ref_matrix,this%database,func_array)
-                this%f(1,1) = sum(func_array)
-                this%f(1,2) = sum(this%rmsd(1,:,:))
-                this%f(1,3) = func_array(2)
-                CALL open_file(file_name="output", file_status="UNKNOWN",&
-                    file_action="WRITE", file_position="APPEND",unit_number=iounit)
-                    write(iounit,*) var_trans(this%x(1,:),this%u_bound,this%l_bound), &
-                                    this%f(1,:),func_array,this%rmsd(1,:,:)
-                CALL close_file(iounit)
-                print *,'done writing file'
-                CALL grid_search(this) 
-                !---reset----------
-                this%current_inp = 0
-                this%num_input_rcvd = 0
-                this%i_iteration = this%i_iteration + 1
-            endif
-          endif
-          if (this%current_inp .le. this%num_ref_mol .and. &
-            (report_status .eq. "wait_done" .or. report_status .eq. "initial_hello")) then
-            CALL swarm_message_add(cmd, "command", "energy")
-            CALL swarm_message_add(cmd, "pop_id",1)
-            CALL swarm_message_add(cmd, "inp_num", this%current_inp )
-            CALL index2grid(this%current_inp,(/1,size(this%energies,dim=2), &
-                             size(this%energies,dim=3)/),ind)
-                             print *,ind
-            CALL gen_input_file(ind(2),ind(3),this%database,input_file)
-            CALL swarm_message_add(cmd, "inp_file", input_file)
-            ! change charge if necessary
-            ! w27 1-15 are 0 then 16-21 are 1 then 22-29 are -1 and 30 is 0
-            if (this%database .eq. 3) then
-                select case(ind(2))
-                    case(1:15,30)
-                        charge = 0
-                    case(16:21)
-                        charge = 1
-                    case(22:29)
-                        charge = -1
-                end select
-            endif
-            if (this%database .eq. 5) then
-                select case(ind(2))
-                case(1:15,30:32,34:35)
-                        charge = 0
-                    case(16:21,33)
-                        charge = 1
-                    case(22:29)
-                        charge = -1
-                end select
-            endif
-
-            if (this%database .eq. 4) then
-                select case(ind(2))
-                    case(1:2,4)
-                        charge = 0
-                    case(3)
-                        charge = 1
-                end select
-            endif
-            CALL swarm_message_add(cmd, "charge", charge)
-            CALL swarm_message_add(cmd, "x",&
-            var_trans(this%x(1,:),this%u_bound,this%l_bound))
-            this%current_inp = this%current_inp + 1
-          else
-            CALL swarm_message_add(cmd, "command", "wait")     
-          endif
-    deallocate(func_array)
+!    allocate(func_array(size(this%energies,dim=2)))
+!          CALL swarm_message_get(report, "worker_id", wid)
+!          CALL swarm_message_get(report, "status", report_status)
+!          if (trim(report_status) .eq. "done") then
+!            this%num_input_rcvd = this%num_input_rcvd + 1
+!            CALL swarm_message_get(report, "pop_id",id)
+!            CALL swarm_message_get(report, "inp_num",input)
+!            CALL index2grid(input,(/1,size(this%energies,dim=2),size(this%energies,dim=3)/),ind)
+!            CALL swarm_message_get(report, "result", func)
+!            this%energies(id,ind(2),ind(3)) = func(1)
+!            this%rmsd(id,ind(2),ind(3))     = func(2) 
+!            CALL swarm_message_get(report, "converged", this%converged(id,ind(2),ind(3)))
+!            if (this%num_input_rcvd .eq. this%num_ref_mol) then
+!                CALL energy2function(this%num_ref_mol,this%energies(1,:,:), &
+!                                        this%ref_matrix,this%database,func_array)
+!                this%f(1,1) = sum(func_array)
+!                this%f(1,2) = sum(this%rmsd(1,:,:))
+!                this%f(1,3) = func_array(2)
+!                CALL open_file(file_name="output", file_status="UNKNOWN",&
+!                    file_action="WRITE", file_position="APPEND",unit_number=iounit)
+!                    write(iounit,*) var_trans(this%x(1,:),this%u_bound,this%l_bound), &
+!                                    this%f(1,:),func_array,this%rmsd(1,:,:)
+!                CALL close_file(iounit)
+!                print *,'done writing file'
+!                CALL grid_search(this) 
+!                !---reset----------
+!                this%current_inp = 0
+!                this%num_input_rcvd = 0
+!                this%i_iteration = this%i_iteration + 1
+!            endif
+!          endif
+!          if (this%current_inp .le. this%num_ref_mol .and. &
+!            (report_status .eq. "wait_done" .or. report_status .eq. "initial_hello")) then
+!            CALL swarm_message_add(cmd, "command", "energy")
+!            CALL swarm_message_add(cmd, "pop_id",1)
+!            CALL swarm_message_add(cmd, "inp_num", this%current_inp )
+!            CALL index2grid(this%current_inp,(/1,size(this%energies,dim=2), &
+!                             size(this%energies,dim=3)/),ind)
+!                             print *,ind
+!            CALL gen_input_file(ind(2),ind(3),this%database,input_file)
+!            CALL swarm_message_add(cmd, "inp_file", input_file)
+!            ! change charge if necessary
+!            ! w27 1-15 are 0 then 16-21 are 1 then 22-29 are -1 and 30 is 0
+!            if (this%database .eq. 3) then
+!                select case(ind(2))
+!                    case(1:15,30)
+!                        charge = 0
+!                    case(16:21)
+!                        charge = 1
+!                    case(22:29)
+!                        charge = -1
+!                end select
+!            endif
+!            if (this%database .eq. 5) then
+!                select case(ind(2))
+!                case(1:15,30:32,34:35)
+!                        charge = 0
+!                    case(16:21,33)
+!                        charge = 1
+!                    case(22:29)
+!                        charge = -1
+!                end select
+!            endif
+!
+!            if (this%database .eq. 4) then
+!                select case(ind(2))
+!                    case(1:2,4)
+!                        charge = 0
+!                    case(3)
+!                        charge = 1
+!                end select
+!            endif
+!            CALL swarm_message_add(cmd, "charge", charge)
+!            CALL swarm_message_add(cmd, "x",&
+!            var_trans(this%x(1,:),this%u_bound,this%l_bound))
+!            this%current_inp = this%current_inp + 1
+!          else
+!            CALL swarm_message_add(cmd, "command", "wait")     
+!          endif
+!    deallocate(func_array)
 END SUBROUTINE do_grid_search
 
 ! *****************************************************************************
@@ -486,7 +486,7 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
     INTEGER                                    :: iounit 
     INTEGER                                    :: id=1 
     INTEGER                                    :: popsize,offspringsize 
-    REAL(kind=dp),DIMENSION(:),POINTER         :: func
+    REAL(kind=dp),DIMENSION(:),POINTER         :: func => Null()
     REAL(kind=dp)                              :: penalty
     REAL(kind=dp),DIMENSION(:),ALLOCATABLE     :: func_array
     INTEGER                                    :: k,l  
@@ -495,61 +495,62 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
     offspringsize = int(0.5*popsize)
     allocate(func_array(size(this%energies,dim=2)))
     if (this%benchmark) then
-          CALL swarm_message_get(report, "worker_id", wid)
-          CALL swarm_message_get(report, "status", report_status)
-          print *,report_status
-        if (trim(report_status) .eq. "done") then
-            this%num_input_rcvd = this%num_input_rcvd + 1
-            CALL swarm_message_get(report, "pop_id",id)
-            CALL swarm_message_get(report, "inp_num",input)
-            CALL swarm_message_get(report, "result", func)
-            this%f(id,:) = func
-            if (this%num_input_rcvd .eq. this%num_ref_mol*offspringsize) then
-            !do i=1,offspringsize
-            !    print *,'this is f',this%f(i,:)
-            !enddo
-                !select type(mocmaes => this%population)
-                ! type is (mo_cmaes_type)
-                !    CALL mo_cmaes_run(mocmaes)
-                !    this%offspring_list = mocmaes(1)%offspring_list
-                !end select
-                    do i=1,offspringsize
-                        input = this%offspring_list(i)
-                        CALL open_file(file_name="output", file_status="UNKNOWN",&
-                        file_action="WRITE", file_position="APPEND",unit_number=iounit)
-                        write(iounit,*) var_trans(this%x(input,:), &
-                                    this%u_bound,this%l_bound),this%f(input,:)
-                        CALL close_file(iounit)
-                    enddo
-                    select type(mocmaes => this%population)
-                     type is (mo_cmaes_type)
-                        CALL mo_cmaes_run(mocmaes)
-                    this%offspring_list = mocmaes(1)%offspring_list
-                    end select
-                !---reset----------
-                this%current_inp = 1
-                this%num_input_rcvd = 0
-                this%i_iteration = this%i_iteration + 1
-            endif
-        endif
-        if (this%current_inp .le. offspringsize*this%num_ref_mol .and. &
-            (report_status .eq. "wait_done" .or. report_status .eq. "initial_hello")) then
-            input = this%offspring_list(this%current_inp)
-            CALL swarm_message_add(cmd, "command", "function")
-            CALL swarm_message_add(cmd, "inp_num", this%current_inp )
-            CALL swarm_message_add(cmd, "pop_id", input )
-            CALL swarm_message_add(cmd, "x",&
-            var_trans(this%x(input,:),this%u_bound,this%l_bound))
-            CALL swarm_message_add(cmd, "ref_func",1)
-            this%current_inp = this%current_inp + 1
-            print *,'send done'
-        else
-             CALL swarm_message_add(cmd, "command", "wait") 
-        endif
+    !      CALL swarm_message_get(report, "worker_id", wid)
+    !      CALL swarm_message_get(report, "status", report_status)
+    !      print *,report_status
+    !    if (trim(report_status) .eq. "done") then
+    !        this%num_input_rcvd = this%num_input_rcvd + 1
+    !        CALL swarm_message_get(report, "pop_id",id)
+    !        CALL swarm_message_get(report, "inp_num",input)
+    !        CALL swarm_message_get(report, "result", func)
+    !        this%f(id,:) = func
+    !        if (this%num_input_rcvd .eq. this%num_ref_mol*offspringsize) then
+    !        !do i=1,offspringsize
+    !        !    print *,'this is f',this%f(i,:)
+    !        !enddo
+    !            !select type(mocmaes => this%population)
+    !            ! type is (mo_cmaes_type)
+    !            !    CALL mo_cmaes_run(mocmaes)
+    !            !    this%offspring_list = mocmaes(1)%offspring_list
+    !            !end select
+    !                do i=1,offspringsize
+    !                    input = this%offspring_list(i)
+    !                    CALL open_file(file_name="output", file_status="UNKNOWN",&
+    !                    file_action="WRITE", file_position="APPEND",unit_number=iounit)
+    !                    write(iounit,*) var_trans(this%x(input,:), &
+    !                                this%u_bound,this%l_bound),this%f(input,:)
+    !                    CALL close_file(iounit)
+    !                enddo
+    !                select type(mocmaes => this%population)
+    !                 type is (mo_cmaes_type)
+    !                    CALL mo_cmaes_run(mocmaes)
+    !                this%offspring_list = mocmaes(1)%offspring_list
+    !                end select
+    !            !---reset----------
+    !            this%current_inp = 1
+    !            this%num_input_rcvd = 0
+    !            this%i_iteration = this%i_iteration + 1
+    !        endif
+    !    endif
+    !    if (this%current_inp .le. offspringsize*this%num_ref_mol .and. &
+    !        (report_status .eq. "wait_done" .or. report_status .eq. "initial_hello")) then
+    !        input = this%offspring_list(this%current_inp)
+    !        CALL swarm_message_add(cmd, "command", "function")
+    !        CALL swarm_message_add(cmd, "inp_num", this%current_inp )
+    !        CALL swarm_message_add(cmd, "pop_id", input )
+    !        CALL swarm_message_add(cmd, "x",&
+    !        var_trans(this%x(input,:),this%u_bound,this%l_bound))
+    !        CALL swarm_message_add(cmd, "ref_func",1)
+    !        this%current_inp = this%current_inp + 1
+    !        print *,'send done'
+    !    else
+    !         CALL swarm_message_add(cmd, "command", "wait") 
+    !    endif
     else
           CALL swarm_message_get(report, "worker_id", wid)
           CALL swarm_message_get(report, "status", report_status)
           if (trim(report_status) .eq. "done") then
+            nullify(func)
             this%num_input_rcvd = this%num_input_rcvd + 1
             CALL swarm_message_get(report, "inp_num",input)
             CALL swarm_message_get(report, "pop_id",id)
@@ -626,7 +627,7 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                 this%i_iteration = this%i_iteration + 1
             endif
           endif
-          if (this%current_inp .le.offspringsize*this%num_ref_mol .and. &
+          if (this%current_inp .le. offspringsize*this%num_ref_mol .and. &
             (report_status .eq. "wait_done" .or. report_status .eq. "initial_hello")) then
             !-----------------------------------------------------------------
             CALL index2grid(this%current_inp,(/offspringsize,&
@@ -640,8 +641,6 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                 CALL swarm_message_add(cmd, "command", "energy")
             endif
             CALL swarm_message_add(cmd, "inp_num", this%current_inp )
-
-            print *,'iter',this%current_inp,ind
             CALL swarm_message_add(cmd, "pop_id", input )
             CALL gen_input_file(ind(2),ind(3),this%database,input_file)
             CALL swarm_message_add(cmd, "inp_file", input_file)

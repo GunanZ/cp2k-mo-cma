@@ -308,8 +308,8 @@ MODULE paramopt_worker
     INTEGER                                  :: iter,i_inp,charge,spinmult,i
     INTEGER                                  :: natoms,xsize
     REAL(KIND=dp),DIMENSION(:),POINTER       :: x => Null()
-    REAL(KIND=dp),POINTER                    :: energy
-    REAL(KIND=dp),POINTER                    :: rmsd
+    REAL(KIND=dp),POINTER                    :: energy => Null()
+    REAL(KIND=dp),POINTER                    :: rmsd   => Null()
     REAL(KIND=dp),DIMENSION(:),POINTER       :: hb_para => Null()
     REAL(KIND=dp),DIMENSION(:),POINTER       :: dftb3_param => Null()
     REAL(KIND=dp),DIMENSION(:),POINTER       :: d3_ptr => Null()
@@ -348,30 +348,29 @@ MODULE paramopt_worker
     !!this%D3 = this%x(1:3) 
     !d3_ptr = this%D3
     !----for dftb3 param optimization-----------------
-    if (xsize .gt. 3) then
-       !! NEEDS TO BE ADJUSTED !!!!!!!!!!!!!!!!!
-       if (this%database .eq. 1) then
-               allocate(dftb3_param(4))
-       else 
-               allocate(dftb3_param(2))
-       endif
-       !dftb3_param = this%x(6:xsize)
-       dftb3_param = this%x(4:xsize)
-       !dftb3_param = this%x(3:xsize)
-       !dftb3_param = this%x(1:xsize)
-       !allocate(dftb3_param(2))
-       !dftb3_param = this%x(6:7)
-    endif
-    !!---for hb param optimization---------------------
-    allocate(hb_para(3))
-    hb_para = 0._dp
-    hb_para(1) = this%x(1)
-    hb_para(2) = this%x(2)
-    hb_para(3) = this%x(3)
+    !if (xsize .gt. 3) then
+    !   !! NEEDS TO BE ADJUSTED !!!!!!!!!!!!!!!!!
+    !   if (this%database .eq. 1) then
+    !           allocate(dftb3_param(4))
+    !   else 
+    !           allocate(dftb3_param(2))
+    !   endif
+    !   !dftb3_param = this%x(6:xsize)
+    !   dftb3_param = this%x(4:xsize)
+    !   !dftb3_param = this%x(3:xsize)
+    !   !dftb3_param = this%x(1:xsize)
+    !   !allocate(dftb3_param(2))
+    !   !dftb3_param = this%x(6:7)
+    !endif
+    !!!---for hb param optimization---------------------
+    !allocate(hb_para(3))
+    !hb_para = 0._dp
+    !hb_para(1) = this%x(1)
+    !hb_para(2) = this%x(2)
+    !hb_para(3) = this%x(3)
     !--------for scptb--------------------------------
-    !allocate(xopt_ptr(size(this%x)))
-    !xopt_ptr = this%x
-
+    allocate(xopt_ptr(size(this%x)))
+    xopt_ptr = this%x
    !-------------------------------------------------
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%SUBSYS%TOPOLOGY%COORD_FILE_NAME", &
@@ -399,10 +398,12 @@ MODULE paramopt_worker
     endif 
 !--------------------------------------------------------------------------
     if (associated(xopt_ptr)) then
-     CALL section_vals_val_set(this%root_section, &
-                               "FORCE_EVAL%DFT%QS%SCPTB%XOPT", &
-                               r_vals_ptr=xopt_ptr, error= this%error)
-    !print *,'after xopt set' 
+     !CALL section_vals_val_set(this%root_section, &
+     !                          "FORCE_EVAL%DFT%QS%SCPTB%XOPT", &
+     !                          r_vals_ptr=xopt_ptr, error= this%error)
+     !CALL section_vals_val_set(this%root_section, &
+     !                          "FORCE_EVAL%DFT%QS%SE%XOPT", &
+     !                          r_vals_ptr=xopt_ptr, error= this%error)
     endif
     !--------------------------------------------------------------------------                              
     CALL section_vals_val_set(this%root_section, &
@@ -490,28 +491,28 @@ MODULE paramopt_worker
     !
    endif
    !if (this%inp_file .eq. 'atomic_structures/water06.xyz') then
-   if (natoms .eq. 3 .and. associated(xopt_ptr)) then
-   CALL get_qs_env(qs_env=this%qs_env,qs_kind_set=qs_kind_set,atomic_kind_set=atomic_kind_set,error=this%error)
-   nkind = SIZE(atomic_kind_set)
-         DO ikind=1,nkind
-            !CALL get_atomic_kind(atomic_kind_set(ikind),natom=natom_kind)
-            CALL get_qs_kind(qs_kind_set(ikind),scptb_parameter=scptb_kind)
-            CALL get_scptb_parameter(scptb_kind,charge=tcharge,atomname=aname)
-            !print *,'hallo',mcharge,this%inp_file
-            if (aname .eq. 'O') then
-                mcharge=tcharge
-                this%func(5) = abs(-0.66_dp-mcharge)
-                 print *,'charge_err',this%func(5),mcharge
-            endif
-         !   DO iatom=1,natom_kind
-         !     atom_a = atomic_kind_set(ikind)%atom_list(iatom)
-         !     mcharge(atom_a) = zeff - SUM(charges(atom_a,1:nspins))
-         !     ! yannick hack
-         !       CALL get_qs_kind(qs_kind_set(ikind), scptb_parameter=scptb_kind)
-         !       CALL set_scptb_parameter(scptb_kind,charge=mcharge(atom_a))
-         !   END DO
-         END DO
-    endif
+ !  if (natoms .eq. 3 .and. associated(xopt_ptr)) then
+ !  CALL get_qs_env(qs_env=this%qs_env,qs_kind_set=qs_kind_set,atomic_kind_set=atomic_kind_set,error=this%error)
+ !  nkind = SIZE(atomic_kind_set)
+ !        DO ikind=1,nkind
+ !           !CALL get_atomic_kind(atomic_kind_set(ikind),natom=natom_kind)
+ !           CALL get_qs_kind(qs_kind_set(ikind),scptb_parameter=scptb_kind)
+ !           CALL get_scptb_parameter(scptb_kind,charge=tcharge,atomname=aname)
+ !           !print *,'hallo',mcharge,this%inp_file
+ !           if (aname .eq. 'O') then
+ !               mcharge=tcharge
+ !               this%func(5) = abs(-0.66_dp-mcharge)
+ !                print *,'charge_err',this%func(5),mcharge
+ !           endif
+ !        !   DO iatom=1,natom_kind
+ !        !     atom_a = atomic_kind_set(ikind)%atom_list(iatom)
+ !        !     mcharge(atom_a) = zeff - SUM(charges(atom_a,1:nspins))
+ !        !     ! yannick hack
+ !        !       CALL get_qs_kind(qs_kind_set(ikind), scptb_parameter=scptb_kind)
+ !        !       CALL set_scptb_parameter(scptb_kind,charge=mcharge(atom_a))
+ !        !   END DO
+ !        END DO
+ !   endif
     !print *,'mcharge',mcharge
     !print *,'charge_err',this%func(3),mcharge
     !------------------cleanup------------------------------------------------------
