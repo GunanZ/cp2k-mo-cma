@@ -173,6 +173,8 @@ MODULE dbcsr_types
      TYPE(array_i1d_obj)               :: row_dist_block, col_dist_block
      TYPE(array_i1d_obj)               :: local_rows, local_cols
      TYPE(array_i1d_obj)               :: row_dist_cluster, col_dist_cluster
+     TYPE(array_i1d_obj), DIMENSION(:), POINTER :: local_cluster_rows => Null(),&
+                                                   local_cluster_cols => Null()
      TYPE(array_i1d_obj), DIMENSION(:), POINTER :: other_l_rows => Null(),&
                                                    other_l_cols => Null()
      LOGICAL                           :: has_other_l_rows, has_other_l_cols
@@ -306,7 +308,7 @@ MODULE dbcsr_types
      LOGICAL            :: shared, dynamic, dynamic_byrows
      INTEGER, POINTER   :: common_pos => Null()
      ! Copies from the matrix.
-     INTEGER            :: nblks, nblkrows_total, max_r_size, max_c_size
+     INTEGER            :: nblks, nblkrows_total
      INTEGER, DIMENSION(:), POINTER :: row_p       => Null(),&
                                        col_i       => Null(),&
                                        blk_p       => Null(),&
@@ -606,7 +608,7 @@ MODULE dbcsr_types
 !> \var ...
 ! *****************************************************************************
   TYPE dbcsr_mpi_statistics_type
-     INTEGER                               :: col_nimages, row_nimages
+     INTEGER                               :: nimages
      INTEGER                               :: nexchanged
      INTEGER                               :: nfiltered
      INTEGER                               :: nprocs

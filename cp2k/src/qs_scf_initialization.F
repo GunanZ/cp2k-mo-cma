@@ -51,7 +51,7 @@ MODULE qs_scf_initialization
   USE kpoint_types,                    ONLY: kpoint_type
   USE lri_optimize_ri_basis,           ONLY: optimize_lri_basis
   USE pw_types,                        ONLY: pw_p_type
-  USE qmmm_image_charge,               ONLY: calculate_image_matrix
+  USE qmmm_image_charge,               ONLY: conditional_calc_image_matrix
   USE qs_block_davidson_types,         ONLY: block_davidson_allocate,&
                                              block_davidson_env_create
   USE qs_density_mixing_types,         ONLY: direct_mixing_nr,&
@@ -61,6 +61,7 @@ MODULE qs_scf_initialization
   USE qs_environment_types,            ONLY: get_qs_env,&
                                              qs_environment_type,&
                                              set_qs_env
+  USE qs_fb_distribution_methods,      ONLY: fb_distribution_build
   USE qs_fb_env_methods,               ONLY: fb_env_build_atomic_halos,&
                                              fb_env_build_rcut_auto,&
                                              fb_env_read_input,&
@@ -781,8 +782,9 @@ CONTAINS
          END IF
          CALL fb_env_read_input(scf_env%filter_matrix_env, scf_section, error=error)
          CALL fb_env_build_rcut_auto(scf_env%filter_matrix_env, qs_env, error=error)
-         CALL fb_env_build_atomic_halos(scf_env%filter_matrix_env, qs_env, error=error)
          CALL fb_env_write_info(scf_env%filter_matrix_env, qs_env, scf_section, error=error)
+         CALL fb_distribution_build(scf_env%filter_matrix_env, qs_env, scf_section, error=error)
+         CALL fb_env_build_atomic_halos(scf_env%filter_matrix_env, qs_env, scf_section, error=error)
       CASE DEFAULT
          CALL cp_assert(.FALSE.,cp_failure_level,cp_assertion_failed,&
               routineP,"Unknown diagonalization method",error,failure)
@@ -1040,13 +1042,11 @@ CONTAINS
       END IF
     END IF
 
-   !image charge method, calculate image_matrix
+   !image charge method, calculate image_matrix if required
    IF(qs_env%qmmm) THEN
-     IF(qs_env%qmmm_env_qm%image_charge) THEN
-       IF(.NOT.qs_env%qmmm_env_qm%image_charge_pot%coeff_iterative) &
-          CALL calculate_image_matrix(image_matrix=qs_env%image_matrix,&
-               ipiv=qs_env%ipiv,qs_env=qs_env,qmmm_env=qs_env%qmmm_env_qm,&
-               error=error)
+     IF(qs_env%qmmm.AND.qs_env%qmmm_env_qm%image_charge) THEN
+       CALL conditional_calc_image_matrix(qs_env=qs_env,&
+            qmmm_env=qs_env%qmmm_env_qm,error=error)
      ENDIF
    ENDIF
 

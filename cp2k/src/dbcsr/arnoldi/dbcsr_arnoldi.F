@@ -11,10 +11,14 @@
 ! *****************************************************************************
 
 MODULE dbcsr_arnoldi
-  USE dbcsr_arnoldi_data_methods,      ONLY: get_nrestart,&
+  USE dbcsr_arnoldi_data_methods,      ONLY: arnoldi_is_converged,&
+                                             deallocate_arnoldi_data,&
+                                             get_nrestart,&
+                                             get_selected_ritz_val,&
                                              get_selected_ritz_vector,&
                                              select_evals,&
-                                             set_arnoldi_initial_vector
+                                             set_arnoldi_initial_vector,&
+                                             setup_arnoldi_data
   USE dbcsr_arnoldi_methods,           ONLY: arnoldi_init,&
                                              arnoldi_iram,&
                                              build_subspace,&
@@ -31,12 +35,14 @@ MODULE dbcsr_arnoldi
                                              dbcsr_error_type
   USE dbcsr_methods,                   ONLY: dbcsr_init,&
                                              dbcsr_release
-  USE dbcsr_operations,                ONLY: dbcsr_get_info
+  USE dbcsr_operations,                ONLY: dbcsr_copy,&
+                                             dbcsr_get_info
   USE dbcsr_types,                     ONLY: dbcsr_obj,&
                                              dbcsr_obj_type_p
   USE dbcsr_vector_operations,         ONLY: create_col_vec_from_matrix,&
                                              create_replicated_col_vec_from_matrix,&
                                              create_replicated_row_vec_from_matrix
+  USE kinds,                           ONLY: dp
 
   IMPLICIT NONE
 
@@ -44,7 +50,7 @@ MODULE dbcsr_arnoldi
 
   CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'dbcsr_arnoldi'
 
-  PUBLIC :: dbcsr_arnoldi_ev
+  PUBLIC :: dbcsr_arnoldi_ev, dbcsr_arnoldi_extremal
 
 CONTAINS
 
@@ -112,7 +118,8 @@ CONTAINS
 
 !prepare the vector like matrives needed in the matrix vector products, they will be reused throughout the iterations
     CALL create_col_vec_from_matrix(vectors%input_vec, matrix(1)%matrix, 1, error)
-    CALL create_col_vec_from_matrix(vectors%result_vec, matrix(1)%matrix, 1, error)
+    CALL dbcsr_init(vectors%result_vec)
+    CALL dbcsr_copy(vectors%result_vec,vectors%input_vec,error=error)
     CALL create_replicated_col_vec_from_matrix(vectors%rep_col_vec, matrix(1)%matrix, 1, error)
     CALL create_replicated_row_vec_from_matrix(vectors%rep_row_vec, matrix(1)%matrix, 1, error)
 
@@ -196,14 +203,15 @@ CONTAINS
 
     CALL dbcsr_error_set(routineN, handle, error)
     ALLOCATE(matrix_arnoldi(2))
-    ! this matrix will conatin +/- A-rho*B
+    ! this matrix will contain +/- A-rho*B
     CALL dbcsr_init(A_rho_B)
     matrix_arnoldi(1)%matrix=>A_rho_B
     matrix_arnoldi(2)%matrix=>matrix(2)%matrix
 
 !prepare the vector like matrives needed in the matrix vector products, they will be reused throughout the iterations
     CALL create_col_vec_from_matrix(vectors%input_vec, matrix(1)%matrix, 1, error)
-    CALL create_col_vec_from_matrix(vectors%result_vec, matrix(1)%matrix, 1, error)
+    CALL dbcsr_init(vectors%result_vec)
+    CALL dbcsr_copy(vectors%result_vec,vectors%input_vec,error=error)
     CALL create_replicated_col_vec_from_matrix(vectors%rep_col_vec, matrix(1)%matrix, 1, error)
     CALL create_replicated_row_vec_from_matrix(vectors%rep_row_vec, matrix(1)%matrix, 1, error)
 
@@ -247,5 +255,61 @@ CONTAINS
 
   END SUBROUTINE dbcsr_arnoldi_generalized_ev
 
+
+! *****************************************************************************
+!> \brief simple wrapper to estimate extremal eigenvalues with arnoldi, using the old lanczos interface
+!>        this hides some of the power of the arnoldi routines (e.g. only min or max eval, generalized eval, ritz vectors, etc.),
+!>        and does not allow for providing an initial guess of the ritz vector. 
+!> \param matrix_a input mat
+!> \param max_ev estimated max eval
+!> \param min_ev estimated min eval
+!> \param converged ? Usually arnoldi is more accurate than claimed.
+!> \param threshold target precision
+!> \param max_iter max allowed iterations (will be rounded up)
+!> \param error ...
+! *****************************************************************************
+  SUBROUTINE dbcsr_arnoldi_extremal(matrix_a,  max_ev, min_ev, converged, threshold, max_iter, error)
+    TYPE(dbcsr_obj), INTENT(INOUT), TARGET   :: matrix_a
+    REAL(KIND=dp), INTENT(OUT)               :: max_ev, min_ev
+    LOGICAL, INTENT(OUT)                     :: converged
+    REAL(KIND=dp), INTENT(IN)                :: threshold
+    INTEGER, INTENT(IN)                      :: max_iter
+    TYPE(dbcsr_error_type), INTENT(inout)    :: error
+
+    CHARACTER(LEN=*), PARAMETER :: routineN = 'dbcsr_arnoldi_extremal', &
+      routineP = moduleN//':'//routineN
+
+    INTEGER                                  :: handle, max_iter_internal, &
+                                                nrestarts
+    TYPE(dbcsr_arnoldi_data)                 :: my_arnoldi
+    TYPE(dbcsr_obj_type_p), DIMENSION(:), &
+      POINTER                                :: arnoldi_matrices
+
+    CALL dbcsr_error_set(routineN, handle, error)
+
+    ! we go in chunks of max_iter_internal, and restart ater each of those.
+    ! at low threshold smaller values of max_iter_internal make sense
+    IF (.TRUE.)               max_iter_internal=16
+    IF (threshold<=1.0E-3_dp) max_iter_internal=32
+    IF (threshold<=1.0E-4_dp) max_iter_internal=64
+
+    ! the max number of iter will be (nrestarts+1)*max_iter_internal
+    nrestarts = max_iter/max_iter_internal
+
+    ALLOCATE(arnoldi_matrices(1))
+    arnoldi_matrices(1)%matrix => matrix_a
+    CALL setup_arnoldi_data(my_arnoldi,arnoldi_matrices,max_iter=max_iter_internal,&
+         threshold=threshold,selection_crit=1, nval_request=2, nrestarts=nrestarts,&
+         generalized_ev=.FALSE.,iram=.TRUE.)
+    CALL dbcsr_arnoldi_ev(arnoldi_matrices,my_arnoldi,error)
+    converged=arnoldi_is_converged(my_arnoldi)
+    max_eV=REAL(get_selected_ritz_val(my_arnoldi,2),dp)
+    min_eV=REAL(get_selected_ritz_val(my_arnoldi,1),dp)
+    CALL deallocate_arnoldi_data(my_arnoldi)
+    DEALLOCATE(arnoldi_matrices)
+
+    CALL dbcsr_error_stop(handle, error)
+
+  END SUBROUTINE dbcsr_arnoldi_extremal
 
 END MODULE dbcsr_arnoldi 

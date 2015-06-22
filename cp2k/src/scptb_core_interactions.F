@@ -174,7 +174,7 @@ CONTAINS
                 CALL corecore (scptb_kind_a,scptb_kind_b,rij,enuc=enuc,error=error)
              END IF
              enucij = enucij + enuc
-          print *,'yannick',dr1,rij,'ba',enucij
+          !print *,'yannick',dr1,rij,'ba',enucij
           END IF
           IF (atener) THEN
             atprop%atecc(iatom) = atprop%atecc(iatom) + 0.5_dp*enucij

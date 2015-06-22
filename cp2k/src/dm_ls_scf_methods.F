@@ -11,17 +11,16 @@
 ! *****************************************************************************
 MODULE dm_ls_scf_methods
   USE cp_dbcsr_interface,              ONLY: &
-       cp_dbcsr_add, cp_dbcsr_add_on_diag, cp_dbcsr_copy, cp_dbcsr_create, &
-       cp_dbcsr_desymmetrize, cp_dbcsr_filter, cp_dbcsr_finalize, &
-       cp_dbcsr_frobenius_norm, cp_dbcsr_get_data_type, &
-       cp_dbcsr_get_occupation, cp_dbcsr_init, cp_dbcsr_iterator_start, &
-       cp_dbcsr_multiply, cp_dbcsr_put_block, cp_dbcsr_release, &
-       cp_dbcsr_scale, cp_dbcsr_set, cp_dbcsr_trace, cp_dbcsr_type, &
-       dbcsr_data_clear_pointer, dbcsr_data_init, dbcsr_data_new, &
-       dbcsr_data_obj, dbcsr_data_release, dbcsr_iterator, &
+       cp_dbcsr_add, cp_dbcsr_add_on_diag, cp_dbcsr_arnoldi_extremal, &
+       cp_dbcsr_copy, cp_dbcsr_create, cp_dbcsr_desymmetrize, &
+       cp_dbcsr_filter, cp_dbcsr_finalize, cp_dbcsr_frobenius_norm, &
+       cp_dbcsr_get_data_type, cp_dbcsr_get_occupation, cp_dbcsr_init, &
+       cp_dbcsr_iterator_start, cp_dbcsr_multiply, cp_dbcsr_put_block, &
+       cp_dbcsr_release, cp_dbcsr_scale, cp_dbcsr_set, cp_dbcsr_trace, &
+       cp_dbcsr_type, dbcsr_data_clear_pointer, dbcsr_data_init, &
+       dbcsr_data_new, dbcsr_data_obj, dbcsr_data_release, dbcsr_iterator, &
        dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, &
        dbcsr_iterator_stop, dbcsr_type_no_symmetry
-  USE cp_dbcsr_util,                   ONLY: lanczos_alg_serial
   USE dm_ls_scf_types,                 ONLY: ls_cluster_atomic,&
                                              ls_mstruct_type
   USE input_constants,                 ONLY: ls_s_preconditioner_atomic,&
@@ -435,11 +434,11 @@ CONTAINS
                                                 handle, i, j, unit_nr
     INTEGER(kind=int_8)                      :: flop1, flop2
     LOGICAL                                  :: converged, do_dyn_threshold
-    REAL(KIND=dp) :: current_threshold, eps_max, eps_min, est_threshold, &
-      frob_id, frob_x, gam, homo, lumo, max_eig, max_threshold, maxdev, &
-      maxev, min_eig, minev, mmin, mu, mu_a, mu_b, mu_c, mu_fa, mu_fc, &
-      occ_matrix, scaled_homo_bound, scaled_lumo_bound, t1, t2, trace_fx, &
-      trace_gx, xi
+    REAL(KIND=dp) :: current_threshold, delta_n, eps_max, eps_min, &
+      est_threshold, frob_id, frob_x, gam, homo, lumo, max_eig, &
+      max_threshold, maxdev, maxev, min_eig, minev, mmin, mu, mu_a, mu_b, &
+      mu_c, mu_fa, mu_fc, occ_matrix, scaled_homo_bound, scaled_lumo_bound, &
+      t1, t2, trace_fx, trace_gx, xi
     REAL(KIND=dp), ALLOCATABLE, DIMENSION(:) :: gamma_values
     TYPE(cp_dbcsr_type)                      :: matrix_k0, matrix_x, &
                                                 matrix_x_nosym, matrix_xidsq, &
@@ -463,12 +462,11 @@ CONTAINS
     do_dyn_threshold = .FALSE.
     IF(PRESENT(dynamic_threshold)) do_dyn_threshold = dynamic_threshold
 
-
     ! init X = (eps_n*I - H)/(eps_n - eps_0)  ... H* = S^-1/2*H*S^-1/2
     CALL cp_dbcsr_init(matrix_x,error=error)
     CALL cp_dbcsr_create(matrix_x, template=matrix_ks, matrix_type="S", error=error)
 
-    ! at some points the non-symmetric version of x is rewuired
+    ! at some points the non-symmetric version of x is required
     CALL cp_dbcsr_init(matrix_x_nosym,error=error)
     CALL cp_dbcsr_create(matrix_x_nosym, template=matrix_ks, matrix_type=dbcsr_type_no_symmetry, error=error)
 
@@ -483,22 +481,25 @@ CONTAINS
     CALL cp_dbcsr_copy(matrix_k0, matrix_x_nosym, error=error)
 
     ! compute the deviation in the mixed matrix, as seen in the ortho basis
-    CALL cp_dbcsr_add(matrix_ks_deviation, matrix_x_nosym , -1.0_dp, 1.0_dp, error=error)
-    CALL lanczos_alg_serial(matrix_ks_deviation, maxev, minev, max_iter=max_iter_lanczos, threshold=eps_lanczos, &
-                            converged=converged, error=error)
-    maxdev = MAX(ABS(maxev), ABS(minev))
-    IF (unit_nr>0) THEN
-       WRITE(unit_nr, '(T6,A,1X,L12)')   "Lanczos converged:      ", converged
-       WRITE(unit_nr, '(T6,A,1X,F12.5)') "change in mixed matrix: ", maxdev
-       WRITE(unit_nr, '(T6,A,1X,F12.5)') "HOMO upper bound:       ", e_homo+maxdev
-       WRITE(unit_nr, '(T6,A,1X,F12.5)') "LUMO lower bound:       ", e_lumo-maxdev
-       WRITE(unit_nr, '(T6,A,1X,L12)')   "Predicts a gap ?        ", ((e_lumo-maxdev)-(e_homo+maxdev))>0
+    IF (do_dyn_threshold) THEN
+       CALL cp_dbcsr_add(matrix_ks_deviation, matrix_x_nosym , -1.0_dp, 1.0_dp, error=error)
+       CALL cp_dbcsr_arnoldi_extremal(matrix_ks_deviation, maxev, minev, max_iter=max_iter_lanczos, threshold=eps_lanczos, &
+                               converged=converged, error=error)
+       maxdev = MAX(ABS(maxev), ABS(minev))
+       IF (unit_nr>0) THEN
+          WRITE(unit_nr, '(T6,A,1X,L12)')   "Lanczos converged:      ", converged
+          WRITE(unit_nr, '(T6,A,1X,F12.5)') "change in mixed matrix: ", maxdev
+          WRITE(unit_nr, '(T6,A,1X,F12.5)') "HOMO upper bound:       ", e_homo+maxdev
+          WRITE(unit_nr, '(T6,A,1X,F12.5)') "LUMO lower bound:       ", e_lumo-maxdev
+          WRITE(unit_nr, '(T6,A,1X,L12)')   "Predicts a gap ?        ", ((e_lumo-maxdev)-(e_homo+maxdev))>0
+       ENDIF
+       ! save the old mixed matrix
+       CALL cp_dbcsr_copy(matrix_ks_deviation, matrix_x_nosym , error=error)
+
     ENDIF
-    ! save the old mixed matrix
-    CALL cp_dbcsr_copy(matrix_ks_deviation, matrix_x_nosym , error=error)
 
     ! get largest/smallest eigenvalues for scaling
-    CALL lanczos_alg_serial(matrix_x_nosym, max_eig, min_eig, max_iter=max_iter_lanczos, threshold=eps_lanczos,&
+    CALL cp_dbcsr_arnoldi_extremal(matrix_x_nosym, max_eig, min_eig, max_iter=max_iter_lanczos, threshold=eps_lanczos,&
                             converged=converged, error=error)
     IF (unit_nr>0) WRITE(unit_nr,'(T6,A,1X,2F12.5,1X,A,1X,L1)') "Est. extremal eigenvalues", &
                                                          min_eig, max_eig," converged: ",converged
@@ -509,10 +510,12 @@ CONTAINS
     CALL cp_dbcsr_add_on_diag(matrix_x, -eps_max, error=error)
     CALL cp_dbcsr_scale(matrix_x, -1.0_dp/(eps_max-eps_min), error=error)
 
-    ! scale bounds for HOMO/LUMO
-    scaled_homo_bound = (eps_max-(e_homo+maxdev))/(eps_max-eps_min)
-    scaled_lumo_bound = (eps_max-(e_lumo-maxdev))/(eps_max-eps_min)
     current_threshold = threshold
+    IF (do_dyn_threshold) THEN
+       ! scale bounds for HOMO/LUMO
+       scaled_homo_bound = (eps_max-(e_homo+maxdev))/(eps_max-eps_min)
+       scaled_lumo_bound = (eps_max-(e_lumo-maxdev))/(eps_max-eps_min)
+    ENDIF
 
     CALL cp_dbcsr_init(matrix_xsq,error=error)
     CALL cp_dbcsr_create(matrix_xsq,template=matrix_ks,matrix_type="S",error=error)
@@ -556,11 +559,14 @@ CONTAINS
       CALL cp_dbcsr_trace(matrix_xsq, tmp_gx, trace_fx, error=error)
 
       ! if converged, and gam becomes noisy, fix it to 3, which results in a final McWeeny step.
+      ! do this only if the electron count is reasonable.
       ! maybe tune if the current criterion is not good enough
-      IF (ABS(frob_id/frob_x) < SQRT(threshold)) THEN
+      delta_n = nelectron - trace_fx
+      IF ((ABS(frob_id/frob_x) < SQRT(threshold)) .AND. (ABS(delta_n) < 0.5_dp) ) THEN
          gam = 3.0_dp
       ELSE
-         gam = (nelectron - trace_fx)/trace_gx 
+         ! make sure, we don't divide by zero, as soon as gam is outside the interval gam_min,gam_max, it doesn't matter
+         gam = delta_n/MAX(trace_gx,ABS(delta_n)/100)
       ENDIF
       gamma_values(i) = gam
 
@@ -568,22 +574,24 @@ CONTAINS
          WRITE(unit_nr,*) "trace_fx",trace_fx,"trace_gx",trace_gx,"gam",gam,"frob_id",frob_id,"conv",ABS(frob_id/frob_x)
       ENDIF
 
-      ! quantities used for dynamic thresholding, when the estimated gap is larger than zero
-      xi = (scaled_homo_bound-scaled_lumo_bound)
-      IF (do_dyn_threshold .AND. xi > 0.0_dp) THEN
-        mmin = 0.5*(scaled_homo_bound+scaled_lumo_bound)
-        max_threshold = ABS(1-2*mmin)*xi
+      IF (do_dyn_threshold) THEN
+        ! quantities used for dynamic thresholding, when the estimated gap is larger than zero
+        xi = (scaled_homo_bound-scaled_lumo_bound)
+        IF (xi > 0.0_dp) THEN
+           mmin = 0.5*(scaled_homo_bound+scaled_lumo_bound)
+           max_threshold = ABS(1-2*mmin)*xi
   
-        scaled_homo_bound = evaluate_trs4_polynomial(scaled_homo_bound, gamma_values(i:), 1)
-        scaled_lumo_bound = evaluate_trs4_polynomial(scaled_lumo_bound, gamma_values(i:), 1)
-        estimated_steps = estimate_steps(scaled_homo_bound, scaled_lumo_bound, threshold)
+           scaled_homo_bound = evaluate_trs4_polynomial(scaled_homo_bound, gamma_values(i:), 1)
+           scaled_lumo_bound = evaluate_trs4_polynomial(scaled_lumo_bound, gamma_values(i:), 1)
+           estimated_steps = estimate_steps(scaled_homo_bound, scaled_lumo_bound, threshold)
       
-        est_threshold = (threshold/(estimated_steps+i+1))*xi/(1+threshold/(estimated_steps+i+1))
-        est_threshold = MIN(max_threshold, est_threshold)
-        IF (i > 1) est_threshold = MAX(est_threshold, 0.1_dp * current_threshold)
-        current_threshold = est_threshold
-      ELSE
-        current_threshold = threshold
+           est_threshold = (threshold/(estimated_steps+i+1))*xi/(1+threshold/(estimated_steps+i+1))
+           est_threshold = MIN(max_threshold, est_threshold)
+           IF (i > 1) est_threshold = MAX(est_threshold, 0.1_dp * current_threshold)
+           current_threshold = est_threshold
+        ELSE
+           current_threshold = threshold
+        ENDIF
       ENDIF
 
       IF (gam > gamma_max) THEN
@@ -616,7 +624,7 @@ CONTAINS
 
       ! a branch of 1 or 2 appears to lead to a less accurate electron number count and premature exit
       ! if it turns out this does not exit because we get stuck in branch 1/2 for a reason we need to refine further
-      IF (ABS(frob_id/frob_x) < SQRT(threshold) .AND. branch==3) EXIT
+      IF (ABS(frob_id/frob_x) < SQRT(threshold) .AND. branch==3  .AND. (ABS(delta_n) < 0.5_dp) ) EXIT
 
     END DO
 
@@ -633,7 +641,7 @@ CONTAINS
                            0.0_dp, matrix_x_nosym, filter_eps=threshold,error=error)
     CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_s_sqrt_inv, matrix_x_nosym,&
                            0.0_dp, matrix_p, filter_eps=threshold,error=error)
-    
+
     ! calculate the chemical potential by doing a bisection of fk(x0)-0.5, where fk is evaluated using the stored values for gamma
     ! E. Rubensson et al., Chem Phys Lett 432, 2006, 591-594
     mu_a = 0.0_dp; mu_b = 1.0_dp; 
@@ -657,11 +665,13 @@ CONTAINS
     ENDIF
     e_mu = mu
 
-    CALL cp_dbcsr_desymmetrize(matrix_x,matrix_x_nosym,error=error)
-    CALL compute_homo_lumo(matrix_k0,matrix_x_nosym,eps_min,eps_max,threshold,max_iter_lanczos,eps_lanczos,homo,lumo,unit_nr,error)
-
-    e_homo = homo
-    e_lumo = lumo
+    IF (do_dyn_threshold) THEN
+      CALL cp_dbcsr_desymmetrize(matrix_x,matrix_x_nosym,error=error)
+      CALL compute_homo_lumo(matrix_k0,matrix_x_nosym,eps_min,eps_max,&
+               threshold,max_iter_lanczos,eps_lanczos,homo,lumo,unit_nr,error)
+      e_homo = homo
+      e_lumo = lumo
+    ENDIF
 
     CALL cp_dbcsr_release(matrix_x, error=error)
     CALL cp_dbcsr_release(matrix_x_nosym, error=error)
@@ -747,7 +757,7 @@ CONTAINS
     ENDIF
 
     ! get largest/smallest eigenvalues for scaling
-    CALL lanczos_alg_serial(matrix_x, max_eig, min_eig, max_iter=max_iter_lanczos, threshold=eps_lanczos,&
+    CALL cp_dbcsr_arnoldi_extremal(matrix_x, max_eig, min_eig, max_iter=max_iter_lanczos, threshold=eps_lanczos,&
                             converged=converged, error=error)
     IF (unit_nr>0) WRITE(unit_nr,'(T6,A,1X,2F12.5,1X,A,1X,L1)') "Est. extremal eigenvalues", &
                                                          min_eig, max_eig," converged: ",converged
@@ -990,7 +1000,7 @@ CONTAINS
     CALL cp_dbcsr_add_on_diag(tmp2, shift1, error=error)
     CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_p, tmp2,&
                            0.0_dp, tmp1, filter_eps=threshold,error=error)
-    CALL lanczos_alg_serial(tmp1, max_eig, min_eig, converged=converged, &
+    CALL cp_dbcsr_arnoldi_extremal(tmp1, max_eig, min_eig, converged=converged, &
               threshold=eps_lanczos, max_iter=max_iter_lanczos, error=error)
     homo = max_eig-shift1
     IF (unit_nr > 0) THEN
@@ -1005,7 +1015,7 @@ CONTAINS
     CALL cp_dbcsr_add_on_diag(tmp2, -shift2, error=error)
     CALL cp_dbcsr_multiply("N", "N", -1.0_dp, tmp3, tmp2,&
                            0.0_dp, tmp1, filter_eps=threshold,error=error)
-    CALL lanczos_alg_serial(tmp1, max_eig, min_eig, converged=converged,&
+    CALL cp_dbcsr_arnoldi_extremal(tmp1, max_eig, min_eig, converged=converged,&
                             threshold=eps_lanczos, max_iter=max_iter_lanczos, error=error)
     lumo = -max_eig+shift2
 

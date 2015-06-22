@@ -19,6 +19,7 @@ MODULE environment
        cp2k_flags, cp2k_home, cp2k_version, cp2k_year, get_runtime_info, &
        id_cp2k_version, r_host_name, r_pid, r_user_name
   USE cp_files,                        ONLY: close_file,&
+                                             get_data_dir,&
                                              open_file
   USE cp_fm_diag,                      ONLY: diag_init
   USE cp_fm_struct,                    ONLY: cp_fm_struct_config
@@ -75,6 +76,8 @@ MODULE environment
                                              threads
   USE message_passing,                 ONLY: add_mp_perf_env,&
                                              describe_mp_perf_env,&
+                                             mp_external_timeset,&
+                                             mp_external_timestop,&
                                              mp_max,&
                                              mp_sum,&
                                              rm_mp_perf_env
@@ -207,6 +210,9 @@ CONTAINS
        WRITE (UNIT=my_output_unit,FMT="(T2,A,T31,A50)")&
             "CP2K| Program compiled for",&
             ADJUSTR(compile_arch(1:MIN(50,LEN(compile_arch))))
+       WRITE (UNIT=my_output_unit,FMT="(T2,A,T31,A50)")&
+            "CP2K| Data directory path",&
+            ADJUSTR(TRIM(get_data_dir()))
        WRITE (UNIT=my_output_unit,FMT="(T2,A,T31,A50)")&
             "CP2K| Input file name",&
             ADJUSTR(TRIM(input_file_name))
@@ -532,7 +538,7 @@ CONTAINS
     INTEGER, DIMENSION(:), POINTER           :: i_force_eval
     LOGICAL                                  :: ata, do_echo_all_hosts, efl, &
                                                 explicit, failure, trace, &
-                                                trace_master
+                                                trace_master, time_mpi
     TYPE(cp_logger_type), POINTER            :: logger
     TYPE(enumeration_type), POINTER          :: enum1, enum2
     TYPE(keyword_type), POINTER              :: keyword
@@ -591,6 +597,12 @@ CONTAINS
           CALL timings_setup_tracing(trace_max, unit_nr, tracing_string)
        END IF
     ENDIF 
+   
+    CALL section_vals_val_get(global_section,"TIMINGS%TIME_MPI",l_val=time_mpi,error=error)
+    IF (time_mpi) THEN
+       mp_external_timeset=>timeset
+       mp_external_timestop=>timestop
+    ENDIF
 
     SELECT CASE(i_diag)
     CASE(do_diag_sl)
@@ -840,7 +852,7 @@ CONTAINS
 
     IF (has_ma) THEN
       CALL cp_ma_mpi_sched()
-      CALL cp_ma_run_on(para_env, error, output_unit)
+      CALL cp_ma_run_on(error, output_unit)
 
 
 !$omp parallel default(none) private(nid) shared(error)
@@ -881,7 +893,7 @@ CONTAINS
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     CHARACTER(len=*), PARAMETER :: routineN = 'read_cp2k_section', &
-      routineP = moduleN//':'//routineN, start_section_label = "CP2K"
+      routineP = moduleN//':'//routineN
 
     INTEGER                                  :: output_unit
     TYPE(cp_logger_type), POINTER            :: logger

@@ -52,7 +52,8 @@ MODULE integrator
   USE force_env_types,                 ONLY: force_env_get,&
                                              force_env_type
   USE global_types,                    ONLY: global_environment_type
-  USE input_constants,                 ONLY: npe_f_ensemble,&
+  USE input_constants,                 ONLY: ehrenfest,&
+                                             npe_f_ensemble,&
                                              npe_i_ensemble
   USE integrator_utils,                ONLY: &
        allocate_old, allocate_tmp, damp_v, damp_veps, deallocate_old, &
@@ -84,6 +85,9 @@ MODULE integrator
   USE qs_environment_types,            ONLY: get_qs_env
   USE reftraj_types,                   ONLY: reftraj_type
   USE reftraj_util,                    ONLY: compute_msd_reftraj
+  USE rt_propagation_methods,          ONLY: propagation_step
+  USE rt_propagation_output,           ONLY: rt_prop_output
+  USE rt_propagation_types,            ONLY: rt_prop_type
   USE shell_opt,                       ONLY: optimize_shell_core
   USE simpar_types,                    ONLY: simpar_type
   USE termination,                     ONLY: stop_program
@@ -409,8 +413,10 @@ CONTAINS
     INTEGER                                  :: i_iter, n_iter, nparticle, &
                                                 nparticle_kind, nshell
     INTEGER, POINTER                         :: itimes
-    LOGICAL :: deallocate_vel, ehrenfest_md, failure, shell_adiabatic, &
-      shell_check_distance, shell_present
+    LOGICAL                                  :: deallocate_vel, ehrenfest_md, &
+                                                shell_adiabatic, &
+                                                shell_check_distance, &
+                                                shell_present
     REAL(KIND=dp)                            :: dt
     REAL(KIND=dp), ALLOCATABLE, &
       DIMENSION(:, :)                        :: v_old
@@ -437,13 +443,12 @@ CONTAINS
       POINTER                                :: core_particle_set, &
                                                 particle_set, &
                                                 shell_particle_set
+    TYPE(rt_prop_type), POINTER              :: rtp
     TYPE(simpar_type), POINTER               :: simpar
     TYPE(thermostat_type), POINTER           :: thermostat_coeff, &
                                                 thermostat_shell
     TYPE(tmp_variables_type), POINTER        :: tmp
     TYPE(virial_type), POINTER               :: virial
-
-    failure = .FALSE.
 
     NULLIFY (thermostat_coeff, tmp)
     NULLIFY (subsys, simpar, para_env, cell, gci, force_env, virial)
@@ -487,7 +492,6 @@ CONTAINS
     END IF
 
     CALL allocate_tmp(md_env, tmp, nparticle,nshell,shell_adiabatic,error=error)
-    IF(ehrenfest_md) ALLOCATE(v_old(3,SIZE(tmp%vel,2)))
 
     ! Apply thermostat over the full set of shells if required
     IF(shell_adiabatic) THEN
@@ -530,6 +534,7 @@ CONTAINS
     ! Update forces
     ! In case of ehrenfest dynamics, velocities need to be iterated
     IF(ehrenfest_md)THEN
+       ALLOCATE(v_old(3,SIZE(tmp%vel,2)))
        v_old(:,:)=tmp%vel
        CALL vv_second(tmp, atomic_kind_set, local_particles, particle_set, &
             core_particle_set, shell_particle_set, nparticle_kind, shell_adiabatic, dt, error=error )
@@ -542,18 +547,22 @@ CONTAINS
     ELSE
        n_iter=1
     END IF
+    
     DO i_iter=1,n_iter
-
-       deallocate_vel=.TRUE.
+    
        IF(ehrenfest_md)THEN
-          force_env%qs_env%rtp%iter=i_iter
+          CALL get_qs_env(qs_env=force_env%qs_env,rtp=rtp,error=error)
+          rtp%iter=i_iter
           tmp%vel=v_old
-          force_env%qs_env%rtp%converged=.FALSE.
-          deallocate_vel=.FALSE.
+          CALL propagation_step(force_env%qs_env, rtp, dft_control%rtp_control, error=error)
        END IF
 
        ![NB] let nve work with force mixing which does not have consistent energies and forces
        CALL force_env_calc_energy_force(force_env,require_consistent_energy_force=.FALSE.,error=error)
+       
+       IF(ehrenfest_md)THEN
+          CALL rt_prop_output(force_env%qs_env,ehrenfest,delta_iter=force_env%qs_env%rtp%delta_iter,error=error)
+       ENDIF
 
        ! Metadynamics
        CALL metadyn_integrator(force_env, itimes, tmp%vel, error=error)
@@ -583,7 +592,7 @@ CONTAINS
           END IF
        END IF
 
-       IF(ehrenfest_md)deallocate_vel=force_env%qs_env%rtp%converged
+       IF(ehrenfest_md) deallocate_vel=force_env%qs_env%rtp%converged
        IF(i_iter.EQ.n_iter) deallocate_vel=.TRUE.
        ! Broadcast the new particle velocities and deallocate the full temporary
        CALL update_dealloc_tmp ( tmp, particle_set, shell_particle_set, &
@@ -591,12 +600,6 @@ CONTAINS
             should_deall_vel=deallocate_vel,error=error )
        IF(ehrenfest_md)THEN
           IF(force_env%qs_env%rtp%converged)EXIT
-          !  will be handled better in the next step of the implementation
-          IF(i_iter==n_iter)&
-             CALL cp_assert(.FALSE.,cp_failure_level,cp_assertion_failed,&
-                 routineP,"EMD did not converge, either increase MAX_ITER "//&
-                 "or use a smaller TIMESTEP",&
-                 error,failure)
        END IF
 
     END DO

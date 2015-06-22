@@ -19,14 +19,15 @@ MODULE dbcsr_dist_operations
        array_new, array_nullify, array_release, array_size
   USE dbcsr_config,                    ONLY: max_elements_per_block
   USE dbcsr_dist_methods,              ONLY: &
-       dbcsr_distribution_col_dist, dbcsr_distribution_col_dist_obj, &
-       dbcsr_distribution_has_threads, dbcsr_distribution_hold, &
-       dbcsr_distribution_init, dbcsr_distribution_local_cols, &
-       dbcsr_distribution_local_rows, dbcsr_distribution_make_threads, &
-       dbcsr_distribution_mp, dbcsr_distribution_ncols, &
-       dbcsr_distribution_new, dbcsr_distribution_no_threads, &
-       dbcsr_distribution_nrows, dbcsr_distribution_processor, &
-       dbcsr_distribution_release, dbcsr_distribution_row_dist, &
+       dbcsr_distribution_col_clusters, dbcsr_distribution_col_dist, &
+       dbcsr_distribution_col_dist_obj, dbcsr_distribution_has_threads, &
+       dbcsr_distribution_hold, dbcsr_distribution_init, &
+       dbcsr_distribution_local_cols, dbcsr_distribution_local_rows, &
+       dbcsr_distribution_make_threads, dbcsr_distribution_mp, &
+       dbcsr_distribution_ncols, dbcsr_distribution_new, &
+       dbcsr_distribution_no_threads, dbcsr_distribution_nrows, &
+       dbcsr_distribution_processor, dbcsr_distribution_release, &
+       dbcsr_distribution_row_clusters, dbcsr_distribution_row_dist, &
        dbcsr_distribution_row_dist_obj, dbcsr_distribution_thread_dist
   USE dbcsr_error_handling,            ONLY: &
        dbcsr_assert, dbcsr_caller_error, dbcsr_error_set, dbcsr_error_stop, &
@@ -48,7 +49,6 @@ MODULE dbcsr_dist_operations
        dbcsr_obj, dbcsr_slot_home_pcol, dbcsr_slot_home_prow, &
        dbcsr_slot_home_vpcol, dbcsr_slot_home_vprow, &
        dbcsr_slot_nblkcols_local, dbcsr_slot_nblkrows_local, dbcsr_type
-  USE dbcsr_util,                      ONLY: convert_sizes_to_offsets
   USE kinds,                           ONLY: sp
   USE min_heap,                        ONLY: heap_fill,&
                                              heap_get_first,&
@@ -499,7 +499,9 @@ CONTAINS
          dbcsr_distribution_col_dist (dist_normal), &
          dbcsr_distribution_row_dist (dist_normal), &
          dbcsr_distribution_local_cols (dist_normal), &
-         dbcsr_distribution_local_rows (dist_normal))
+         dbcsr_distribution_local_rows (dist_normal), &
+         dbcsr_distribution_col_clusters (dist_normal), &
+         dbcsr_distribution_row_clusters (dist_normal))
     CALL dbcsr_mp_release (mp_env_tr)
   END SUBROUTINE dbcsr_transpose_distribution
 
@@ -598,17 +600,11 @@ CONTAINS
     TYPE(dbcsr_error_type)                   :: error
 
 !   ---------------------------------------------------------------------------
-!CALL dbcsr_assert (SIZE(source_bins), "EQ", SIZE(new_bins),&
-!     dbcsr_warning_level, dbcsr_internal_error,&
-!     routineN, "source/new bin array sizes not equal",__LINE__,error)
-!CALL dbcsr_assert (SIZE(source_bins), "EQ", SIZE(images),&
-!     dbcsr_warning_level, dbcsr_internal_error,&
-!     routineN, "source/image array sizes not equal",__LINE__,error)
 
-    CALL dbcsr_assert (MOD (nbins, multiplicity), "EQ", 0,&
+    CALL dbcsr_assert (MOD(nbins*nimages,multiplicity), "EQ", 0,&
          dbcsr_warning_level, dbcsr_internal_error,&
          routineN, "mulitplicity is not divisor of new process grid coordinate",__LINE__,error)
-    old_nbins = nbins * nimages / multiplicity
+    old_nbins = (nbins * nimages) / multiplicity
     ALLOCATE (bin_multiplier(0:old_nbins-1))
     bin_multiplier(:) = 0
     DO i = 1, SIZE (new_bins)
@@ -630,6 +626,7 @@ CONTAINS
 
 ! *****************************************************************************
 !> \brief Makes new distribution with decimation and multiplicity
+!>        Multiplicity is beeing ignored, maybe this is a bug
 !> \param[out] images        new image distribution
 !> \param[in] my_bins        Basis for the new images
 !> \param[in] nbins          number of bins in the new real distribution
@@ -842,12 +839,13 @@ CONTAINS
 !>                                      distribution to these column images
 !> \param[in] match_col_nbins           number of bins in the distribution to
 !>                                      match the local columns
-!> \param mult_images ...
+!> \param nclusters_rows ...
+!> \param nclusters_cols ...
 ! *****************************************************************************
   SUBROUTINE dbcsr_create_image_dist(imgdist, dist,&
        match_row_pdist, match_row_idist, match_row_nbins,&
        match_col_pdist, match_col_idist, match_col_nbins,&
-       mult_images)
+       nclusters_rows, nclusters_cols)
     TYPE(dbcsr_imagedistribution_obj), &
       INTENT(OUT)                            :: imgdist
     TYPE(dbcsr_distribution_obj), INTENT(IN) :: dist
@@ -858,18 +856,16 @@ CONTAINS
     INTEGER, DIMENSION(:), INTENT(IN), &
       OPTIONAL                               :: match_col_pdist, &
                                                 match_col_idist
-    INTEGER, INTENT(IN)                      :: match_col_nbins
-    INTEGER, INTENT(IN), OPTIONAL            :: mult_images
+    INTEGER, INTENT(IN)                      :: match_col_nbins, &
+                                                nclusters_rows, nclusters_cols
 
     CHARACTER(len=*), PARAMETER :: routineN = 'dbcsr_create_image_dist', &
       routineP = moduleN//':'//routineN
 
-    INTEGER                                  :: factor_mult_images, ncols, &
-                                                npcols, nprows, nrows
+    INTEGER                                  :: ncols, npcols, nprows, nrows
     INTEGER, DIMENSION(:), POINTER :: col_dist_data, col_img_data, &
       col_img_data_tmp, col_vdist, row_dist_data, row_img_data, &
       row_img_data_tmp, row_vdist
-    LOGICAL                                  :: do_mult_images_rows_or_cols
     TYPE(array_i1d_obj)                      :: col_dist, col_image, &
                                                 row_dist, row_image
     TYPE(dbcsr_distribution_obj)             :: new_dist
@@ -886,7 +882,6 @@ CONTAINS
     CALL dbcsr_distribution_init (imgdist%i%main)
     CALL array_nullify (imgdist%i%col_image)
     CALL array_nullify (imgdist%i%row_image)
-    do_mult_images_rows_or_cols = (PRESENT(match_row_pdist) .AND. PRESENT(match_col_idist))
     mp_env = dbcsr_distribution_mp (dist)
     ! Determine the factors.
     nrows = dbcsr_distribution_nrows (dist)
@@ -894,18 +889,8 @@ CONTAINS
     nprows = dbcsr_mp_nprows (mp_env)
     npcols = dbcsr_mp_npcols (mp_env)
     ! Create the new row distribution and row image distribution
-    imgdist%i%row_decimation = lcm (nprows, match_row_nbins) / nprows
-    imgdist%i%row_multiplicity = nprows / gcd (nprows, match_row_nbins)
-
-    IF (PRESENT(mult_images) .AND. .NOT. do_mult_images_rows_or_cols) THEN
-       ! right matrix
-       IF (mult_images.GT.1) THEN
-          factor_mult_images = CEILING(MAX(DBLE(mult_images)/imgdist%i%row_decimation,&
-                                           DBLE(mult_images)/imgdist%i%row_multiplicity))
-          imgdist%i%row_decimation = imgdist%i%row_decimation*factor_mult_images
-          imgdist%i%row_multiplicity = imgdist%i%row_multiplicity*factor_mult_images
-       ENDIF
-    END IF
+    imgdist%i%row_decimation = nclusters_rows / nprows
+    imgdist%i%row_multiplicity = nclusters_rows / gcd (nclusters_rows, match_row_nbins)
 
     IF (debug_mod) WRITE (*,'(1X,A,I5,"x",I5)')routineN//"pgrid",&
          nprows, npcols
@@ -941,7 +926,7 @@ CONTAINS
           CALL reimage_distribution (row_img_data,&
                array_data (row_dist),&
                nprows,&
-               imgdist%i%row_multiplicity, imgdist%i%row_decimation)
+               imgdist%i%row_multiplicity, imgdist%i%row_decimation) !the multiplicity argument is beeing ignored
        ENDIF
        CALL array_new (row_image, row_img_data, gift=.TRUE.)
     ENDIF
@@ -952,18 +937,8 @@ CONTAINS
     CALL array_new (imgdist%i%vrow_dist, row_vdist, gift=.TRUE.)
     !
     ! Create the new column distribution and column image distribution
-    imgdist%i%col_decimation = lcm (npcols, match_col_nbins) / npcols
-    imgdist%i%col_multiplicity = npcols / gcd (npcols, match_col_nbins)
-
-    IF (PRESENT(mult_images) .AND. do_mult_images_rows_or_cols) THEN
-       IF (mult_images.GT.1) THEN
-          ! left matrix
-          factor_mult_images = CEILING(MAX(DBLE(mult_images)/imgdist%i%col_decimation,&
-                                           DBLE(mult_images)/imgdist%i%col_multiplicity))
-          imgdist%i%col_decimation = imgdist%i%col_decimation*factor_mult_images
-          imgdist%i%col_multiplicity = imgdist%i%col_multiplicity*factor_mult_images
-       ENDIF
-    END IF
+    imgdist%i%col_decimation = nclusters_cols / npcols
+    imgdist%i%col_multiplicity = nclusters_cols / gcd (nclusters_cols, match_col_nbins)
 
     IF (debug_mod) WRITE (*,*)routineN//'col decimation, multiplicity',&
          imgdist%i%col_decimation, imgdist%i%col_multiplicity
@@ -997,7 +972,7 @@ CONTAINS
           CALL reimage_distribution (col_img_data,&
                array_data (col_dist),&
                npcols,&
-               imgdist%i%col_multiplicity, imgdist%i%col_decimation)
+               imgdist%i%col_multiplicity, imgdist%i%col_decimation) !the multiplicity argument is beeing ignored
        ENDIF
        CALL array_new (col_image, col_img_data, gift=.TRUE.)
     ENDIF
@@ -1142,29 +1117,6 @@ CONTAINS
   END SUBROUTINE dbcsr_reblocking_targets
 
 
-
-! *****************************************************************************
-!> \brief Test routine for create_bl_distribution.
-! *****************************************************************************
-  SUBROUTINE test_create_bl_distribution()
-
-    INTEGER, PARAMETER                       :: rpt = 10
-
-    INTEGER                                  :: bins, elements, i
-    INTEGER, DIMENSION(:), POINTER           :: block_distribution, block_size
-    REAL                                     :: rn
-
-    DO i = 1, rpt
-       CALL RANDOM_NUMBER (rn)
-       elements = INT(rn * 500)
-       IF (i .EQ. 1) elements = 0
-       CALL RANDOM_NUMBER (rn)
-       bins = MAX(1, INT(rn*8))
-       CALL create_bl_distribution (block_distribution,&
-            block_size, elements, bins)
-       DEALLOCATE(block_distribution,block_size)
-    ENDDO
-  END SUBROUTINE test_create_bl_distribution
 
 ! *****************************************************************************
 !> \brief Distributes elements into blocks and into bins
@@ -1318,219 +1270,10 @@ CONTAINS
          dbcsr_distribution_col_dist (dist_left),&
          new_nprows, multiplicity, nimages)
     CALL dbcsr_distribution_new (dist_right, right_mp_env,&
-         right_row_dist, right_col_dist, reuse_arrays=.TRUE.)
+         right_row_dist, right_col_dist, &
+         reuse_arrays=.TRUE.)
     DEALLOCATE(tmp_images)
   END SUBROUTINE dbcsr_create_dist_r_unrot
-
-! *****************************************************************************
-!> \brief Creates a new distribution for the right matrix in a matrix
-!>        multiplication with rotated grid.
-!> \param[out] dist_right     new distribution for the right matrix
-!> \param[in] dist_left       the distribution of the left matrix
-!> \param[in] ncolumns        number of columns in right matrix
-!> \param[out] right_col_blk_sizes      sizes of blocks in the created column
-!> \par The new row distribution for the right matrix is the same as the
-!>      column distribution of the left matrix, while the column distribution
-!>      is created so that it is appropriate to the parallel environment.
-! *****************************************************************************
-  SUBROUTINE dbcsr_create_dist_r_rot(dist_right, dist_left, ncolumns,&
-       right_col_blk_sizes)
-    TYPE(dbcsr_distribution_obj), &
-      INTENT(OUT)                            :: dist_right
-    TYPE(dbcsr_distribution_obj), INTENT(IN) :: dist_left
-    INTEGER, INTENT(IN)                      :: ncolumns
-    INTEGER, DIMENSION(:), INTENT(OUT), &
-      POINTER                                :: right_col_blk_sizes
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'dbcsr_create_dist_r_rot', &
-      routineP = moduleN//':'//routineN
-
-    INTEGER, DIMENSION(:), POINTER           :: right_col_dist
-    TYPE(dbcsr_mp_obj)                       :: right_mp_env
-
-!   ---------------------------------------------------------------------------
-!CALL test_create_bl_distribution (error)
-
-    CALL dbcsr_mp_new_transposed (right_mp_env,&
-         dbcsr_distribution_mp (dist_left))
-    CALL create_bl_distribution (right_col_dist,&
-         right_col_blk_sizes, ncolumns, dbcsr_mp_npcols (right_mp_env))
-    CALL dbcsr_distribution_new (dist_right, right_mp_env,&
-         dbcsr_distribution_col_dist (dist_left), right_col_dist,&
-         local_rows=dbcsr_distribution_local_cols (dist_left))
-    CALL dbcsr_mp_release (right_mp_env)
-    DEALLOCATE(right_col_dist)
-  END SUBROUTINE dbcsr_create_dist_r_rot
-
-! *****************************************************************************
-!> \brief Creates a new distribution for the left matrix in a matrix
-!>        multiplication with unrotated grid.
-!> \param[out] dist_left      new distribution for the left matrix
-!> \param[in] dist_right      old distribution of the right matrix
-!> \param[in] nrows           number of rows in the left matrix
-!> \param[out] left_row_blk_sizes       sizes of blocks in the created rows
-!> \par The new column distribution for the left matrix is the same as the
-!>      column distribution of the right matrix, while the row distribution is
-!>      created so that it is appropriate to the parallel environment.
-! *****************************************************************************
-  SUBROUTINE dbcsr_create_dist_l_unrot(dist_left, dist_right, nrows,&
-       left_row_blk_sizes)
-    TYPE(dbcsr_distribution_obj), &
-      INTENT(OUT)                            :: dist_left
-    TYPE(dbcsr_distribution_obj), INTENT(IN) :: dist_right
-    INTEGER, INTENT(IN)                      :: nrows
-    INTEGER, DIMENSION(:), INTENT(OUT), &
-      POINTER                                :: left_row_blk_sizes
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'dbcsr_create_dist_l_unrot', &
-      routineP = moduleN//':'//routineN
-
-    INTEGER, DIMENSION(:), POINTER           :: left_row_dist
-    TYPE(dbcsr_mp_obj)                       :: left_mp_env
-
-!   ---------------------------------------------------------------------------
-
-    left_mp_env = dbcsr_distribution_mp (dist_right)
-    CALL create_bl_distribution (left_row_dist,&
-         left_row_blk_sizes, nrows, dbcsr_mp_nprows (left_mp_env))
-    CALL dbcsr_distribution_new (dist_left, left_mp_env,&
-         left_row_dist, dbcsr_distribution_col_dist (dist_right),&
-         local_cols=dbcsr_distribution_local_cols (dist_right))
-    DEALLOCATE(left_row_dist)
-  END SUBROUTINE dbcsr_create_dist_l_unrot
-
-! *****************************************************************************
-!> \brief Creates a new distribution for the left matrix in a matrix
-!>        multiplication with rotated grid.
-!> \param[in] dist_right      the distribution of the right matrix
-!> \param[out] dist_left      new distribution for the left matrix
-!> \param[in] nrows           (optional) number of rows in left matrix
-!> \param[out] left_row_blk_sizes      sizes of blocks in the created rows
-!> \par The new column distribution for the left matrix is the same as the
-!>      row distribution of the right matrix, while the row distribution is
-!>      created so that it is appropriate to the parallel environment.
-! *****************************************************************************
-  SUBROUTINE dbcsr_create_dist_l_rot(dist_right, dist_left, nrows,&
-       left_row_blk_sizes)
-    TYPE(dbcsr_distribution_obj), INTENT(IN) :: dist_right
-    TYPE(dbcsr_distribution_obj), &
-      INTENT(OUT)                            :: dist_left
-    INTEGER, INTENT(IN)                      :: nrows
-    INTEGER, DIMENSION(:), INTENT(OUT), &
-      POINTER                                :: left_row_blk_sizes
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'dbcsr_create_dist_l_rot', &
-      routineP = moduleN//':'//routineN
-
-    INTEGER, DIMENSION(:), POINTER           :: left_row_dist
-    TYPE(dbcsr_mp_obj)                       :: left_mp_env
-
-!   ---------------------------------------------------------------------------
-
-    CALL dbcsr_mp_new_transposed (left_mp_env,&
-         dbcsr_distribution_mp (dist_right))
-    CALL create_bl_distribution (left_row_dist,&
-         left_row_blk_sizes, nrows, dbcsr_mp_nprows (left_mp_env))
-    CALL dbcsr_distribution_new (dist_left, left_mp_env,&
-         left_row_dist, dbcsr_distribution_row_dist (dist_right),&
-         local_cols=dbcsr_distribution_local_rows (dist_right))
-    CALL dbcsr_mp_release (left_mp_env)
-    DEALLOCATE (left_row_dist)
-  END SUBROUTINE dbcsr_create_dist_l_rot
-
-! *****************************************************************************
-!> \brief Creates a distribution where all block sizes are 1.
-!> \param[out] dist           the elemental distribution
-!> \param[in] nrows           number of full rows
-!> \param[in] ncolumns        number of full columns
-!> \param[in] mp_env          mp environment
-!> \param[out] row_blk_sizes  (optional) row block sizes (all 1)
-!> \param[out] col_blk_sizes  (optional) column block sizes (all 1)
-! *****************************************************************************
-  SUBROUTINE dbcsr_create_dist_elemental(dist, nrows, ncolumns,&
-       mp_env, row_blk_sizes, col_blk_sizes)
-    TYPE(dbcsr_distribution_obj), &
-      INTENT(OUT)                            :: dist
-    INTEGER, INTENT(IN)                      :: nrows, ncolumns
-    TYPE(dbcsr_mp_obj)                       :: mp_env
-    INTEGER, DIMENSION(:), INTENT(OUT), &
-      OPTIONAL, POINTER                      :: row_blk_sizes, col_blk_sizes
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'dbcsr_create_dist_elemental', &
-      routineP = moduleN//':'//routineN
-
-    INTEGER                                  :: npdims, pdim, sz
-    INTEGER, DIMENSION(:), POINTER           :: cbs_data, cd_data, rbs_data, &
-                                                rd_data
-
-!   ---------------------------------------------------------------------------
-
-    ALLOCATE (rbs_data(nrows), cbs_data(ncolumns))
-    rbs_data(:) = 1
-    cbs_data(:) = 1
-    ALLOCATE (rd_data(nrows), cd_data(ncolumns))
-    ! Calclate process row distribution
-    npdims = dbcsr_mp_nprows (mp_env)
-    sz = CEILING (REAL(nrows) / REAL(npdims))
-    DO pdim = 0 , npdims-1
-       rd_data(pdim*sz+1 : MIN((pdim+1)*sz, nrows)) = pdim
-    END DO
-    ! Calclate process column distribution
-    npdims = dbcsr_mp_npcols (mp_env)
-    sz = CEILING (REAL(ncolumns) / REAL(npdims))
-    DO pdim = 0 , npdims-1
-       cd_data(pdim*sz+1 : MIN((pdim+1)*sz, ncolumns)) = pdim
-    END DO
-    !
-    CALL dbcsr_distribution_new (dist,mp_env,rd_data,cd_data,reuse_arrays=.TRUE.)
-    IF (PRESENT (row_blk_sizes)) THEN
-       row_blk_sizes => rbs_data
-    ELSE
-       DEALLOCATE(rbs_data)
-    ENDIF
-    IF (PRESENT (col_blk_sizes)) THEN
-       col_blk_sizes => cbs_data
-    ELSE
-       DEALLOCATE(cbs_data)
-    ENDIF
-  END SUBROUTINE dbcsr_create_dist_elemental
-
-
-! *****************************************************************************
-!> \brief Creates a distribution where all block sizes are as large as
-!>        possible for the given distribution.
-!> \param[out] dist           the elemental distribution
-!> \param[in] nrows           number of full rows
-!> \param[in] ncolumns        number of full columns
-!> \param[in] mp_env          mp environment
-!> \param[out] row_blk_sizes  row block sizes
-!> \param[out] col_blk_sizes  column block sizes
-! *****************************************************************************
-  SUBROUTINE dbcsr_create_dist_fullest(dist, nrows, ncolumns,&
-       mp_env, row_blk_sizes, col_blk_sizes)
-    TYPE(dbcsr_distribution_obj), &
-      INTENT(OUT)                            :: dist
-    INTEGER, INTENT(IN)                      :: nrows, ncolumns
-    TYPE(dbcsr_mp_obj)                       :: mp_env
-    INTEGER, DIMENSION(:), INTENT(OUT), &
-      POINTER                                :: row_blk_sizes, col_blk_sizes
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'dbcsr_create_dist_fullest', &
-      routineP = moduleN//':'//routineN
-
-    INTEGER, DIMENSION(:), POINTER           :: col_dist, row_dist
-
-!   ---------------------------------------------------------------------------
-
-    CALL create_bl_distribution(row_dist, row_blk_sizes,&
-         nrows, dbcsr_mp_nprows (mp_env))
-    CALL create_bl_distribution(col_dist, col_blk_sizes,&
-         ncolumns, dbcsr_mp_npcols (mp_env))
-    !
-    CALL dbcsr_distribution_new (dist, mp_env,&
-         row_dist, col_dist, reuse_arrays=.TRUE.)
-    !
-  END SUBROUTINE dbcsr_create_dist_fullest
 
 ! *****************************************************************************
 !> \brief Creates a block-cyclic compatible distribution
@@ -1621,142 +1364,6 @@ CONTAINS
     !
   END SUBROUTINE dbcsr_create_dist_block_cyclic
 
-
-! *****************************************************************************
-!> \brief Make the image distribution reflect the dense matrix blocks.
-!> \param image_dist ...
-!> \param join_rows ...
-!> \param join_cols ...
-!> \note Used for making matrices dense/undense
-! *****************************************************************************
-  SUBROUTINE make_image_distribution_dense (image_dist, join_rows, join_cols)
-    TYPE(dbcsr_imagedistribution_obj), &
-      INTENT(INOUT)                          :: image_dist
-    LOGICAL, INTENT(IN), OPTIONAL            :: join_rows, join_cols
-
-    CHARACTER(len=*), PARAMETER :: &
-      routineN = 'make_image_distribution_dense', &
-      routineP = moduleN//':'//routineN
-
-    INTEGER                                  :: i, ncol_images, npcols, &
-                                                nprows, nrow_images, nvpcols, &
-                                                nvprows
-    INTEGER, DIMENSION(:), POINTER           :: new_cid, new_rid
-    LOGICAL                                  :: jcols, jrows
-
-!   ---------------------------------------------------------------------------
-
-    jcols = .TRUE.
-    IF (PRESENT (join_cols)) jcols = join_cols
-    jrows = .TRUE.
-    IF (PRESENT (join_rows)) jrows = join_rows
-    nrow_images = image_dist%i%row_decimation
-    ncol_images = image_dist%i%col_decimation
-    nprows = dbcsr_mp_nprows (dbcsr_distribution_mp (image_dist%i%main))
-    npcols = dbcsr_mp_npcols (dbcsr_distribution_mp (image_dist%i%main))
-    nvprows = nprows * nrow_images
-    nvpcols = npcols * ncol_images
-    IF (jrows) THEN
-       CALL array_release (image_dist%i%row_image)
-       CALL array_nullify (image_dist%i%row_image)
-       ALLOCATE (new_rid (nvprows))
-       DO i = 1 , nvprows
-          new_rid(i) = MOD (i-1, nrow_images) + 1
-       END DO
-       CALL array_new (image_dist%i%row_image, new_rid, gift=.TRUE.)
-    ENDIF
-    IF (jcols) THEN
-       CALL array_release (image_dist%i%col_image)
-       CALL array_nullify (image_dist%i%col_image)
-       ALLOCATE (new_cid (nvpcols))
-       DO i = 1 , nvpcols
-          new_cid(i) = MOD (i-1, ncol_images) + 1
-       END DO
-       CALL array_new (image_dist%i%col_image, new_cid, gift=.TRUE.)
-    ENDIF
-  END SUBROUTINE make_image_distribution_dense
-
-
-! *****************************************************************************
-!> \brief Matches row/block sizes and offsets to a given distribution, inplace.
-!> \param new_distribution ...
-!> \param old_distribution ...
-!> \param row_blk_sizes ...
-!> \param col_blk_sizes ...
-!> \param row_blk_offsets ...
-!> \param col_blk_offsets ...
-!> \param old_image_dist ...
-!> \param old_col_idist ...
-!> \param old_col_nimages ...
-!> \note Used for making matrices dense/undense
-! *****************************************************************************
-  SUBROUTINE match_sizes_to_dist (new_distribution, old_distribution,&
-       row_blk_sizes, col_blk_sizes, row_blk_offsets, col_blk_offsets,&
-       old_image_dist, old_col_idist, old_col_nimages)
-    TYPE(dbcsr_distribution_obj), INTENT(IN) :: new_distribution, &
-                                                old_distribution
-    INTEGER, DIMENSION(:), INTENT(INOUT), &
-      POINTER                                :: row_blk_sizes, col_blk_sizes, &
-                                                row_blk_offsets, &
-                                                col_blk_offsets
-    TYPE(dbcsr_imagedistribution_obj), &
-      INTENT(IN), OPTIONAL                   :: old_image_dist, &
-                                                old_col_idist, old_col_nimages
-
-    CHARACTER(len=*), PARAMETER :: routineN = 'match_sizes_to_dist', &
-      routineP = moduleN//':'//routineN
-
-    INTEGER                                  :: nvpcols, nvprows
-    INTEGER, DIMENSION(:), POINTER :: new_pcol_dist, new_prow_dist, &
-      old_col_blk_offsets, old_col_blk_sizes, old_icol_dist, old_irow_dist, &
-      old_pcol_dist, old_prow_dist, old_row_blk_offsets, old_row_blk_sizes
-    LOGICAL                                  :: images
-    TYPE(dbcsr_mp_obj)                       :: mp, old_mp
-
-!   ---------------------------------------------------------------------------
-
-    images = PRESENT (old_image_dist)
-    mp = dbcsr_distribution_mp (new_distribution)
-    old_mp = dbcsr_distribution_mp (old_distribution)
-    ! Save old data
-    old_prow_dist => dbcsr_distribution_row_dist (old_distribution)
-    old_pcol_dist => dbcsr_distribution_col_dist (old_distribution)
-    old_row_blk_sizes => row_blk_sizes
-    old_col_blk_sizes => col_blk_sizes
-    old_row_blk_offsets => row_blk_offsets
-    old_col_blk_offsets => col_blk_offsets
-    NULLIFY(row_blk_sizes,col_blk_sizes)
-    NULLIFY(row_blk_offsets,col_blk_offsets)
-    new_prow_dist => dbcsr_distribution_row_dist (new_distribution)
-    new_pcol_dist => dbcsr_distribution_col_dist (new_distribution)
-    IF (images) THEN
-       nvprows = dbcsr_mp_nprows(mp)*old_image_dist%i%row_decimation
-       nvpcols = dbcsr_mp_npcols(mp)*old_image_dist%i%col_decimation
-       ALLOCATE (row_blk_sizes(nvprows), col_blk_sizes(nvpcols), &
-                 row_blk_offsets(nvprows+1), col_blk_offsets(nvpcols+1))
-       old_irow_dist => array_data (old_image_dist%i%row_image)
-       old_icol_dist => array_data (old_image_dist%i%col_image)
-       CALL match_sizes_to_el_dist(row_blk_sizes, old_row_blk_offsets, new_prow_dist,&
-            old_prow_dist, old_irow_dist, old_image_dist%i%row_decimation)
-       CALL match_sizes_to_el_dist(col_blk_sizes, old_col_blk_offsets, new_pcol_dist,&
-            old_pcol_dist, old_icol_dist, old_image_dist%i%col_decimation)
-    ELSE
-       nvprows = dbcsr_mp_nprows (mp)
-       nvpcols = dbcsr_mp_npcols (mp)
-       ALLOCATE (row_blk_sizes(nvprows), col_blk_sizes(nvpcols), &
-                 row_blk_offsets(nvprows+1), col_blk_offsets(nvpcols+1))
-       CALL match_sizes_to_el_dist (row_blk_sizes, old_row_blk_offsets, new_prow_dist,&
-            old_prow_dist)
-       CALL match_sizes_to_el_dist (col_blk_sizes, old_col_blk_offsets, new_pcol_dist,&
-            old_pcol_dist)
-    ENDIF
-    CALL convert_sizes_to_offsets (row_blk_sizes, row_blk_offsets)
-    CALL convert_sizes_to_offsets (col_blk_sizes, col_blk_offsets)
-    DEALLOCATE(old_row_blk_sizes,old_col_blk_sizes)
-    DEALLOCATE(old_row_blk_offsets,old_col_blk_offsets)
-  END SUBROUTINE match_sizes_to_dist
-
-
 ! *****************************************************************************
 !> \brief Matches row/block sizes and offsets to a given distribution
 !> \param old_sizes ...
@@ -1790,45 +1397,6 @@ CONTAINS
     ENDDO
     CALL array_new (new_sizes, new_s, gift=.TRUE.)
   END SUBROUTINE make_sizes_dense
-
-
-! *****************************************************************************
-!> \brief Determines block sizes from old offsets and old and new
-!>        distributions.
-!> \param new_sizes ...
-!> \param old_offsets ...
-!> \param new_dist ...
-!> \param old_dist ...
-!> \param old_idist ...
-!> \param old_nimages ...
-!> \note Used for making matrices dense/undense
-! *****************************************************************************
-  PURE SUBROUTINE match_sizes_to_el_dist(new_sizes, old_offsets,&
-       new_dist, old_dist, old_idist, old_nimages)
-    INTEGER, DIMENSION(:), INTENT(OUT)       :: new_sizes
-    INTEGER, DIMENSION(:), INTENT(IN)        :: old_offsets, new_dist, &
-                                                old_dist
-    INTEGER, DIMENSION(:), INTENT(IN), &
-      OPTIONAL                               :: old_idist
-    INTEGER, INTENT(IN), OPTIONAL            :: old_nimages
-
-    INTEGER                                  :: new_bin, old_bin, old_el, &
-                                                old_size
-    LOGICAL                                  :: images
-
-    images = PRESENT (old_idist) .AND. PRESENT (old_nimages)
-    new_sizes(:) = 0
-    DO old_el = 1, SIZE(old_dist)
-       old_bin = old_dist(old_el)
-       old_size = old_offsets(old_el+1)-old_offsets(old_el)
-       IF (images) THEN
-          new_bin = old_bin*old_nimages + old_idist(old_el)
-       ELSE
-          new_bin = 1 + old_bin
-       ENDIF
-       new_sizes(new_bin) = new_sizes(new_bin) + old_size
-    ENDDO
-  END SUBROUTINE match_sizes_to_el_dist
 
 
 ! *****************************************************************************

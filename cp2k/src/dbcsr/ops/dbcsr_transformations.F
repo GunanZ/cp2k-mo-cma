@@ -217,6 +217,10 @@ CONTAINS
          matrix_type = dbcsr_get_matrix_type(normal),&
          row_blk_size = array_data(normal%m%col_blk_size),&
          col_blk_size = array_data(normal%m%row_blk_size),&
+         max_rbs=normal%m%max_cbs,&
+         max_cbs=normal%m%max_rbs,&
+         row_blk_offset=normal%m%col_blk_offset,&
+         col_blk_offset=normal%m%row_blk_offset,&
          error=error)
     CALL dbcsr_distribution_release (new_dist)
     ! Reserve the space for the new indices.
@@ -1260,7 +1264,7 @@ CONTAINS
              tco = 1 + col_internal_offsets(blk_col)
           ELSE
              target_col_offset = und_col_blk_offsets(blk_col)
-             target_cs = und_col_blk_offsets(blk_col)
+             target_cs = blk_col_size
              tco = 1
           ENDIF
           target_offset = (target_row_offset-1) * nfullcols &

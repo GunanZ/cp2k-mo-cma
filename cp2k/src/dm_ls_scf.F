@@ -21,13 +21,12 @@ MODULE dm_ls_scf
                                              cite_reference
   USE cp_control_types,                ONLY: dft_control_type
   USE cp_dbcsr_interface,              ONLY: &
-       cp_dbcsr_add, cp_dbcsr_add_on_diag, cp_dbcsr_binary_read, &
-       cp_dbcsr_binary_write, cp_dbcsr_checksum, cp_dbcsr_copy, &
-       cp_dbcsr_create, cp_dbcsr_distribution, cp_dbcsr_filter, &
-       cp_dbcsr_frobenius_norm, cp_dbcsr_get_occupation, cp_dbcsr_init, &
-       cp_dbcsr_multiply, cp_dbcsr_p_type, cp_dbcsr_release, cp_dbcsr_scale, &
-       cp_dbcsr_set, cp_dbcsr_type, dbcsr_type_no_symmetry
-  USE cp_dbcsr_util,                   ONLY: lanczos_alg_serial
+       cp_dbcsr_add, cp_dbcsr_add_on_diag, cp_dbcsr_arnoldi_extremal, &
+       cp_dbcsr_binary_read, cp_dbcsr_binary_write, cp_dbcsr_checksum, &
+       cp_dbcsr_copy, cp_dbcsr_create, cp_dbcsr_distribution, &
+       cp_dbcsr_filter, cp_dbcsr_frobenius_norm, cp_dbcsr_get_occupation, &
+       cp_dbcsr_init, cp_dbcsr_multiply, cp_dbcsr_p_type, cp_dbcsr_release, &
+       cp_dbcsr_scale, cp_dbcsr_set, cp_dbcsr_type, dbcsr_type_no_symmetry
   USE cp_external_control,             ONLY: external_control
   USE cp_para_env,                     ONLY: cp_para_env_retain
   USE dm_ls_chebyshev,                 ONLY: compute_chebyshev
@@ -82,6 +81,7 @@ MODULE dm_ls_scf
                                              pexsi_finalize_scf,&
                                              pexsi_init_read_input,&
                                              pexsi_init_scf,&
+                                             pexsi_set_convergence_tolerance,&
                                              pexsi_to_qs
   USE pexsi_types,                     ONLY: lib_pexsi_init
   USE qs_density_mixing_types,         ONLY: create_mixing_section,&
@@ -334,7 +334,7 @@ CONTAINS
     ENDIF
 
     IF (qs_env%do_transport) THEN
-       CALL transport_initialize(qs_env%transport_env, ls_scf_env%matrix_s, error)
+       CALL transport_initialize(ks_env,qs_env%transport_env, matrix_s(1)%matrix, error)
     END IF
 
     CALL timestop(handle)
@@ -1188,6 +1188,14 @@ CONTAINS
                                  ls_scf_env%eps_filter,error)               
       ENDIF
 
+      IF (ls_scf_env%purification_method .EQ. ls_scf_pexsi) THEN
+        CALL pexsi_set_convergence_tolerance(ls_scf_env%pexsi, energy_diff, &
+                                             ls_scf_env%eps_scf*ls_scf_env%nelectron_total, &
+                                             ! initialize in second scf step of first SCF cycle:
+                                             (iscf.EQ.2).AND.(ls_scf_env%scf_history%istore.EQ.0), &
+                                             check_convergence, error)
+      ENDIF
+
     ENDDO
 
     ! free storage
@@ -1300,7 +1308,7 @@ CONTAINS
     DEALLOCATE(ls_scf_env%matrix_ks)
 
     IF (ls_scf_env%purification_method .EQ. ls_scf_pexsi) &
-      CALL pexsi_finalize_scf(ls_scf_env%pexsi, error)
+      CALL pexsi_finalize_scf(ls_scf_env%pexsi, ls_scf_env%mu_spin, error)
 
     CALL timestop(handle)
 
@@ -1360,7 +1368,7 @@ CONTAINS
                               0.0_dp, matrix_k, filter_eps=ls_scf_env%eps_filter,error=error)
 
        ! extremal eigenvalues ks
-       CALL lanczos_alg_serial(matrix_k, eps_max, eps_min, max_iter=ls_scf_env%max_iter_lanczos, &
+       CALL cp_dbcsr_arnoldi_extremal(matrix_k, eps_max, eps_min, max_iter=ls_scf_env%max_iter_lanczos, &
                                threshold=ls_scf_env%eps_lanczos, converged=converged, error=error)
 
        ! ortho basis p

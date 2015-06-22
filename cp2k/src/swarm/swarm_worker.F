@@ -97,7 +97,7 @@ MODULE swarm_worker
          CALL paramopt_worker_init(worker%paramopt, input_declaration, para_env,&
                       root_section, input_path, worker_id, worker%iw, error)
       CASE DEFAULT
-         STOP "swarm_worker_init: got unkown behavior"
+         STOP "swarm_worker_init: got unknown behavior"
     END SELECT
 
   END SUBROUTINE swarm_worker_init
@@ -134,7 +134,7 @@ MODULE swarm_worker
            CASE(swarm_do_paramopt)
              CALL paramopt_worker_execute(worker%paramopt, cmd, report)
            CASE DEFAULT
-              STOP "swarm_worker_execute: got unkown behavior"
+              STOP "swarm_worker_execute: got unknown behavior"
         END SELECT
      ENDIF
 
@@ -160,7 +160,7 @@ MODULE swarm_worker
          CALL paramopt_worker_finalize(worker%paramopt)
          DEALLOCATE(worker%paramopt)
       CASE DEFAULT
-         STOP "swarm_worker_finalize: got unkown behavior"
+         STOP "swarm_worker_finalize: got unknown behavior"
     END SELECT
 
    END SUBROUTINE swarm_worker_finalize

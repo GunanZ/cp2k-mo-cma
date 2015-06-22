@@ -13,10 +13,12 @@
 MODULE dbcsr_vector_operations_low
   USE dbcsr_block_access,              ONLY: dbcsr_reserve_all_blocks
   USE dbcsr_data_methods,              ONLY: dbcsr_get_data_p
-  USE dbcsr_dist_methods,              ONLY: dbcsr_distribution_col_dist,&
+  USE dbcsr_dist_methods,              ONLY: dbcsr_distribution_col_clusters,&
+                                             dbcsr_distribution_col_dist,&
                                              dbcsr_distribution_mp,&
                                              dbcsr_distribution_new,&
                                              dbcsr_distribution_release,&
+                                             dbcsr_distribution_row_clusters,&
                                              dbcsr_distribution_row_dist
   USE dbcsr_error_handling,            ONLY: dbcsr_assert,&
                                              dbcsr_caller_error,&
@@ -52,6 +54,9 @@ MODULE dbcsr_vector_operations_low
 
   IMPLICIT NONE
 
+! the following types provide fast access to distributed dbcsr vectors
+#include "../base/hash_table_types.f90"
+
   TYPE block_ptr_d
     REAL(real_8), DIMENSION(:, :), POINTER          :: ptr =>NULL()
     INTEGER                                         :: assigned_thread
@@ -67,6 +72,14 @@ MODULE dbcsr_vector_operations_low
   TYPE block_ptr_z
     COMPLEX(real_8), DIMENSION(:, :), POINTER       :: ptr =>NULL()
     INTEGER                                         :: assigned_thread
+  END TYPE
+
+  TYPE fast_vec_access_type
+    TYPE(hash_table_type) :: hash_table
+    TYPE(block_ptr_d), DIMENSION(:), ALLOCATABLE :: blk_map_d
+    TYPE(block_ptr_s), DIMENSION(:), ALLOCATABLE :: blk_map_s
+    TYPE(block_ptr_c), DIMENSION(:), ALLOCATABLE :: blk_map_c
+    TYPE(block_ptr_z), DIMENSION(:), ALLOCATABLE :: blk_map_z
   END TYPE
 
   PRIVATE
@@ -149,9 +162,11 @@ CONTAINS
     CHARACTER(LEN=*), PARAMETER :: routineN = 'create_col_vec_from_matrix', &
       routineP = moduleN//':'//routineN
 
-    INTEGER                                  :: npcol
+    INTEGER                                  :: handle, npcol
     INTEGER, DIMENSION(:), POINTER           :: col_sizes, dist_col
     TYPE(dbcsr_distribution_obj)             :: dist_col_vec, distri
+
+    CALL dbcsr_error_set(routineN, handle, error)
 
     CALL dbcsr_get_info(matrix=matrix,distribution=distri)
     npcol=SIZE(distri%d%mp_env%mp%pgrid,2)
@@ -161,7 +176,8 @@ CONTAINS
     CALL dbcsr_distribution_new (dist_col_vec,&
          dbcsr_distribution_mp (dbcsr_distribution(matrix)),&
          dbcsr_distribution_row_dist (dbcsr_distribution(matrix)),&
-         dist_col)
+         dist_col,&
+         row_dist_cluster=dbcsr_distribution_row_clusters (dbcsr_distribution(matrix)))
     CALL dbcsr_init(dbcsr_vec)
     CALL dbcsr_create(dbcsr_vec, "D", dist_col_vec, dbcsr_type_no_symmetry, &
             dbcsr_row_block_sizes(matrix), col_sizes,&
@@ -171,6 +187,8 @@ CONTAINS
 
     CALL dbcsr_distribution_release(dist_col_vec)
     DEALLOCATE(dist_col,col_sizes)
+
+    CALL dbcsr_error_stop(handle, error)
 
   END SUBROUTINE create_col_vec_from_matrix
 
@@ -192,9 +210,11 @@ CONTAINS
     CHARACTER(LEN=*), PARAMETER :: routineN = 'create_row_vec_from_matrix', &
       routineP = moduleN//':'//routineN
 
-    INTEGER                                  :: nprow
+    INTEGER                                  :: handle, nprow
     INTEGER, DIMENSION(:), POINTER           :: dist_row, row_sizes
     TYPE(dbcsr_distribution_obj)             :: dist_row_vec, distri
+
+    CALL dbcsr_error_set(routineN, handle, error)
 
     CALL dbcsr_get_info(matrix=matrix,distribution=distri)
     nprow=SIZE(distri%d%mp_env%mp%pgrid,1)
@@ -204,7 +224,8 @@ CONTAINS
     CALL dbcsr_distribution_new (dist_row_vec,&
          dbcsr_distribution_mp (dbcsr_distribution(matrix)),&
          dist_row,&
-         dbcsr_distribution_col_dist (dbcsr_distribution(matrix)))
+         dbcsr_distribution_col_dist (dbcsr_distribution(matrix)),&
+         col_dist_cluster=dbcsr_distribution_col_clusters (dbcsr_distribution(matrix)))
     
     CALL dbcsr_init(dbcsr_vec)
     CALL dbcsr_create(dbcsr_vec, "D", dist_row_vec, dbcsr_type_no_symmetry, &
@@ -215,6 +236,8 @@ CONTAINS
 
     CALL dbcsr_distribution_release(dist_row_vec)
     DEALLOCATE(dist_row,row_sizes)
+
+    CALL dbcsr_error_stop(handle, error)
 
   END SUBROUTINE create_row_vec_from_matrix
 
@@ -237,9 +260,11 @@ CONTAINS
       routineN = 'create_replicated_col_vec_from_matrix', &
       routineP = moduleN//':'//routineN
 
-    INTEGER                                  :: i, npcol
+    INTEGER                                  :: handle, i, npcol
     INTEGER, DIMENSION(:), POINTER           :: col_sizes, dist_col
     TYPE(dbcsr_distribution_obj)             :: dist_col_vec, distri
+
+    CALL dbcsr_error_set(routineN, handle, error)
 
     CALL dbcsr_get_info(matrix=matrix,distribution=distri)
     npcol=SIZE(distri%d%mp_env%mp%pgrid,2)
@@ -252,7 +277,8 @@ CONTAINS
     CALL dbcsr_distribution_new (dist_col_vec,&
          dbcsr_distribution_mp (dbcsr_distribution(matrix)),&
          dbcsr_distribution_row_dist (dbcsr_distribution(matrix)),&
-         dist_col)
+         dist_col,&
+         row_dist_cluster=dbcsr_distribution_row_clusters (dbcsr_distribution(matrix)))
 
     CALL dbcsr_init(dbcsr_vec)
     CALL dbcsr_create(dbcsr_vec, "D", dist_col_vec, dbcsr_type_no_symmetry, &
@@ -263,6 +289,8 @@ CONTAINS
 
     CALL dbcsr_distribution_release(dist_col_vec)
     DEALLOCATE(dist_col,col_sizes)
+
+    CALL dbcsr_error_stop(handle, error)
 
   END SUBROUTINE create_replicated_col_vec_from_matrix
 
@@ -285,9 +313,11 @@ CONTAINS
       routineN = 'create_replicated_row_vec_from_matrix', &
       routineP = moduleN//':'//routineN
 
-    INTEGER                                  :: i, nprow
+    INTEGER                                  :: handle, i, nprow
     INTEGER, DIMENSION(:), POINTER           :: dist_row, row_sizes
     TYPE(dbcsr_distribution_obj)             :: dist_row_vec, distri
+
+    CALL dbcsr_error_set(routineN, handle, error)
 
     CALL dbcsr_get_info(matrix=matrix,distribution=distri)
     nprow=SIZE(distri%d%mp_env%mp%pgrid,1)
@@ -300,7 +330,8 @@ CONTAINS
     CALL dbcsr_distribution_new (dist_row_vec,&
          dbcsr_distribution_mp (dbcsr_distribution(matrix)),&
          dist_row,&
-         dbcsr_distribution_col_dist (dbcsr_distribution(matrix)))
+         dbcsr_distribution_col_dist (dbcsr_distribution(matrix)),&
+         col_dist_cluster=dbcsr_distribution_col_clusters (dbcsr_distribution(matrix)))
    
     CALL dbcsr_init(dbcsr_vec)
     CALL dbcsr_create(dbcsr_vec, "D", dist_row_vec, dbcsr_type_no_symmetry, &
@@ -312,7 +343,103 @@ CONTAINS
     CALL dbcsr_distribution_release(dist_row_vec)
     DEALLOCATE(dist_row,row_sizes)
 
+    CALL dbcsr_error_stop(handle, error)
+
   END SUBROUTINE create_replicated_row_vec_from_matrix
+
+! *****************************************************************************
+!> \brief given a column vector, prepare the fast_vec_access container
+!> \param vec ...
+!> \param fast_vec_access ...
+!> \param error ...
+! *****************************************************************************
+  SUBROUTINE create_fast_col_vec_access(vec, fast_vec_access, error)
+    TYPE(dbcsr_obj)                          :: vec
+    TYPE(fast_vec_access_type)               :: fast_vec_access
+    TYPE(dbcsr_error_type), INTENT(inout)    :: error
+
+    CHARACTER(LEN=*), PARAMETER :: routineN = 'create_fast_col_vec_access', &
+      routineP = moduleN//':'//routineN
+
+    INTEGER                                  :: handle
+
+    CALL dbcsr_error_set(routineN, handle, error)
+
+    SELECT CASE(vec%m%data_type)
+    CASE(dbcsr_type_real_8)
+      CALL create_fast_col_vec_access_d(vec, fast_vec_access, error)
+    CASE(dbcsr_type_real_4)
+      CALL create_fast_col_vec_access_s(vec, fast_vec_access, error)
+    CASE(dbcsr_type_complex_8)
+      CALL create_fast_col_vec_access_z(vec, fast_vec_access, error)
+    CASE(dbcsr_type_complex_4)
+      CALL create_fast_col_vec_access_c(vec, fast_vec_access, error)
+    END SELECT
+
+    CALL dbcsr_error_stop(handle, error)
+
+  END SUBROUTINE create_fast_col_vec_access
+
+! *****************************************************************************
+!> \brief given a row vector, prepare the fast_vec_access_container
+!> \param vec ...
+!> \param fast_vec_access ...
+!> \param error ...
+! *****************************************************************************
+  SUBROUTINE create_fast_row_vec_access(vec, fast_vec_access, error)
+    TYPE(dbcsr_obj)                          :: vec
+    TYPE(fast_vec_access_type)               :: fast_vec_access
+    TYPE(dbcsr_error_type), INTENT(inout)    :: error
+
+    CHARACTER(LEN=*), PARAMETER :: routineN = 'create_fast_row_vec_access', &
+      routineP = moduleN//':'//routineN
+
+    INTEGER                                  :: handle
+
+    CALL dbcsr_error_set(routineN, handle, error)
+
+    SELECT CASE(vec%m%data_type)
+    CASE(dbcsr_type_real_8)
+       CALL create_fast_row_vec_access_d(vec, fast_vec_access, error)
+    CASE(dbcsr_type_real_4)
+       CALL create_fast_row_vec_access_s(vec, fast_vec_access, error)
+    CASE(dbcsr_type_complex_8)
+       CALL create_fast_row_vec_access_c(vec, fast_vec_access, error)
+    CASE(dbcsr_type_complex_4)
+       CALL create_fast_row_vec_access_z(vec, fast_vec_access, error)
+    END SELECT
+
+    CALL dbcsr_error_stop(handle, error)
+
+  END SUBROUTINE create_fast_row_vec_access
+
+! *****************************************************************************
+!> \brief release all memory associated with the fast_vec_access type
+!> \param fast_vec_access ...
+!> \param error ...
+! *****************************************************************************
+  SUBROUTINE release_fast_vec_access(fast_vec_access, error)
+    TYPE(fast_vec_access_type)               :: fast_vec_access
+    TYPE(dbcsr_error_type), INTENT(inout)    :: error
+
+    CHARACTER(LEN=*), PARAMETER :: routineN = 'release_fast_vec_access', &
+      routineP = moduleN//':'//routineN
+
+    INTEGER                                  :: handle
+
+    CALL dbcsr_error_set(routineN, handle, error)
+
+    CALL hash_table_release(fast_vec_access%hash_table)
+    IF (ALLOCATED(fast_vec_access%blk_map_d)) DEALLOCATE(fast_vec_access%blk_map_d)
+    IF (ALLOCATED(fast_vec_access%blk_map_s)) DEALLOCATE(fast_vec_access%blk_map_s)
+    IF (ALLOCATED(fast_vec_access%blk_map_c)) DEALLOCATE(fast_vec_access%blk_map_c)
+    IF (ALLOCATED(fast_vec_access%blk_map_z)) DEALLOCATE(fast_vec_access%blk_map_z)
+
+    CALL dbcsr_error_stop(handle, error)
+
+  END SUBROUTINE release_fast_vec_access
+
+#include "../base/hash_table.f90"
 
 #include "dbcsr_vector_operations_low_d.f90"
 #include "dbcsr_vector_operations_low_z.f90"

@@ -13,14 +13,9 @@
 !> \author  Joost VandeVondele
 ! *****************************************************************************
 MODULE dbcsr_api
-  USE array_types,                     ONLY: array_data,&
-                                             array_hold,&
-                                             array_i1d_obj,&
-                                             array_new,&
-                                             array_nullify,&
-                                             array_release,&
-                                             array_size
-  USE dbcsr_arnoldi,                   ONLY: dbcsr_arnoldi_ev
+  USE array_types,                     ONLY: array_data
+  USE dbcsr_arnoldi,                   ONLY: dbcsr_arnoldi_ev,&
+                                             dbcsr_arnoldi_extremal
   USE dbcsr_arnoldi_data_methods,      ONLY: dbcsr_arnoldi_data,&
                                              deallocate_arnoldi_data,&
                                              get_selected_ritz_val,&
@@ -54,20 +49,24 @@ MODULE dbcsr_api
   USE dbcsr_csr_conversions,           ONLY: &
        convert_csr_to_dbcsr, convert_dbcsr_to_csr, csr_create_from_dbcsr, &
        csr_create_new, csr_create_template, csr_dbcsr_blkrow_dist, &
-       csr_destroy, csr_eqrow_floor_dist, csr_print_sparsity, csr_type
+       csr_destroy, csr_eqrow_ceil_dist, csr_eqrow_floor_dist, &
+       csr_print_sparsity, csr_type
   USE dbcsr_data_methods,              ONLY: &
        dbcsr_data_clear_pointer, dbcsr_data_init, dbcsr_data_new, &
        dbcsr_data_release, dbcsr_get_data_p, dbcsr_scalar, &
        dbcsr_scalar_fill_all, dbcsr_scalar_get_type, dbcsr_scalar_get_value, &
        dbcsr_scalar_set_type, dbcsr_scalar_zero
   USE dbcsr_dist_methods,              ONLY: &
-       dbcsr_distribution_col_dist, dbcsr_distribution_get_num_images_1d, &
-       dbcsr_distribution_has_threads, dbcsr_distribution_init, &
-       dbcsr_distribution_local_cols, dbcsr_distribution_local_rows, &
-       dbcsr_distribution_mp, dbcsr_distribution_ncols, &
-       dbcsr_distribution_new, dbcsr_distribution_nlocal_cols, &
-       dbcsr_distribution_nlocal_rows, dbcsr_distribution_nrows, &
-       dbcsr_distribution_release, dbcsr_distribution_row_dist
+       dbcsr_distribution_col_clusters, dbcsr_distribution_col_dist, &
+       dbcsr_distribution_get_num_images_1d, &
+       dbcsr_distribution_has_col_clusters, &
+       dbcsr_distribution_has_row_clusters, dbcsr_distribution_has_threads, &
+       dbcsr_distribution_init, dbcsr_distribution_local_cols, &
+       dbcsr_distribution_local_rows, dbcsr_distribution_mp, &
+       dbcsr_distribution_ncols, dbcsr_distribution_new, &
+       dbcsr_distribution_nlocal_cols, dbcsr_distribution_nlocal_rows, &
+       dbcsr_distribution_nrows, dbcsr_distribution_release, &
+       dbcsr_distribution_row_clusters, dbcsr_distribution_row_dist
   USE dbcsr_dist_operations,           ONLY: create_bl_distribution,&
                                              dbcsr_create_dist_block_cyclic,&
                                              dbcsr_create_dist_r_unrot,&
@@ -95,14 +94,10 @@ MODULE dbcsr_api
        dbcsr_nfullcols_total, dbcsr_nfullrows_total, dbcsr_release, &
        dbcsr_row_block_sizes, dbcsr_setname, dbcsr_valid_index, &
        dbcsr_wm_use_mutable
-  USE dbcsr_mp_methods,                ONLY: dbcsr_mp_group,&
-                                             dbcsr_mp_hold,&
-                                             dbcsr_mp_mynode,&
-                                             dbcsr_mp_new,&
-                                             dbcsr_mp_npcols,&
-                                             dbcsr_mp_nprows,&
-                                             dbcsr_mp_numnodes,&
-                                             dbcsr_mp_release
+  USE dbcsr_mp_methods,                ONLY: &
+       dbcsr_mp_get_process, dbcsr_mp_group, dbcsr_mp_hold, dbcsr_mp_mynode, &
+       dbcsr_mp_new, dbcsr_mp_npcols, dbcsr_mp_nprows, dbcsr_mp_numnodes, &
+       dbcsr_mp_release
   USE dbcsr_multiply_api,              ONLY: dbcsr_multiply
   USE dbcsr_operations,                ONLY: &
        dbcsr_add, dbcsr_add_on_diag, dbcsr_copy, dbcsr_copy_into_existing, &
@@ -161,12 +156,6 @@ MODULE dbcsr_api
             heap_reset_first,&
             heap_t,&
             array_data,&
-            array_hold,&
-            array_i1d_obj,&
-            array_new,&
-            array_release,&
-            array_size,&
-            array_nullify,&
             add_work_coordinate,&
             convert_offsets_to_sizes,&
             convert_sizes_to_offsets,&
@@ -192,6 +181,7 @@ MODULE dbcsr_api
             set_arnoldi_initial_vector,&
             deallocate_arnoldi_data,&
             dbcsr_arnoldi_ev,&
+            dbcsr_arnoldi_extremal,&
             get_selected_ritz_val,&
             get_selected_ritz_vector,&
             dbcsr_binary_read,&
@@ -227,6 +217,10 @@ MODULE dbcsr_api
             dbcsr_distribution_obj,&
             dbcsr_distribution_release,&
             dbcsr_distribution_row_dist,&
+            dbcsr_distribution_row_clusters,&
+            dbcsr_distribution_col_clusters,&
+            dbcsr_distribution_has_row_clusters,&
+            dbcsr_distribution_has_col_clusters,&
             dbcsr_error_set,&
             dbcsr_error_stop,&
             dbcsr_error_type,&
@@ -274,6 +268,7 @@ MODULE dbcsr_api
             dbcsr_max_col_size,&
             dbcsr_max_row_size,&
             dbcsr_mp_group,&
+            dbcsr_mp_get_process,&
             dbcsr_mp_hold,&
             dbcsr_mp_mynode,&
             dbcsr_mp_new,&
@@ -373,6 +368,7 @@ MODULE dbcsr_api
             csr_create_new,&
             csr_create_template,&
             csr_dbcsr_blkrow_dist,&
+            csr_eqrow_ceil_dist,&
             csr_eqrow_floor_dist,&
             csr_print_sparsity,&
             dbcsr_distribution_get_num_images_1d

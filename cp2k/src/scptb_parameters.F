@@ -87,7 +87,9 @@ CONTAINS
             param%hcore(1,0) = -0.991475_dp 
             param%hcore(1,0) = xopt(3)
             !if (size(xopt) .gt. 4) then
-            param%crep(1:3) = xopt(4:6)
+            param%crep(1) = xopt(9)
+            param%crep(2) = xopt(10)
+            param%crep(3) = xopt(11)
             !endif
             !print *,'param set for H',param%crep(1:3)
        endif
@@ -124,19 +126,21 @@ CONTAINS
             !if (size(xopt) .gt. 7) then
             param%lmaxscp = 0 
             param%ag = 0.24483_dp
-            param%ag = xopt(7)
+            param%ag = xopt(4)
             param%energy = -27.3762533_dp 
             param%zeta(1,0) = 2.1163084_dp
-            param%zeta(1,0) = xopt(8)
+            param%zeta(1,0) = xopt(5)
             param%hcore(1,0) = -2.6715280_dp
-            param%hcore(1,0) = xopt(9)
+            param%hcore(1,0) = xopt(6)
             !--------
             param%zeta(1,1) = 2.2871721_dp
-            param%zeta(1,1) = xopt(10)
+            param%zeta(1,1) = xopt(7)
             param%hcore(1,1) = -4.0763620_dp
-            param%hcore(1,1) = xopt(11)
+            param%hcore(1,1) = xopt(8)
             param%crep(1:3) = (/4.59,273.0,41.07/)
-            param%crep(1:3) = xopt(12:14)
+            param%crep(1) = xopt(9)
+            param%crep(2) = xopt(10)
+            param%crep(3) = xopt(11)
             !print *,'param set for O',param%crep(1:3)
             !endif
        endif

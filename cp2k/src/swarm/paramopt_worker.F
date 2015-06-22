@@ -348,24 +348,26 @@ MODULE paramopt_worker
     !!this%D3 = this%x(1:3) 
     !d3_ptr = this%D3
     !----for dftb3 param optimization-----------------
-    !!! NEEDS TO BE ADJUSTED !!!!!!!!!!!!!!!!!
-    !if (this%database .eq. 1) then
-    !        allocate(dftb3_param(4))
-    !else 
-    !        allocate(dftb3_param(2))
-    !endif
-    !!dftb3_param = this%x(6:xsize)
-    !dftb3_param = this%x(4:xsize)
-    !!dftb3_param = this%x(3:xsize)
-    !!dftb3_param = this%x(1:xsize)
-    !!allocate(dftb3_param(2))
-    !!dftb3_param = this%x(6:7)
-    !---for hb param optimization---------------------
-    !allocate(hb_para(3))
-    !hb_para = 0._dp
-    !hb_para(1) = this%x(1)
-    !hb_para(2) = this%x(2)
-    !hb_para(3) = this%x(3)
+    if (xsize .gt. 3) then
+       !! NEEDS TO BE ADJUSTED !!!!!!!!!!!!!!!!!
+       if (this%database .eq. 1) then
+               allocate(dftb3_param(4))
+       else 
+               allocate(dftb3_param(2))
+       endif
+       !dftb3_param = this%x(6:xsize)
+       dftb3_param = this%x(4:xsize)
+       !dftb3_param = this%x(3:xsize)
+       !dftb3_param = this%x(1:xsize)
+       !allocate(dftb3_param(2))
+       !dftb3_param = this%x(6:7)
+    endif
+    !!---for hb param optimization---------------------
+    allocate(hb_para(3))
+    hb_para = 0._dp
+    hb_para(1) = this%x(1)
+    hb_para(2) = this%x(2)
+    hb_para(3) = this%x(3)
     !--------for scptb--------------------------------
     !allocate(xopt_ptr(size(this%x)))
     !xopt_ptr = this%x
