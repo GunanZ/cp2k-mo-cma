@@ -130,7 +130,7 @@ CONTAINS
             ": No parameter xml given or element undefined. Using defaults."
         END IF
         !defaults, but undefined for most elements atm
-        if (scptb_control%xopt(1) .gt. 0.) then
+        if (scptb_control%xopt(1) .ne. 0.) then
           CALL scptb_default_parameter(scptb_parameter,error,scptb_control%xopt) 
         else
           CALL scptb_default_parameter(scptb_parameter,error)

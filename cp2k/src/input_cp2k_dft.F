@@ -3411,6 +3411,13 @@ CONTAINS
        CALL section_add_keyword(section,keyword,error=error)
        CALL keyword_release(keyword,error=error)
 
+       CALL keyword_create(keyword,name="XOPT",&
+            description="INTERNAL VECTOR FOR OPTIMIZATION",&
+            usage="no usage", n_var=-1,default_r_vals=(/0.0_dp/),&
+            required=.FALSE.,error=error)
+       CALL section_add_keyword(section,keyword,error=error)
+       CALL keyword_release(keyword,error=error)
+
        NULLIFY(subsection)
        CALL create_coulomb_section(subsection,error)
        CALL section_add_subsection(section, subsection, error=error)

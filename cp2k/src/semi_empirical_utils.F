@@ -305,11 +305,12 @@ CONTAINS
 !> \param method ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE se_param_set_default(sep,z,method,error)
+  SUBROUTINE se_param_set_default(sep,z,method,error,xopt)
 
-    TYPE(semi_empirical_type), POINTER       :: sep
-    INTEGER, INTENT(IN)                      :: z, method
-    TYPE(cp_error_type), INTENT(inout)       :: error
+    TYPE(semi_empirical_type), POINTER                :: sep
+    INTEGER, INTENT(IN)                               :: z, method
+    TYPE(cp_error_type), INTENT(inout)                :: error
+    REAL(KIND=dp),DIMENSION(:),POINTER,OPTIONAL       :: xopt
 
     CHARACTER(len=*), PARAMETER :: routineN = 'se_param_set_default', &
       routineP = moduleN//':'//routineN
@@ -330,7 +331,11 @@ CONTAINS
        CASE (do_method_pm3)
           CALL pm3_default_parameter(sep,z,error)
        CASE (do_method_pm6)
-          CALL pm6_default_parameter(sep,z,error)
+          if (present(xopt)) then
+            CALL pm6_default_parameter(sep,z,error,xopt)
+          else
+            CALL pm6_default_parameter(sep,z,error)
+          endif
        CASE (do_method_pdg)
           CALL pdg_default_parameter(sep,z,error)
        CASE (do_method_mndo)

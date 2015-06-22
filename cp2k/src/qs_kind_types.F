@@ -1593,6 +1593,7 @@ CONTAINS
     LOGICAL, INTENT(IN)                      :: no_fail
     INTEGER, INTENT(IN)                      :: method_id
     TYPE(cp_error_type), INTENT(inout)       :: error
+    REAL(KIND=dp),DIMENSION(:),POINTER       :: xopt
 
     CHARACTER(LEN=*), PARAMETER :: routineN = 'read_qs_kind', &
       routineP = moduleN//':'//routineN
@@ -2034,7 +2035,13 @@ CONTAINS
           END SELECT
           ! Set default parameters
           CALL section_vals_val_get(dft_section,"QS%SE%STO_NG",i_val=ngauss,error=error)
-          CALL se_param_set_default(qs_kind%se_parameter,z,method_id,error)
+          ! xopt?
+          CALL section_vals_val_get(dft_section,"QS%SE%XOPT",r_vals=xopt,error=error)
+          if (xopt(1) .ne. 0) then
+            CALL se_param_set_default(qs_kind%se_parameter,z,method_id,error,xopt)
+          else
+            CALL se_param_set_default(qs_kind%se_parameter,z,method_id,error)
+          endif
           CALL init_se_param(qs_kind%se_parameter,qs_kind%orb_basis_set,ngauss,error=error)
           CALL init_potential ( qs_kind%all_potential, itype="BARE", &
                zeff=qs_kind%se_parameter%zeff,zeff_correction=zeff_correction,error=error)

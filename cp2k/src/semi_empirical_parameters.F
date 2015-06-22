@@ -2539,7 +2539,7 @@ CONTAINS
   SUBROUTINE pm6_default_parameter ( sep, z, error, xopt)
     TYPE(semi_empirical_type), POINTER       :: sep
     INTEGER                                  :: z
-    REAL(kind=dp),DIMENSION(:),OPTIONAL      ::  xopt
+    REAL(kind=dp),DIMENSION(:),OPTIONAL      :: xopt
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     CHARACTER(len=*), PARAMETER :: routineN = 'pm6_default_parameter', &
