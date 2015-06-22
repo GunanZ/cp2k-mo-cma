@@ -993,6 +993,29 @@ CPSourceFileRef,&
        CALL section_vals_val_get(se_section,"DISPERSION_PARAMETER_FILE",&
             c_val=qs_control%se_control%dispersion_parameter_file,error=error)
 
+       ! xopt 
+       CALL section_vals_val_get(se_section,"XOPT",r_vals=scal,error=error)
+            qs_control%se_control%xopt(1) = scal(1)
+            qs_control%se_control%xopt(2) = scal(2)
+            qs_control%se_control%xopt(3) = scal(3)
+            qs_control%se_control%xopt(4) = scal(4)
+            qs_control%se_control%xopt(5) = scal(5)
+            qs_control%se_control%xopt(6) = scal(6) 
+            qs_control%se_control%xopt(7) = scal(7) 
+            qs_control%se_control%xopt(8) = scal(8) 
+            qs_control%se_control%xopt(9) = scal(9) 
+            qs_control%se_control%xopt(10) = scal(10) 
+            qs_control%se_control%xopt(11) = scal(11) 
+            qs_control%se_control%xopt(12) = scal(12) 
+            qs_control%se_control%xopt(13) = scal(13) 
+            qs_control%se_control%xopt(14) = scal(14) 
+            qs_control%se_control%xopt(15) = scal(15) 
+            qs_control%se_control%xopt(16) = scal(16) 
+            qs_control%se_control%xopt(17) = scal(17) 
+            qs_control%se_control%xopt(18) = scal(18) 
+            qs_control%se_control%xopt(19) = scal(19) 
+            qs_control%se_control%xopt(20) = scal(20) 
+            qs_control%se_control%xopt(21) = scal(21) 
        ! Stop the execution for non-implemented features
        IF (qs_control%se_control%periodic_type==do_se_lr_ewald_r3) THEN
           CALL cp_unimplemented_error(fromWhere=routineP, &

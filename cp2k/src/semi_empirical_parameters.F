@@ -2536,9 +2536,10 @@ CONTAINS
 !> \param z ...
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE pm6_default_parameter ( sep, z, error)
+  SUBROUTINE pm6_default_parameter ( sep, z, error, xopt)
     TYPE(semi_empirical_type), POINTER       :: sep
     INTEGER                                  :: z
+    REAL(kind=dp),DIMENSION(:),OPTIONAL      ::  xopt
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     CHARACTER(len=*), PARAMETER :: routineN = 'pm6_default_parameter', &
@@ -2549,6 +2550,9 @@ CONTAINS
     sep%eheat  = ptable(z)%heat_of_formation / kcalmol
     sep%z      = z
 
+    IF (present(xopt)) then
+        print * ,'yannick',xopt
+    endif
     SELECT CASE (z)
     CASE DEFAULT
        CALL stop_program(routineN,moduleN,__LINE__,&
@@ -2565,6 +2569,15 @@ CONTAINS
        sep%a           =    0.024184_dp
        sep%b           =    3.055953_dp
        sep%c           =    1.786011_dp
+       IF (present(xopt)) then  
+           sep%uss              = xopt(1) 
+           sep%beta(0)          = xopt(2) 
+           sep%sto_exponents(0) = xopt(3) 
+           sep%gss              = xopt(4) 
+           sep%a                = xopt(5) 
+           sep%b                = xopt(6) 
+           sep%c                = xopt(7) 
+       endif
     CASE(2)
        ! Helium
        sep%defined = .TRUE.
@@ -2675,6 +2688,22 @@ CONTAINS
        sep%a           =   -0.017771_dp
        sep%b           =    3.058310_dp
        sep%c           =    1.896435_dp
+       IF (present(xopt)) then  
+       sep%uss              = xopt(8)   
+       sep%upp              = xopt(9) 
+       sep%beta(0)          = xopt(10)
+       sep%beta(1)          = xopt(11)
+       sep%sto_exponents(0) = xopt(12)
+       sep%sto_exponents(1) = xopt(13)
+       sep%gss              = xopt(14)
+       sep%gsp              = xopt(15)
+       sep%gpp              = xopt(16)
+       sep%gp2              = xopt(17)
+       sep%hsp              = xopt(18)
+       sep%a                = xopt(19)
+       sep%b                = xopt(20)
+       sep%c                = xopt(21)
+       endif
     CASE(9)
        ! Fluorine
        sep%defined = .TRUE.
