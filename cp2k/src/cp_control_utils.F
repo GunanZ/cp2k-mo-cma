@@ -1016,6 +1016,12 @@ CPSourceFileRef,&
             qs_control%se_control%xopt(19) = scal(19) 
             qs_control%se_control%xopt(20) = scal(20) 
             qs_control%se_control%xopt(21) = scal(21) 
+            qs_control%se_control%xopt(22) = scal(22) 
+            qs_control%se_control%xopt(23) = scal(23) 
+            qs_control%se_control%xopt(24) = scal(24) 
+            qs_control%se_control%xopt(25) = scal(25) 
+            qs_control%se_control%xopt(26) = scal(26) 
+            qs_control%se_control%xopt(27) = scal(27) 
        ! Stop the execution for non-implemented features
        IF (qs_control%se_control%periodic_type==do_se_lr_ewald_r3) THEN
           CALL cp_unimplemented_error(fromWhere=routineP, &

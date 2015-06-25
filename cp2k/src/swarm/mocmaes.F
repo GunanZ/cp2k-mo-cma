@@ -88,30 +88,35 @@ MODULE mocmaes
     INTEGER                                            :: m
     INTEGER                                            :: i,j 
     INTEGER                                            :: popsize
-    popsize = size(mocmaes)/2 
-    do i=size(mocmaes),1,-1
+    INTEGER                                            :: offspringsize
+    popsize = size(mocmaes) 
+    offspringsize = popsize/2
+    do i=popsize,1,-1
         mocmaes(i)%id = i
         call cmaes_init(mocmaes(i), input)
         mocmaes(i)%popsize = popsize
-        allocate(mocmaes(i)%s_i(size(mocmaes)))
-        do j=1,size(mocmaes)
+        allocate(mocmaes(i)%s_i(popsize))
+        do j=1,popsize       
             mocmaes(i)%s_i(j)%p => null()
         enddo
-        allocate(mocmaes(i)%offspring_list(popsize/2))
-        do j=1,popsize/2
+        allocate(mocmaes(i)%offspring_list(offspringsize))
+        do j=1,offspringsize
             mocmaes(i)%offspring_list(j) = j
         enddo
         mocmaes(i)%s_i_count = 0 
         mocmaes(i)%d_count = 0
         mocmaes(i)%I_dist = 0._dp
-        if (i .le. popsize) then
+        if (i .le. offspringsize) then
            mocmaes(i)%offspring = .true.
-           mocmaes(i)%myparent => mocmaes(i+popsize)
+           mocmaes(i)%myparent => mocmaes(i+offspringsize)
         else
            mocmaes(i)%offspring = .false.
            mocmaes(i)%myparent => null() 
         endif
      enddo
+     !do i=1,popsize
+     !   print *,'initial offspring',i,mocmaes(i)%offspring
+     !enddo
  END SUBROUTINE mo_cmaes_init
 
 ! *****************************************************************************
@@ -131,6 +136,7 @@ MODULE mocmaes
     REAL(kind=dp)                                       :: p_succ
     INTEGER                                             :: accepted
     INTEGER                                             :: popsize
+    INTEGER                                             :: offspringsize
     INTEGER                                             :: k,n,i,j
     LOGICAL                                             :: boolean
     
@@ -140,14 +146,21 @@ MODULE mocmaes
     boolean = .false.
     accepted = 0 
     popsize = mocmaes(1)%popsize
+    offspringsize = popsize/2
     n=0
     k=1
-    allocate(parents(popsize),offspring(popsize))
+    allocate(parents(offspringsize),offspring(offspringsize))
     call update_offspring(mocmaes,offspring,parents)
     call init_selection(mocmaes)
-    do i=1,popsize 
+    do i=1,popsize
+    print *,'test',mocmaes(i)%Id,mocmaes(i)%front,mocmaes(i)%I_dist,mocmaes(i)%f
+    enddo
+
+    do i=1,offspringsize
         a_k => offspring(i)%p
         a_k_parents => a_k%myparent
+        !print *,'a_k',a_k%front,a_k%I_dist,a_k%f
+        !print *,'a_k_parents',a_k_parents%front,a_k_parents%I_dist,a_k_parents%f
             call dominates(a_k,a_k_parents,boolean)
             if (boolean) then
                 a_k%p_better = 1._dp
@@ -166,13 +179,16 @@ MODULE mocmaes
             endif
         nullify(a_k,a_k_parents)
     enddo
-    !print *,'done init selection',accepted
+    print *,'before selection'
     call selection(mocmaes)
+    do i = 1,popsize
+     print *,'offspring',mocmaes(i)%offspring,mocmaes(i)%Id,mocmaes(i)%I_dist
+    enddo
     call update_offspring(mocmaes,offspring,parents)
     ! not sure if update offspring needed here
-    !print *,"before gen pop"
+    print *,"before gen pop"
     !--------------------------generating new pop--------------------------------    
-    DO j = 1, popsize
+    DO j = 1, offspringsize
              a_k_parents => parents(j)%p 
              a_k => offspring(j)%p
              !what needs to be copied
@@ -187,13 +203,13 @@ MODULE mocmaes
              !---------------------
              a_k_parents%myparent => null()
              a_k%myparent => a_k_parents
-             a_k%id = j
-             a_k_parents%id = j+popsize
+             !a_k%id = j
+             !a_k_parents%id = j+offspringsize
              a_k%offspring = .TRUE.
              a_k_parents%offspring = .FALSE.
-             print *,'oldx',a_k%x
+             print *,j,'oldx',a_k%x
              CALL gen_pop(a_k)
-             print *,'newx',a_k%x
+             print *,j,'newx',a_k%x
 
      END DO
      deallocate(offspring,parents)
@@ -361,19 +377,23 @@ SUBROUTINE init_selection(mocmaes)
             input_set(idxsel(nondominated_size))%p%I_dist = huge(1._dp) 
             mymax = maxval(x)
             mymin = minval(x)
-            mydev = mymax - mymin 
+            mydev = mymax - mymin
             do i = 2,nondominated_size-1
                j = idxsel(i)
                j_p = idxsel(i+1)
                j_m = idxsel(i-1)
+               !print *,   'diff',(input_set(j_p)%p%f(k)-input_set(j_m)%p%f(k))
+               !print *,   'diff',(input_set(j_p)%p%f(k)-input_set(j_m)%p%f(k))/mydev
                if (mydev .gt. huge(1._dp)) mydev = 1._dp
                input_set(j)%p%I_dist = input_set(j)%p%I_dist + & 
                                 (input_set(j_p)%p%f(k)- &
                                  input_set(j_m)%p%f(k))/& 
                                 mydev
+             if (input_set(j_p)%p%f(k) .eq. input_set(j)%p%f(k)) input_set(j)%p%I_dist = 0.0_dp
+             if (input_set(j_m)%p%f(k) .eq. input_set(j)%p%f(k)) input_set(j)%p%I_dist = 0.0_dp
              if (isNaN(input_set(j)%p%I_dist)) input_set(j)%p%I_dist = 0.0_dp
              if ((input_set(j)%p%I_dist) .gt. huge(1._dp)) input_set(j)%p%I_dist = 0.0_dp
-             !print *,'Idist'  ,(input_set(j)%I_dist)
+             !print *,'Idist'  ,input_set(j)%p%I_dist
              enddo
            !============calculate using kde===========
            ! n = nondominated_size
@@ -465,17 +485,20 @@ SUBROUTINE init_selection(mocmaes)
     integer                                                   :: psize
     integer                                                   :: front
     INTEGER                                                   :: popsize
+    INTEGER                                                   :: offspringsize
      TYPE(cp_error_type)                                      :: error
 !    !--------everything could be done more efficient with pointers!!!--------------------
     front = 1
     psize = 0
     popsize = mocmaes(1)%popsize
+    offspringsize = popsize/2
     k = 0
     !----reset offspring varaiable---------
     do i=1,size(mocmaes)
         mocmaes(i)%offspring = .true.
     enddo
-    do while (psize .lt. popsize)
+
+    do while (psize .lt. offspringsize)
         !-------get front size-------------
         fsize = 0 
         do i=1,size(mocmaes)
@@ -484,7 +507,7 @@ SUBROUTINE init_selection(mocmaes)
           endif
         enddo
         !-------------front size lower of what needed?----------
-        if (fsize+psize .le. popsize) then
+        if (fsize+psize .le. offspringsize) then
          ! add all individual from front to Q    
             do i=1,size(mocmaes)
               if (front .eq. mocmaes(i)%front) then
@@ -511,7 +534,7 @@ SUBROUTINE init_selection(mocmaes)
            !----sort according to I_dist-----------
            CALL cp_1d_r_sort(newsort,size(newsort),idxsel)
            !----add to sel set Q------------
-           do i = 0,popsize-psize-1
+           do i = 0,offspringsize-psize-1
                idx = size(idxsel)-i
                tmp_set(idxsel(idx))%p%offspring = .false.
                k = k + 1
@@ -529,7 +552,7 @@ SUBROUTINE init_selection(mocmaes)
     !call cp_assert( k-1 .eq. popsize,cp_failure_level,cp_assertion_failed,&
     !                   routineP, cp_to_string(k)//" k ne lambda_mo "//&
     !                   cp_to_string(popsize),error)
-    call cp_assert( j .eq. popsize,cp_failure_level,cp_assertion_failed,&
+    call cp_assert( j .eq. offspringsize,cp_failure_level,cp_assertion_failed,&
                        routineP, cp_to_string(j)//" j ne lambda_mo "//&
                        cp_to_string(popsize),error)
     !print *,'selection done'
@@ -611,11 +634,13 @@ SUBROUTINE init_selection(mocmaes)
     j=1
     do k=1,size(mocmaes)
         if (mocmaes(k)%offspring) then
-           offspring(i)%p => mocmaes(k) 
+           offspring(i)%p => mocmaes(k)
+           !print *,'id offspring',mocmaes(k)%Id
            offspring_list(i) = mocmaes(k)%Id
            i = i + 1
         else
            parents(j)%p => mocmaes(k)
+           !print *,'id not offspring',mocmaes(k)%Id
            parents(j)%p%myparent => null()
            j = j + 1
         endif
@@ -623,6 +648,8 @@ SUBROUTINE init_selection(mocmaes)
     do k=1,size(mocmaes)
         mocmaes(k)%offspring_list = offspring_list
     enddo
+    !print *,'should all be the same',i,j
+    !print *,'in mocmaes offspringlist',offspring_list
     deallocate(offspring_list)
 END SUBROUTINE update_offspring
 

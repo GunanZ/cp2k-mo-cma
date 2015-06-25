@@ -125,6 +125,7 @@ MODULE paramopt_master
     INTEGER                                  :: i
     INTEGER                                  :: j
     INTEGER                                  :: popsize=1
+    INTEGER                                  :: offspringsize
     LOGICAL                                  :: explicit_key
     REAL(KIND=dp),DIMENSION(:),POINTER       :: init_x
     !------------------
@@ -151,10 +152,8 @@ MODULE paramopt_master
     CALL section_vals_val_get(this%paramopt_section,"REF_DATABASE", i_val=this%database, error=error)
     !------------------------------------
     n = this%n
-    !popsize = 200
-    !popsize = 62 
-    !popsize = 2 
     popsize = this%popsize
+    offspringsize = popsize/2
     if (mod(popsize,2) .ne. 0) then
         STOP "popsize wrong"
     endif
@@ -170,7 +169,9 @@ MODULE paramopt_master
     CALL section_vals_val_get(this%paramopt_section,"INITIAL_X", explicit=explicit_key, error=error)
     IF(explicit_key)THEN
         CALL section_vals_val_get(this%paramopt_section,"INITIAL_X", r_vals=init_x, error=error)
-        this%x(1,:) = init_x
+        do j=1,popsize
+         this%x(j,:) = init_x
+        enddo
         this%randinput = .FALSE.
         CALL cp_assert( size(init_x) .eq. n ,cp_failure_level,cp_assertion_failed,&
                        routineP, "init_x does not match num_var",error)
@@ -178,10 +179,10 @@ MODULE paramopt_master
         this%randinput = .TRUE.
         print *,'generating random x'
         CALL create_rng(rng_uniform_stream,global_seed)
-        do j=1,2*popsize
+        do j=1,popsize
             do i=1,n; this%x(j,i) = next_random_number(rng_uniform_stream,error=error); enddo 
             this%x(j,:) = var_trans(this%x(j,:),this%u_bound,this%l_bound)
-         enddo
+        enddo
          print *,'lower bound',this%l_bound
          print *,'upper bound',this%u_bound
          print *,'done random x',this%x(1,:)
@@ -196,44 +197,45 @@ MODULE paramopt_master
         if (this%database == 1) then
             this%num_ref_mol = 3*22
             CALL read_ref_data(this%database,"s22/reference_data",this%ref_matrix) 
-            allocate(this%energies(popsize,this%num_ref_mol/3,3))
-            allocate(this%rmsd(popsize,this%num_ref_mol/3,3))
-            allocate(this%converged(popsize,this%num_ref_mol/3,3))
-            allocate(this%mcharge(popsize))
+            allocate(this%energies(offspringsize,this%num_ref_mol/3,3))
+            allocate(this%rmsd(offspringsize,this%num_ref_mol/3,3))
+            allocate(this%converged(offspringsize,this%num_ref_mol/3,3))
+            allocate(this%mcharge(offspringsize))
         else if (this%database == 2) then
             this%num_ref_mol = 39
             CALL read_ref_data(this%database,"water_clusters/reference_data",this%ref_matrix) 
-            allocate(this%energies(popsize,this%num_ref_mol,1))
-            allocate(this%rmsd(popsize,this%num_ref_mol,1))
-            allocate(this%converged(popsize,this%num_ref_mol,1))
-            allocate(this%mcharge(popsize))
+            allocate(this%energies(offspringsize,this%num_ref_mol,1))
+            allocate(this%rmsd(offspringsize,this%num_ref_mol,1))
+            allocate(this%converged(offspringsize,this%num_ref_mol,1))
+            allocate(this%mcharge(offspringsize))
         else if (this%database == 3) then
             this%num_ref_mol = 30 
             CALL read_ref_data(this%database,"WATER27structures/reference_data",this%ref_matrix) 
-            allocate(this%energies(popsize,this%num_ref_mol,1))
-            allocate(this%rmsd(popsize,this%num_ref_mol,1))
-            allocate(this%converged(popsize,this%num_ref_mol,1))
-            allocate(this%mcharge(popsize))
+            allocate(this%energies(offspringsize,this%num_ref_mol,1))
+            allocate(this%rmsd(offspringsize,this%num_ref_mol,1))
+            allocate(this%converged(offspringsize,this%num_ref_mol,1))
+            allocate(this%mcharge(offspringsize))
         else if (this%database == 4) then
             this%num_ref_mol = 7  
             CALL read_ref_data(this%database,"atomic_structures/reference_data",this%ref_matrix) 
-            allocate(this%energies(popsize,this%num_ref_mol,1))
-            allocate(this%rmsd(popsize,this%num_ref_mol,1))
-            allocate(this%converged(popsize,this%num_ref_mol,1))
-            allocate(this%mcharge(popsize))
+            allocate(this%energies(offspringsize,this%num_ref_mol,1))
+            allocate(this%rmsd(offspringsize,this%num_ref_mol,1))
+            allocate(this%converged(offspringsize,this%num_ref_mol,1))
+            allocate(this%mcharge(offspringsize))
         else if (this%database == 5) then
             this%num_ref_mol = 35 
             CALL read_ref_data(this%database,"atomic_structures/reference_data",this%ref_matrix) 
-            allocate(this%energies(popsize,this%num_ref_mol,1))
-            allocate(this%rmsd(popsize,this%num_ref_mol,1))
-            allocate(this%converged(popsize,this%num_ref_mol,1))
-            allocate(this%mcharge(popsize))
+            allocate(this%energies(offspringsize,this%num_ref_mol,1))
+            allocate(this%rmsd(offspringsize,this%num_ref_mol,1))
+            allocate(this%converged(offspringsize,this%num_ref_mol,1))
+            allocate(this%mcharge(offspringsize))
         endif
     else 
-        allocate(this%energies(popsize,this%num_ref_mol,1))
-        allocate(this%rmsd(popsize,this%num_ref_mol,1))
-        allocate(this%converged(popsize,this%num_ref_mol,1))
+        allocate(this%energies(offspringsize,this%num_ref_mol,1))
+        allocate(this%rmsd(offspringsize,this%num_ref_mol,1))
+        allocate(this%converged(offspringsize,this%num_ref_mol,1))
     endif
+    this%converged = 1
     this%num_input_rcvd = 0
     this%current_inp = 1
     allocate(this%f(popsize,m))
@@ -294,23 +296,13 @@ MODULE paramopt_master
             !this%cmaes_inp%l_bound => this%l_bound
             !this%cmaes_inp%u_bound => this%u_bound
             ALLOCATE(mo_cmaes_type::this%population(popsize))
-            allocate(this%offspring_list(popsize))
-            do i=1,popsize
+            allocate(this%offspring_list(offspringsize))
+            do i=1,offspringsize
                 this%offspring_list(i) = i
             enddo
             select type (pop => this%population)
                 type is (mo_cmaes_type)
                 CALL mo_cmaes_init(pop,this%cmaes_inp)
-                if (.not. this%randinput) then
-                    pop(1)%x = var_back_trans(pop(1)%x,this%u_bound,this%l_bound)
-                    do i=1,size(pop)
-                        pop(i)%f => this%f(i,:)
-                        pop(i)%f = huge(1._dp)
-                        pop(i)%x => this%x(i,:)
-                        pop(i)%x = pop(1)%x
-                        print *,'x',pop(i)%x
-                    enddo
-                else
                     do i=1,size(pop)
                         pop(i)%f => this%f(i,:)
                         pop(i)%f = huge(1._dp)
@@ -318,7 +310,6 @@ MODULE paramopt_master
                         pop(i)%x = var_back_trans(pop(i)%x,this%u_bound,this%l_bound)
                         print *,'x',pop(i)%x
                     enddo
-                endif
             end select
        CASE(paramopt_do_grid)
             this%x(1,:) = var_back_trans(this%x(1,:),this%u_bound,this%l_bound)           
@@ -478,7 +469,7 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
     CHARACTER(len=default_string_length)       :: input_file
     LOGICAL, INTENT(INOUT)                     :: should_stop
     INTEGER                                    :: wid
-    INTEGER                                    :: input
+    INTEGER                                    :: input,inputx
     REAL(kind=dp)                              :: myresult
     INTEGER                                    :: charge=0
     INTEGER                                    :: spinmult=1
@@ -554,6 +545,11 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
             this%num_input_rcvd = this%num_input_rcvd + 1
             CALL swarm_message_get(report, "inp_num",input)
             CALL swarm_message_get(report, "pop_id",id)
+            if (id .gt. offspringsize) then
+                print *,'something is wrong'
+                STOP
+            endif
+
             CALL index2grid(input,(/offspringsize, &
                             size(this%energies,dim=2),&
                             size(this%energies,dim=3)/),ind)
@@ -562,26 +558,28 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
             !if (this%converged(id,ind(2),ind(3)) .eq. 0) STOP "not converged"
             this%energies(id,ind(2),ind(3)) = func(1)
             this%rmsd(id,ind(2),ind(3))     = func(2)
+
             if (this%m .eq. 5) this%mcharge(id)  = this%mcharge(id) + func(5)
 
             if (this%num_input_rcvd .eq. offspringsize*this%num_ref_mol) then
                 do i = 1,offspringsize
                     input = this%offspring_list(i)
-                    CALL energy2function(this%num_ref_mol,this%energies(input,:,:), &
+                    !print *,'input from offspringlist',input
+                    CALL energy2function(this%num_ref_mol,this%energies(i,:,:), &
                                         this%ref_matrix,this%database,func_array)
                     this%f(input,1) = sum(func_array)
                     !this%f(input,2) = sum(this%rmsd(input,:,:))
                     ! this also is only first dim...so dimer of s22 yannick
                     if (this%database .eq. 1) then 
                         ! s22 is database 1
-                        this%f(input,2) = sum(this%rmsd(input,:,1))
+                        this%f(input,2) = sum(this%rmsd(i,:,1))
                     else if (this%database .eq. 5) then
                         this%f(input,1) = sum(func_array(1:30))
-                        this%f(input,2) = sum(this%rmsd(input,:,:))
+                        this%f(input,2) = sum(this%rmsd(i,:,:))
                         if (this%m .ne. 5) STOP "not enough objectives"
                         this%f(input,5) = sum(func_array(31:35))
                     else
-                        this%f(input,2) = sum(this%rmsd(input,:,:))
+                        this%f(input,2) = sum(this%rmsd(i,:,:))
                     endif
                     if (this%m .gt. 2) then
                       if (this%database .eq. 4) then
@@ -592,23 +590,23 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                     endif
                     if (this%m .gt. 3) then
                       if (this%database .eq. 4) then
-                        this%f(input,4) = this%rmsd(input,6,1)
+                        this%f(input,4) = this%rmsd(i,6,1)
                       else
-                        this%f(input,4) = this%rmsd(input,1,1)
+                        this%f(input,4) = this%rmsd(i,1,1)
                       endif
                     endif
                     if (this%m .gt. 4) then
-                        this%f(input,5) = this%mcharge(input)
-                        print *,'end charge',this%mcharge(input)
+                        this%f(input,5) = this%mcharge(i)
+                        print *,'end charge',this%mcharge(i)
                     endif
-                    print *,'test',this%f(input,:)
+                    !print *,'test',this%f(input,:)
                     !print *,'test',this%f(input,5)
                     !------------
                     if (any(this%f(input,:) .gt. 1e10)) this%f(input,:) = huge(1._dp)
                     CALL open_file(file_name="output", file_status="UNKNOWN",&
                         file_action="WRITE", file_position="APPEND",unit_number=iounit)
                     write(iounit,*) var_trans(this%x(input,:), &
-                                    this%u_bound,this%l_bound),this%f(input,:),func_array,this%rmsd(input,:,1)
+                                    this%u_bound,this%l_bound),this%f(input,:),func_array,this%rmsd(i,:,1)
                     ! index 1 here is the first row...so the dimer of s22 ...
                     ! should be changed to be generic ?!
                     !                this%u_bound,this%l_bound),this%f(input,:),func_array,this%rmsd(input,:,:)
@@ -618,6 +616,10 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                      type is (mo_cmaes_type)
                         CALL mo_cmaes_run(mocmaes)
                     this%offspring_list = mocmaes(1)%offspring_list
+                       !print *,'offspringlist',this%offspring_list
+                       !do i=1,popsize
+                       !  print *,'yannick',mocmaes(i)%x
+                       !enddo
                     end select
                 !---reset----------
                 this%converged   = 1
@@ -633,10 +635,16 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
             CALL index2grid(this%current_inp,(/offspringsize,&
                             size(this%energies,dim=2),&
                             size(this%energies,dim=3)/),ind)
-            input = this%offspring_list(ind(1))
-
+            print *,'IND',ind
+            inputx = this%offspring_list(ind(1))
+            input = ind(1)
+            !print *,'iter',this%current_inp,ind,input
+            !print *,'conv',this%converged(input,:,:)
+            !print *,'siz',size(this%converged(input,:,:))
+            !print *,'stuff',ind,input
             if (any(this%converged(input,:,:).eq.0)) then
                 CALL swarm_message_add(cmd, "command", "skip")
+                print *,'skip'
             else
                 CALL swarm_message_add(cmd, "command", "energy")
             endif
@@ -711,8 +719,12 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
             endif
             CALL swarm_message_add(cmd, "charge", charge)
             CALL swarm_message_add(cmd, "spinmult", spinmult)
+            !do i=1,popsize
+            !    print *,i,'yannick',this%x(i,:)
+            !enddo
+            !print *,'send x',var_trans(this%x(inputx,:),this%u_bound,this%l_bound)
             CALL swarm_message_add(cmd, "x",&
-            var_trans(this%x(input,:),this%u_bound,this%l_bound))
+            var_trans(this%x(inputx,:),this%u_bound,this%l_bound))
             this%current_inp = this%current_inp + 1
           else
             CALL swarm_message_add(cmd, "command", "wait")     
@@ -745,48 +757,48 @@ SUBROUTINE do_optim(this,report,cmd,method,should_stop)
     INTEGER                                    :: id=1 
     INTEGER,DIMENSION(3)                       :: ind
     if (this%benchmark) then
-          CALL swarm_message_get(report, "worker_id", wid)
-          CALL swarm_message_get(report, "status", report_status)
-          if (trim(report_status) .eq. "done") then
-            CALL swarm_message_get(report, "result", myresult)
-            this%f = myresult
-            this%x(1,:) = var_back_trans(this%x(1,:),this%u_bound,this%l_bound)
-            select case(method)
-                case(paramopt_do_powell)
-                   CALL powell_optimize (this%n, this%x(1,:), &
-                                  this%powell_param)
-                   !CALL powell_optimize (this%n, this%x(1,:) ,this%powell_param%xl,&
-                   !               this%powell_param%xu,&
-                   !               this%powell_param)
-                   if (this%powell_param%state .eq. -1) then
-                    this%powell_param%state = 8
-                    this%x(1,:) = var_back_trans(this%x(1,:),this%u_bound,this%l_bound)
-                    CALL powell_optimize (this%n, this%x(1,:), &
-                                  this%powell_param)
-                    !CALL powell_optimize (this%n, this%x(1,:) ,this%l_bound,this%u_bound,&
-                    !              this%powell_param)
-                    this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound) 
-                    IF ( this%iw > 0 ) THEN
-                         WRITE(this%iw,'(" POWELL| Number of function evaluations",T71,I10)') this%powell_param%nf
-                         WRITE(this%iw,'(" POWELL| Final value of function",T61,G20.10)') this%powell_param%fopt
-                         WRITE(this%iw,'(" POWELL| Final x",T61,100G20.10)') this%x
-                    END IF
-                     STOP "powell done"
-                    endif
-                case(paramopt_do_cma)
-                    CALL cmaes_run(this%cmaes_inp,this%population)
-            end select 
-            this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound) 
+    !      CALL swarm_message_get(report, "worker_id", wid)
+    !      CALL swarm_message_get(report, "status", report_status)
+    !      if (trim(report_status) .eq. "done") then
+    !        CALL swarm_message_get(report, "result", myresult)
+    !        this%f = myresult
+    !        this%x(1,:) = var_back_trans(this%x(1,:),this%u_bound,this%l_bound)
+    !        select case(method)
+    !            case(paramopt_do_powell)
+    !               CALL powell_optimize (this%n, this%x(1,:), &
+    !                              this%powell_param)
+    !               !CALL powell_optimize (this%n, this%x(1,:) ,this%powell_param%xl,&
+    !               !               this%powell_param%xu,&
+    !               !               this%powell_param)
+    !               if (this%powell_param%state .eq. -1) then
+    !                this%powell_param%state = 8
+    !                this%x(1,:) = var_back_trans(this%x(1,:),this%u_bound,this%l_bound)
+    !                CALL powell_optimize (this%n, this%x(1,:), &
+    !                              this%powell_param)
+    !                !CALL powell_optimize (this%n, this%x(1,:) ,this%l_bound,this%u_bound,&
+    !                !              this%powell_param)
+    !                this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound) 
+    !                IF ( this%iw > 0 ) THEN
+    !                     WRITE(this%iw,'(" POWELL| Number of function evaluations",T71,I10)') this%powell_param%nf
+    !                     WRITE(this%iw,'(" POWELL| Final value of function",T61,G20.10)') this%powell_param%fopt
+    !                     WRITE(this%iw,'(" POWELL| Final x",T61,100G20.10)') this%x
+    !                END IF
+    !                 STOP "powell done"
+    !                endif
+    !            case(paramopt_do_cma)
+    !                CALL cmaes_run(this%cmaes_inp,this%population)
+    !        end select 
+    !        this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound) 
 
-            CALL send_all(cmd,this%x,this%bench_func)
-            !----------------------------------------------
-            !CALL open_file(file_name="output", file_status="UNKNOWN",&
-            !        file_action="WRITE", file_position="APPEND",unit_number=iounit)
-            !        write(iounit,*) this%x(1,:),this%f(1,1)
-            !CALL close_file(iounit)
-          else if (report_status .eq. "wait_done" .or. report_status .eq. "initial_hello") then
-            CALL send_all(cmd,this%x,this%bench_func)
-          endif
+    !        CALL send_all(cmd,this%x,this%bench_func)
+    !        !----------------------------------------------
+    !        !CALL open_file(file_name="output", file_status="UNKNOWN",&
+    !        !        file_action="WRITE", file_position="APPEND",unit_number=iounit)
+    !        !        write(iounit,*) this%x(1,:),this%f(1,1)
+    !        !CALL close_file(iounit)
+    !      else if (report_status .eq. "wait_done" .or. report_status .eq. "initial_hello") then
+    !        CALL send_all(cmd,this%x,this%bench_func)
+    !      endif
     else
           CALL swarm_message_get(report, "worker_id", wid)
           CALL swarm_message_get(report, "status", report_status)

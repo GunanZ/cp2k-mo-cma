@@ -125,7 +125,7 @@ MODULE cp_control_types
      REAL(KIND = dp)       :: cutoff_cou, taper_cou, range_cou
      REAL(KIND = dp)       :: cutoff_exc, taper_exc, range_exc
      REAL(KIND = dp)       :: taper_scr , range_scr
-     REAL(KIND = dp),DIMENSION(21)         :: xopt=0._dp
+     REAL(KIND = dp),DIMENSION(27)         :: xopt=0._dp
   END TYPE semi_empirical_control_type
 
 ! *****************************************************************************

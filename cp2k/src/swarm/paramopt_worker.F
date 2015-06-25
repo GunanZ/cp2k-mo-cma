@@ -180,67 +180,67 @@ MODULE paramopt_worker
 
     SELECT CASE (worker%method)
        CASE(paramopt_do_cma,paramopt_do_powell,paramopt_do_grid)
-            CALL swarm_message_get(cmd, "command", command)
-            IF(TRIM(command) == "function") THEN
-                nullify(worker%x)
-                CALL swarm_message_get(cmd, "x", worker%x)
-                CALL swarm_message_get(cmd, "ref_func", worker%ref_func)
-                !CALL run_mdgopt(worker, cmd, report)
-                !------------do calc here------------
-                CALL myfun(worker%x,worker%func(1),worker%ref_func)
-                ! blablabla
-                !------------------------------------ 
-                CALL swarm_message_add(report, "status", "done") 
-                CALL swarm_message_add(report, "result", worker%func(1))
-            ELSE IF (TRIM(command) == "energy") THEN
-               nullify(worker%x)
-               CALL swarm_message_get(cmd, "pop_id", worker%pop_id)
-               CALL swarm_message_get(cmd, "inp_num", worker%inp_num)
-               CALL swarm_message_get(cmd, "inp_file", worker%inp_file)
-               CALL swarm_message_get(cmd, "charge", worker%charge)
-               CALL swarm_message_get(cmd, "spinmult", worker%spinmult)
-               CALL swarm_message_get(cmd, "x", worker%x)
-               !-----------------------------------------------
-               CALL paramopt_energy(worker,cmd,command,report)
-               !-----------------------------------------------
-               CALL swarm_message_add(report, "status", "done")
-               CALL swarm_message_add(report, "pop_id", worker%pop_id)
-               CALL swarm_message_add(report, "inp_num", worker%inp_num) 
-               CALL swarm_message_add(report, "result", worker%func)
-               CALL swarm_message_add(report, "converged", worker%converged)
-            ELSE
-               print *,"Worker: received unkown command:"
-               STOP 
-            END IF
+       !     CALL swarm_message_get(cmd, "command", command)
+       !     IF(TRIM(command) == "function") THEN
+       !         nullify(worker%x)
+       !         CALL swarm_message_get(cmd, "x", worker%x)
+       !         CALL swarm_message_get(cmd, "ref_func", worker%ref_func)
+       !         !CALL run_mdgopt(worker, cmd, report)
+       !         !------------do calc here------------
+       !         CALL myfun(worker%x,worker%func(1),worker%ref_func)
+       !         ! blablabla
+       !         !------------------------------------ 
+       !         CALL swarm_message_add(report, "status", "done") 
+       !         CALL swarm_message_add(report, "result", worker%func(1))
+       !     ELSE IF (TRIM(command) == "energy") THEN
+       !        nullify(worker%x)
+       !        CALL swarm_message_get(cmd, "pop_id", worker%pop_id)
+       !        CALL swarm_message_get(cmd, "inp_num", worker%inp_num)
+       !        CALL swarm_message_get(cmd, "inp_file", worker%inp_file)
+       !        CALL swarm_message_get(cmd, "charge", worker%charge)
+       !        CALL swarm_message_get(cmd, "spinmult", worker%spinmult)
+       !        CALL swarm_message_get(cmd, "x", worker%x)
+       !        !-----------------------------------------------
+       !        CALL paramopt_energy(worker,cmd,command,report)
+       !        !-----------------------------------------------
+       !        CALL swarm_message_add(report, "status", "done")
+       !        CALL swarm_message_add(report, "pop_id", worker%pop_id)
+       !        CALL swarm_message_add(report, "inp_num", worker%inp_num) 
+       !        CALL swarm_message_add(report, "result", worker%func)
+       !        CALL swarm_message_add(report, "converged", worker%converged)
+       !     ELSE
+       !        print *,"Worker: received unkown command:"
+       !        STOP 
+       !     END IF
        CASE (paramopt_do_mocma)
             CALL swarm_message_get(cmd, "command", command)
           IF(TRIM(command) == "function") THEN
-            nullify(worker%x)
-            CALL swarm_message_get(cmd, "inp_num", worker%inp_num)
-            CALL swarm_message_get(cmd, "pop_id", worker%pop_id)
-            CALL swarm_message_get(cmd, "x", worker%x)
-            CALL swarm_message_get(cmd, "ref_func", worker%ref_func)
-            write(worker%iw,*) "this is x in worker",worker%x
-            !------------do calc here------------
-            !!CALL myfun(worker%x,y,worker%ref_func)
-            !!Zitzler¿Deb¿Thiele's function N. 1
-            !worker%x = abs(worker%x)
-            x1 = worker%x(1)
-            x2 = worker%x(2)
-            !!h = 1._dp - sqrt((x1)/(g(worker%x)))
-            !h = 1._dp - (x1/g(worker%x))**2
-            !worker%func(1) = (x1)
-            !worker%func(2) = (g(worker%x)*h)
-            worker%func(1) = 0.5_dp*(x1**2+x2**2) + sin(x1**2+x2**2)
-            worker%func(2) = (3_dp*x1-2_dp*x2+4_dp)**2/8_dp + (x1-x2+1_dp)**2/27_dp + 15_dp
-            worker%func(3) = 1_dp/(x1**2+x2**2+1_dp)-1.1_dp*exp(-(x1**2+x2**2))
-            write(worker%iw,*) 'pop_id',worker%pop_id
-            write(worker%iw,*) 'this is x',worker%x,'and f',worker%func
-            !------------------------------------ 
-            CALL swarm_message_add(report, "status", "done") 
-            CALL swarm_message_add(report, "inp_num", worker%inp_num)
-            CALL swarm_message_add(report, "pop_id", worker%pop_id)
-            CALL swarm_message_add(report, "result", worker%func)
+          !  nullify(worker%x)
+          !  CALL swarm_message_get(cmd, "inp_num", worker%inp_num)
+          !  CALL swarm_message_get(cmd, "pop_id", worker%pop_id)
+          !  CALL swarm_message_get(cmd, "x", worker%x)
+          !  CALL swarm_message_get(cmd, "ref_func", worker%ref_func)
+          !  write(worker%iw,*) "this is x in worker",worker%x
+          !  !------------do calc here------------
+          !  !!CALL myfun(worker%x,y,worker%ref_func)
+          !  !!Zitzler¿Deb¿Thiele's function N. 1
+          !  !worker%x = abs(worker%x)
+          !  x1 = worker%x(1)
+          !  x2 = worker%x(2)
+          !  !!h = 1._dp - sqrt((x1)/(g(worker%x)))
+          !  !h = 1._dp - (x1/g(worker%x))**2
+          !  !worker%func(1) = (x1)
+          !  !worker%func(2) = (g(worker%x)*h)
+          !  worker%func(1) = 0.5_dp*(x1**2+x2**2) + sin(x1**2+x2**2)
+          !  worker%func(2) = (3_dp*x1-2_dp*x2+4_dp)**2/8_dp + (x1-x2+1_dp)**2/27_dp + 15_dp
+          !  worker%func(3) = 1_dp/(x1**2+x2**2+1_dp)-1.1_dp*exp(-(x1**2+x2**2))
+          !  write(worker%iw,*) 'pop_id',worker%pop_id
+          !  write(worker%iw,*) 'this is x',worker%x,'and f',worker%func
+          !  !------------------------------------ 
+          !  CALL swarm_message_add(report, "status", "done") 
+          !  CALL swarm_message_add(report, "inp_num", worker%inp_num)
+          !  CALL swarm_message_add(report, "pop_id", worker%pop_id)
+          !  CALL swarm_message_add(report, "result", worker%func)
           ELSE IF (TRIM(command) == "energy") THEN
             nullify(worker%x)
             CALL swarm_message_get(cmd, "inp_num", worker%inp_num)
@@ -315,6 +315,7 @@ MODULE paramopt_worker
     REAL(KIND=dp),DIMENSION(:),POINTER       :: d3_ptr => Null()
     REAL(KIND=dp),DIMENSION(:),POINTER       :: xopt_ptr => Null()
     REAL(KIND=dp),DIMENSION(:),ALLOCATABLE   :: pos,pos2
+    REAL(dp), ALLOCATABLE, DIMENSION(:)      :: help
     REAL(dp), DIMENSION(3, 3)                :: U
     REAL(dp), DIMENSION(3)                   :: center1, center2
     REAL(dp), ALLOCATABLE, DIMENSION(:, :)   :: g
@@ -332,12 +333,18 @@ MODULE paramopt_worker
     energy = 0._dp
     rmsd = 0._dp
     xsize = size(this%x)
+    allocate(help(xsize))
+    do i=1,xsize
+        help(i) = i
+    enddo
     !CALL swarm_message_get(cmd,"input",input_file)
     !CALL swarm_message_get(cmd,"coord",coord_file)
     !CALL swarm_message_get(cmd,"num_inp",i_inp)
     !CALL swarm_message_get(cmd,"iter",iter)
     !CALL swarm_message_get(cmd,"x",this%x)
+    write(this%iw,*) "this is   in worker",help
     write(this%iw,*) "this is x in worker",this%x
+    deallocate(help)
     !print *,'this is x in worker',this%x
     !print *,'this is charge', this%charge
     !print *,'this is inp',this%inp_file
@@ -401,9 +408,9 @@ MODULE paramopt_worker
      !CALL section_vals_val_set(this%root_section, &
      !                          "FORCE_EVAL%DFT%QS%SCPTB%XOPT", &
      !                          r_vals_ptr=xopt_ptr, error= this%error)
-     !CALL section_vals_val_set(this%root_section, &
-     !                          "FORCE_EVAL%DFT%QS%SE%XOPT", &
-     !                          r_vals_ptr=xopt_ptr, error= this%error)
+     CALL section_vals_val_set(this%root_section, &
+                               "FORCE_EVAL%DFT%QS%SE%XOPT", &
+                               r_vals_ptr=xopt_ptr, error= this%error)
     endif
     !--------------------------------------------------------------------------                              
     CALL section_vals_val_set(this%root_section, &

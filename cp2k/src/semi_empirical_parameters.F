@@ -2550,9 +2550,9 @@ CONTAINS
     sep%eheat  = ptable(z)%heat_of_formation / kcalmol
     sep%z      = z
 
-    IF (present(xopt)) then
-        print * ,'yannick',xopt
-    endif
+    !IF (present(xopt)) then
+    !    print * ,'yannick',xopt
+    !endif
     SELECT CASE (z)
     CASE DEFAULT
        CALL stop_program(routineN,moduleN,__LINE__,&
@@ -3905,7 +3905,7 @@ CONTAINS
     CALL valence_electrons(sep, extended_basis_set=.TRUE., error=error)
     CALL calpar(z,sep,error)
     CALL convert_param_to_cp2k(sep, error)
-    CALL init_pm6_pair_params(error)
+    CALL init_pm6_pair_params(error,xopt)
 
     sep%aab(0:nelem) = aab_pm6(z,0:nelem)
     sep%xab(0:nelem) = xab_pm6(z,0:nelem)
@@ -4296,8 +4296,9 @@ CONTAINS
 !> \brief Default pair parameter for: PM6
 !> \param error ...
 ! *****************************************************************************
-  SUBROUTINE init_pm6_pair_params(error)
+  SUBROUTINE init_pm6_pair_params(error,xopt)
     TYPE(cp_error_type), INTENT(inout)       :: error
+    REAL(kind=dp),DIMENSION(:),OPTIONAL      :: xopt
 
     CHARACTER(len=*), PARAMETER :: routineN = 'init_pm6_pair_params', &
       routineP = moduleN//':'//routineN
@@ -4312,6 +4313,7 @@ CONTAINS
     aab_pm6 = 0._dp
 
     xab_pm6(  1,  1)=        2.2435870171_dp
+    if (present(xopt)) xab_pm6(  1,  1)=        xopt(22)
     xab_pm6(  2,  1)=        2.3711988926_dp
     xab_pm6(  2,  2)=        3.4509000778_dp
     xab_pm6(  3,  1)=        2.1919848919_dp
@@ -4340,6 +4342,7 @@ CONTAINS
     xab_pm6(  7,  6)=        0.8599489927_dp
     xab_pm6(  7,  7)=        0.6753129959_dp
     xab_pm6(  8,  1)=        0.1922950000_dp
+    if (present(xopt)) xab_pm6(  8,  1)=        xopt(23)
     xab_pm6(  8,  2)=        6.6845250130_dp
     xab_pm6(  8,  3)=        1.9685980082_dp
     xab_pm6(  8,  4)=        3.2181549072_dp
@@ -4347,6 +4350,7 @@ CONTAINS
     xab_pm6(  8,  6)=        0.9902110100_dp
     xab_pm6(  8,  7)=        0.7647560239_dp
     xab_pm6(  8,  8)=        0.5351120234_dp
+    if (present(xopt)) xab_pm6(  8,  8)=        xopt(24)
     xab_pm6(  9,  1)=        0.8158019781_dp
     xab_pm6(  9,  2)=        0.7451069951_dp
     xab_pm6(  9,  3)=        1.9759850502_dp
@@ -5241,6 +5245,7 @@ CONTAINS
     xab_pm6( 83, 83)=        1.1682139635_dp
 
     aab_pm6(  1,  1)=        3.5409419537_dp
+    if (present(xopt)) aab_pm6(  1,  1)=        xopt(25)
     aab_pm6(  2,  1)=        2.9898810387_dp
     aab_pm6(  2,  2)=        3.7835590839_dp
     aab_pm6(  3,  1)=        2.1362650394_dp
@@ -5269,6 +5274,7 @@ CONTAINS
     aab_pm6(  7,  6)=        2.6861081123_dp
     aab_pm6(  7,  7)=        2.5745019913_dp
     aab_pm6(  8,  1)=        1.2609419823_dp
+    if (present(xopt)) aab_pm6(  8,  1)=        xopt(26)
     aab_pm6(  8,  2)=        3.6537749767_dp
     aab_pm6(  8,  3)=        2.5844419003_dp
     aab_pm6(  8,  4)=        3.0518670082_dp
@@ -5276,6 +5282,7 @@ CONTAINS
     aab_pm6(  8,  6)=        2.8896069527_dp
     aab_pm6(  8,  7)=        2.7842919827_dp
     aab_pm6(  8,  8)=        2.6239979267_dp
+    if (present(xopt)) aab_pm6(  8,  8)=        xopt(27)
     aab_pm6(  9,  1)=        3.1367399693_dp
     aab_pm6(  9,  2)=        2.8565430641_dp
     aab_pm6(  9,  3)=        3.0439009666_dp
