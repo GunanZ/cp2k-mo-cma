@@ -154,7 +154,8 @@ MODULE qs_environment
                                              qs_subsys_release,&
                                              qs_subsys_set,&
                                              qs_subsys_type
-  USE qs_wf_history_methods,           ONLY: wfi_create
+  USE qs_wf_history_methods,           ONLY: wfi_create,&
+                                             wfi_create_for_kp
   USE qs_wf_history_types,             ONLY: qs_wf_history_type,&
                                              wfi_release
   USE rel_control_types,               ONLY: rel_c_create,&
@@ -252,6 +253,7 @@ CONTAINS
       POINTER                                :: qs_kind_set
     TYPE(qs_ks_env_type), POINTER            :: ks_env
     TYPE(qs_subsys_type), POINTER            :: subsys
+    TYPE(qs_wf_history_type), POINTER        :: wf_history
     TYPE(rel_control_type), POINTER          :: rel_control
     TYPE(section_vals_type), POINTER :: dft_section, et_coupling_section, &
       hfx_section, kpoint_section, mp2_section, transport_section
@@ -339,6 +341,8 @@ CONTAINS
     IF(do_kpoints) THEN
        CALL kpoint_env_initialize(kpoints, error)
        CALL kpoint_initialize_mos(kpoints, qs_env%mos, error)
+       CALL get_qs_env(qs_env=qs_env, wf_history=wf_history, error=error)
+       CALL wfi_create_for_kp(wf_history, error)
     END IF
 
     do_hfx =.FALSE.
@@ -414,15 +418,15 @@ CONTAINS
        CALL set_qs_env (qs_env,lri_env=lri_env,error=error)
     END IF
 
-    IF (dft_control%qs_control%do_ls_scf) THEN
-       CALL ls_scf_create(qs_env,error)
-    ENDIF
-
     transport_section => section_vals_get_subs_vals(qs_env%input,"DFT%TRANSPORT",error=error)
     CALL section_vals_get(transport_section,explicit=qs_env%do_transport,error=error)
     IF (qs_env%do_transport) THEN
        CALL transport_env_create(qs_env,error)
     END IF
+
+    IF (dft_control%qs_control%do_ls_scf) THEN
+       CALL ls_scf_create(qs_env,error)
+    ENDIF
 
     ! see if we have atomic relativistic corrections
     CALL get_qs_env(qs_env,rel_control=rel_control,error=error)
