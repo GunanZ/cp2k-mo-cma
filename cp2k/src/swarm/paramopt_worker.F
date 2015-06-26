@@ -40,8 +40,8 @@ MODULE paramopt_worker
                                              section_vals_get_subs_vals,&
                                              section_vals_type,&
                                              section_vals_val_get,&
-                                             section_vals_val_set,& 
-                                             section_vals_remove_values                                             
+                                             section_vals_val_set,&
+                                             section_vals_remove_values
   USE kinds,                           ONLY: default_string_length,&
                                              default_path_length,&
                                              dp
@@ -86,9 +86,9 @@ MODULE paramopt_worker
    INTEGER                                  :: f_env_id
    INTEGER                                  :: method
    INTEGER                                  :: inp_num
-   INTEGER                                  :: charge 
-   INTEGER                                  :: spinmult 
-   INTEGER                                  :: pop_id 
+   INTEGER                                  :: charge
+   INTEGER                                  :: spinmult
+   INTEGER                                  :: pop_id
    INTEGER                                  :: converged=0
    TYPE(f_env_type), POINTER                :: f_env
    TYPE(force_env_type), POINTER            :: force_env
@@ -150,8 +150,8 @@ MODULE paramopt_worker
         paramopt_section => section_vals_get_subs_vals(swarm_section, "PARAM_OPT", error=error)
         CALL section_vals_val_get(paramopt_section,"NUM_VAR", i_val=worker%n, error=error)
         CALL section_vals_val_get(paramopt_section,"NUM_OBJ", i_val=worker%m, error=error)
-        CALL section_vals_val_get(paramopt_section,"METHOD", i_val=worker%method, error=error) 
-        CALL section_vals_val_get(paramopt_section,"REF_DATABASE", i_val=worker%database, error=error) 
+        CALL section_vals_val_get(paramopt_section,"METHOD", i_val=worker%method, error=error)
+        CALL section_vals_val_get(paramopt_section,"REF_DATABASE", i_val=worker%database, error=error)
         IF (worker%iw>0) WRITE(worker%iw,*) "paramopt_worker_init called."
         IF (worker%iw>0) WRITE(worker%iw,*) "paramopt_worker_init done."
         allocate(worker%D3(3))
@@ -189,8 +189,8 @@ MODULE paramopt_worker
        !         !------------do calc here------------
        !         CALL myfun(worker%x,worker%func(1),worker%ref_func)
        !         ! blablabla
-       !         !------------------------------------ 
-       !         CALL swarm_message_add(report, "status", "done") 
+       !         !------------------------------------
+       !         CALL swarm_message_add(report, "status", "done")
        !         CALL swarm_message_add(report, "result", worker%func(1))
        !     ELSE IF (TRIM(command) == "energy") THEN
        !        nullify(worker%x)
@@ -205,12 +205,12 @@ MODULE paramopt_worker
        !        !-----------------------------------------------
        !        CALL swarm_message_add(report, "status", "done")
        !        CALL swarm_message_add(report, "pop_id", worker%pop_id)
-       !        CALL swarm_message_add(report, "inp_num", worker%inp_num) 
+       !        CALL swarm_message_add(report, "inp_num", worker%inp_num)
        !        CALL swarm_message_add(report, "result", worker%func)
        !        CALL swarm_message_add(report, "converged", worker%converged)
        !     ELSE
        !        print *,"Worker: received unkown command:"
-       !        STOP 
+       !        STOP
        !     END IF
        CASE (paramopt_do_mocma)
             CALL swarm_message_get(cmd, "command", command)
@@ -223,7 +223,7 @@ MODULE paramopt_worker
           !  write(worker%iw,*) "this is x in worker",worker%x
           !  !------------do calc here------------
           !  !!CALL myfun(worker%x,y,worker%ref_func)
-          !  !!Zitzler¿Deb¿Thiele's function N. 1
+          !  !!Zitzlerï¿½Debï¿½Thiele's function N. 1
           !  !worker%x = abs(worker%x)
           !  x1 = worker%x(1)
           !  x2 = worker%x(2)
@@ -236,8 +236,8 @@ MODULE paramopt_worker
           !  worker%func(3) = 1_dp/(x1**2+x2**2+1_dp)-1.1_dp*exp(-(x1**2+x2**2))
           !  write(worker%iw,*) 'pop_id',worker%pop_id
           !  write(worker%iw,*) 'this is x',worker%x,'and f',worker%func
-          !  !------------------------------------ 
-          !  CALL swarm_message_add(report, "status", "done") 
+          !  !------------------------------------
+          !  CALL swarm_message_add(report, "status", "done")
           !  CALL swarm_message_add(report, "inp_num", worker%inp_num)
           !  CALL swarm_message_add(report, "pop_id", worker%pop_id)
           !  CALL swarm_message_add(report, "result", worker%func)
@@ -251,8 +251,8 @@ MODULE paramopt_worker
             CALL swarm_message_get(cmd, "x", worker%x)
             !------------do calc here------------
             CALL paramopt_energy(worker,cmd,command,report)
-            !------------------------------------ 
-            CALL swarm_message_add(report, "status", "done") 
+            !------------------------------------
+            CALL swarm_message_add(report, "status", "done")
             CALL swarm_message_add(report, "inp_num", worker%inp_num)
             CALL swarm_message_add(report, "pop_id", worker%pop_id)
             CALL swarm_message_add(report, "result", worker%func)
@@ -267,9 +267,9 @@ MODULE paramopt_worker
             CALL swarm_message_get(cmd, "x", worker%x)
             !------------do calc here------------
             worker%func = huge(1._dp)
-            worker%converged = 0 
-            !------------------------------------ 
-            CALL swarm_message_add(report, "status", "done") 
+            worker%converged = 0
+            !------------------------------------
+            CALL swarm_message_add(report, "status", "done")
             CALL swarm_message_add(report, "inp_num", worker%inp_num)
             CALL swarm_message_add(report, "pop_id", worker%pop_id)
             CALL swarm_message_add(report, "result", worker%func)
@@ -278,13 +278,13 @@ MODULE paramopt_worker
        CASE DEFAULT
         STOP "Unkown glbopt_method"
     END SELECT
-    CONTAINS 
+    CONTAINS
         REAL FUNCTION g(x)
             REAL(dp),DIMENSION(:)                    :: x
             integer                                  :: n
             n = size(x)
             g = 1._dp + 9._dp/(real(n)-1._dp)*(sum(x(2:n)))
-        END FUNCTION g  
+        END FUNCTION g
    END SUBROUTINE paramopt_worker_execute
 
 ! *****************************************************************************
@@ -315,7 +315,7 @@ MODULE paramopt_worker
     REAL(KIND=dp),DIMENSION(:),POINTER       :: d3_ptr => Null()
     REAL(KIND=dp),DIMENSION(:),POINTER       :: xopt_ptr => Null()
     REAL(KIND=dp),DIMENSION(:),ALLOCATABLE   :: pos,pos2
-    REAL(dp), ALLOCATABLE, DIMENSION(:)      :: help
+
     REAL(dp), DIMENSION(3, 3)                :: U
     REAL(dp), DIMENSION(3)                   :: center1, center2
     REAL(dp), ALLOCATABLE, DIMENSION(:, :)   :: g
@@ -333,18 +333,11 @@ MODULE paramopt_worker
     energy = 0._dp
     rmsd = 0._dp
     xsize = size(this%x)
-    allocate(help(xsize))
+    write(this%iw,*) "this is parameter set:"
+    write(this%iw,*) this%x
     do i=1,xsize
-        help(i) = i
+      write(this%iw,*) "param",i,this%x(i)
     enddo
-    !CALL swarm_message_get(cmd,"input",input_file)
-    !CALL swarm_message_get(cmd,"coord",coord_file)
-    !CALL swarm_message_get(cmd,"num_inp",i_inp)
-    !CALL swarm_message_get(cmd,"iter",iter)
-    !CALL swarm_message_get(cmd,"x",this%x)
-    write(this%iw,*) "this is   in worker",help
-    write(this%iw,*) "this is x in worker",this%x
-    deallocate(help)
     !print *,'this is x in worker',this%x
     !print *,'this is charge', this%charge
     !print *,'this is inp',this%inp_file
@@ -352,14 +345,14 @@ MODULE paramopt_worker
     !allocate(d3_ptr(3)) !gets deallocated automatically ??? at least it seems
     !this%D3 = (/1.0_dp,this%x(4:5)/)
     !!this%D3 = (/1._dp,this%x(1:2)/)
-    !!this%D3 = this%x(1:3) 
+    !!this%D3 = this%x(1:3)
     !d3_ptr = this%D3
     !----for dftb3 param optimization-----------------
     !if (xsize .gt. 3) then
     !   !! NEEDS TO BE ADJUSTED !!!!!!!!!!!!!!!!!
     !   if (this%database .eq. 1) then
     !           allocate(dftb3_param(4))
-    !   else 
+    !   else
     !           allocate(dftb3_param(2))
     !   endif
     !   !dftb3_param = this%x(6:xsize)
@@ -402,7 +395,7 @@ MODULE paramopt_worker
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%DFT%QS%DFTB%PARAMETER%HB_SR_PARAM", &
                               r_vals_ptr=hb_para, error = this%error)
-    endif 
+    endif
 !--------------------------------------------------------------------------
     if (associated(xopt_ptr)) then
      !CALL section_vals_val_set(this%root_section, &
@@ -412,14 +405,14 @@ MODULE paramopt_worker
                                "FORCE_EVAL%DFT%QS%SE%XOPT", &
                                r_vals_ptr=xopt_ptr, error= this%error)
     endif
-    !--------------------------------------------------------------------------                              
+    !--------------------------------------------------------------------------
     CALL section_vals_val_set(this%root_section, &
                                "FORCE_EVAL%DFT%CHARGE", &
                                i_val=this%charge, error = this%error)
     CALL section_vals_val_set(this%root_section, &
                                "FORCE_EVAL%DFT%MULTIPLICITY", &
                                i_val=this%spinmult, error = this%error)
-    !here LSD should be enabled if charge is not 0 
+    !here LSD should be enabled if charge is not 0
     !if(this%charge .ne. 0) then
     !     CALL section_vals_val_set(this%root_section, &
     !                           "FORCE_EVAL%DFT%LSD", &
@@ -445,7 +438,7 @@ MODULE paramopt_worker
     !------------------------------------------------------------
     CALL f_env_get_from_id(this%f_env_id,this%f_env,this%error)
     IF(failure) STOP "paramopt_drive_worker: f_env_add_defaults failed"
-    this%force_env => this%f_env%force_env 
+    this%force_env => this%f_env%force_env
     this%qs_env => this%force_env%qs_env
     CALL force_env_get(this%force_env, globenv=this%globenv, subsys=this%subsys, &
                        para_env=this%para_env, error=this%error)
@@ -459,7 +452,7 @@ MODULE paramopt_worker
         this%converged = 0
     endif
     !-----------------geo opt------------------------------------
-   if (natoms .gt. 1) then 
+   if (natoms .gt. 1) then
     !
     if (this%method .eq. paramopt_do_mocma .or. &
         this%method .eq. paramopt_do_grid) then
@@ -491,7 +484,7 @@ MODULE paramopt_worker
            endif
 
            deallocate(pos,pos2,g)!
-        else 
+        else
             energy = huge(1._dp)
         endif
     endif
@@ -524,7 +517,7 @@ MODULE paramopt_worker
     !print *,'charge_err',this%func(3),mcharge
     !------------------cleanup------------------------------------------------------
     CALL destroy_force_env(this%f_env_id, ierr)
-    IF(ierr /= 0) STOP "paramopt_worker: destroy_force_env failed" 
+    IF(ierr /= 0) STOP "paramopt_worker: destroy_force_env failed"
     work_section => section_vals_get_subs_vals(this%subsys_section,"COORD",error=this%error)
     CALL section_vals_remove_values(work_section, this%error)
    END SUBROUTINE paramopt_energy
@@ -554,7 +547,7 @@ MODULE paramopt_worker
     REAL(KIND=dp),DIMENSION(:)           :: x
     INTEGER                              :: func_nr
     INTEGER                              :: k,i
-    
+
        ! k = 3
        ! A = 10._dp
        ! mysum = 0._dp
@@ -573,12 +566,12 @@ MODULE paramopt_worker
    end select
  END SUBROUTINE myfun
 !-----------------------------------------------------------------------
-SUBROUTINE get_rmsd(n, coord1, coord2, option, U, x_center, y_center, & 
+SUBROUTINE get_rmsd(n, coord1, coord2, option, U, x_center, y_center, &
      error, calc_g, g)
 !-----------------------------------------------------------------------
 !  This subroutine calculates the least square rmsd of two coordinate
 !  sets coord1(3,n) and coord2(3,n) using a method based on quaternion.
-!  If option=1, then the rotation matrix U and the centers of coord are 
+!  If option=1, then the rotation matrix U and the centers of coord are
 !  returned.
 !-----------------------------------------------------------------------
 ! if calc_g == .true., derivative of RMSD with respect to coord1
@@ -649,9 +642,9 @@ SUBROUTINE get_rmsd(n, coord1, coord2, option, U, x_center, y_center, &
   S(1, 4) = S(4, 1)
   S(2, 4) = S(4, 2)
   S(3, 4) = S(4, 3)
-  S(4, 4) =-Rmatrix(1, 1) - Rmatrix(2, 2) + Rmatrix(3, 3) 
+  S(4, 4) =-Rmatrix(1, 1) - Rmatrix(2, 2) + Rmatrix(3, 3)
 
-  ! Calculate eigenvalues and eigenvectors, and 
+  ! Calculate eigenvalues and eigenvectors, and
   ! take the maximum eigenvalue lambda and the corresponding eigenvector q.
   CALL dstmev(S, lambda, q)
 
@@ -703,12 +696,12 @@ SUBROUTINE rotation_matrix(q, U)
 
   q11 = b1*q1
   q12 = b1*q2
-  q13 = b1*q3  
+  q13 = b1*q3
 
   q22 = b2*q2
   q23 = b2*q3
 
-  q33 = b3*q3 
+  q33 = b3*q3
 
   U(1,1) = q00+q11
   U(1,2) = q12-q03
@@ -735,14 +728,14 @@ SUBROUTINE DSTMEV(A,lambda,evec)
 ! lambda_1 > g=min(T11-t12,-t21+T22-t23,-t32+T33-t34,-t43+T44)
 !          =
 ! where tij=abs(Tij)
-! (3) Form the positive definite matrix 
+! (3) Form the positive definite matrix
 !     B = T-gI
 ! (4) Use svd (algorithm svdcmp from "Numerical Recipes")
 !     to compute eigenvalues and eigenvectors for SPD matrix B
 ! (5) Shift spectrum back and keep leading singular vector
 !     and largest eigenvalue.
-! (6) Convert eigenvector to original matrix A, through 
-!     multiplication by V'.  
+! (6) Convert eigenvector to original matrix A, through
+!     multiplication by V'.
 !-----------------------------------------------------------------------
     REAL(dp), DIMENSION(4, 4)                :: A
     REAL(dp)                                 :: lambda
@@ -775,7 +768,7 @@ SUBROUTINE DSTMEV(A,lambda,evec)
   CALL svdcmp(4,T,4,4,SW,SV,rv1)
   !-----------------------------------------------------------------------
   !(V). Shift spectrum back
-  max_loc = MAXLOC(SW) 
+  max_loc = MAXLOC(SW)
   lambda = SW(max_loc(1)) + lambda
   !lambda = SW(1) + lambda
   !-----------------------------------------------------------------------
@@ -894,7 +887,7 @@ SUBROUTINE svdcmp(mmax,a,m,n,w,v,rv1)
            g=-SIGN(SQRT(s),f)
            h=f*g-s
            a(i,i)=f-g
-           DO j=l,n 
+           DO j=l,n
               s=0.0d0
               DO k=i,m
                  s=s+a(k,i)*a(k,j)
@@ -1020,7 +1013,7 @@ SUBROUTINE svdcmp(mmax,a,m,n,w,v,rv1)
            h=1.0d0/h
            c= (g*h)
            s=-(f*h)
-           DO j=1,m     
+           DO j=1,m
               y=a(j,nm)
               z=a(j,i)
               a(j,nm)=(y*c)+(z*s)
@@ -1056,7 +1049,7 @@ SUBROUTINE svdcmp(mmax,a,m,n,w,v,rv1)
            g=rv1(i)
            y=w(i)
            h=s*g
-           g=c*g    
+           g=c*g
            z=pythag(f,h)
            rv1(j)=z
            c=f/z
@@ -1088,7 +1081,7 @@ SUBROUTINE svdcmp(mmax,a,m,n,w,v,rv1)
            END DO
         END DO
         rv1(l)=0.0d0
-        rv1(k)=f       
+        rv1(k)=f
         w(k)=x
      END DO
 3    CONTINUE
@@ -1118,4 +1111,3 @@ FUNCTION pythag(a,b)
 
 END FUNCTION pythag
 END MODULE paramopt_worker
-

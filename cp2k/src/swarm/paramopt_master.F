@@ -15,7 +15,7 @@ MODULE paramopt_master
   USE mocmaes,                         ONLY: mo_cmaes_type,&
                                              mo_cmaes_type_p,&
                                              mo_cmaes_init,&
-                                             mo_cmaes_run   
+                                             mo_cmaes_run
   USE cp_files,                        ONLY: open_file,&
                                              close_file
   USE cp_output_handling,              ONLY: cp_print_key_finished_output,&
@@ -47,7 +47,7 @@ MODULE paramopt_master
                                              delete_rng_stream,&
                                              next_random_number, &
                                              GAUSSIAN, &
-                                             UNIFORM    
+                                             UNIFORM
 #include "../common/cp_common_uses.f90"
 
  IMPLICIT NONE
@@ -180,7 +180,7 @@ MODULE paramopt_master
         print *,'generating random x'
         CALL create_rng(rng_uniform_stream,global_seed)
         do j=1,popsize
-            do i=1,n; this%x(j,i) = next_random_number(rng_uniform_stream,error=error); enddo 
+            do i=1,n; this%x(j,i) = next_random_number(rng_uniform_stream,error=error); enddo
             this%x(j,:) = var_trans(this%x(j,:),this%u_bound,this%l_bound)
         enddo
          print *,'lower bound',this%l_bound
@@ -193,44 +193,44 @@ MODULE paramopt_master
     m = this%m
     ! this is now set from input
     !this%database = 3 ! 1 for the s22 and 2 for water_cluster and 3 for water27
-    if (.not. this%benchmark) then 
+    if (.not. this%benchmark) then
         if (this%database == 1) then
             this%num_ref_mol = 3*22
-            CALL read_ref_data(this%database,"s22/reference_data",this%ref_matrix) 
+            CALL read_ref_data(this%database,"s22/reference_data",this%ref_matrix)
             allocate(this%energies(offspringsize,this%num_ref_mol/3,3))
             allocate(this%rmsd(offspringsize,this%num_ref_mol/3,3))
             allocate(this%converged(offspringsize,this%num_ref_mol/3,3))
             allocate(this%mcharge(offspringsize))
         else if (this%database == 2) then
             this%num_ref_mol = 39
-            CALL read_ref_data(this%database,"water_clusters/reference_data",this%ref_matrix) 
+            CALL read_ref_data(this%database,"water_clusters/reference_data",this%ref_matrix)
             allocate(this%energies(offspringsize,this%num_ref_mol,1))
             allocate(this%rmsd(offspringsize,this%num_ref_mol,1))
             allocate(this%converged(offspringsize,this%num_ref_mol,1))
             allocate(this%mcharge(offspringsize))
         else if (this%database == 3) then
-            this%num_ref_mol = 30 
-            CALL read_ref_data(this%database,"WATER27structures/reference_data",this%ref_matrix) 
+            this%num_ref_mol = 30
+            CALL read_ref_data(this%database,"WATER27structures/reference_data",this%ref_matrix)
             allocate(this%energies(offspringsize,this%num_ref_mol,1))
             allocate(this%rmsd(offspringsize,this%num_ref_mol,1))
             allocate(this%converged(offspringsize,this%num_ref_mol,1))
             allocate(this%mcharge(offspringsize))
         else if (this%database == 4) then
-            this%num_ref_mol = 7  
-            CALL read_ref_data(this%database,"atomic_structures/reference_data",this%ref_matrix) 
+            this%num_ref_mol = 7
+            CALL read_ref_data(this%database,"atomic_structures/reference_data",this%ref_matrix)
             allocate(this%energies(offspringsize,this%num_ref_mol,1))
             allocate(this%rmsd(offspringsize,this%num_ref_mol,1))
             allocate(this%converged(offspringsize,this%num_ref_mol,1))
             allocate(this%mcharge(offspringsize))
         else if (this%database == 5) then
-            this%num_ref_mol = 35 
-            CALL read_ref_data(this%database,"atomic_structures/reference_data",this%ref_matrix) 
+            this%num_ref_mol = 35
+            CALL read_ref_data(this%database,"atomic_structures/reference_data",this%ref_matrix)
             allocate(this%energies(offspringsize,this%num_ref_mol,1))
             allocate(this%rmsd(offspringsize,this%num_ref_mol,1))
             allocate(this%converged(offspringsize,this%num_ref_mol,1))
             allocate(this%mcharge(offspringsize))
         endif
-    else 
+    else
         allocate(this%energies(offspringsize,this%num_ref_mol,1))
         allocate(this%rmsd(offspringsize,this%num_ref_mol,1))
         allocate(this%converged(offspringsize,this%num_ref_mol,1))
@@ -240,11 +240,11 @@ MODULE paramopt_master
     this%current_inp = 1
     allocate(this%f(popsize,m))
     logger => cp_error_get_logger(error)
-    ! ref matrix 
+    ! ref matrix
     ! Nr.  Dimer monomer1 monomer2 ref_energy
     !do, i=1,size(ref_matrix,dim=1)
     !     print *, ( ref_matrix(i,j), j=1,size(ref_matrix,dim=2) )
-    !enddo 
+    !enddo
     SELECT CASE (this%method)
        CASE(paramopt_do_cma)
             allocate(this%cmaes_inp%l_bound(n))
@@ -312,7 +312,7 @@ MODULE paramopt_master
                     enddo
             end select
        CASE(paramopt_do_grid)
-            this%x(1,:) = var_back_trans(this%x(1,:),this%u_bound,this%l_bound)           
+            this%x(1,:) = var_back_trans(this%x(1,:),this%u_bound,this%l_bound)
        CASE DEFAULT
         STOP "Unkown glbopt_method"
     END SELECT
@@ -368,12 +368,13 @@ SUBROUTINE do_grid_search(this,report,cmd,should_stop)
     INTEGER                                    :: input
     REAL(kind=dp)                              :: myresult
     INTEGER                                    :: charge=0
-    INTEGER                                    :: i,j 
-    INTEGER                                    :: iounit 
+    INTEGER                                    :: i,j
+    INTEGER                                    :: iounit
     INTEGER                                    :: id=1
     INTEGER,DIMENSION(3)                       :: ind
     REAL(kind=dp),DIMENSION(:),ALLOCATABLE     :: func_array
     REAL(kind=dp),DIMENSION(:),POINTER         :: func
+
 !    allocate(func_array(size(this%energies,dim=2)))
 !          CALL swarm_message_get(report, "worker_id", wid)
 !          CALL swarm_message_get(report, "status", report_status)
@@ -384,7 +385,7 @@ SUBROUTINE do_grid_search(this,report,cmd,should_stop)
 !            CALL index2grid(input,(/1,size(this%energies,dim=2),size(this%energies,dim=3)/),ind)
 !            CALL swarm_message_get(report, "result", func)
 !            this%energies(id,ind(2),ind(3)) = func(1)
-!            this%rmsd(id,ind(2),ind(3))     = func(2) 
+!            this%rmsd(id,ind(2),ind(3))     = func(2)
 !            CALL swarm_message_get(report, "converged", this%converged(id,ind(2),ind(3)))
 !            if (this%num_input_rcvd .eq. this%num_ref_mol) then
 !                CALL energy2function(this%num_ref_mol,this%energies(1,:,:), &
@@ -398,7 +399,7 @@ SUBROUTINE do_grid_search(this,report,cmd,should_stop)
 !                                    this%f(1,:),func_array,this%rmsd(1,:,:)
 !                CALL close_file(iounit)
 !                print *,'done writing file'
-!                CALL grid_search(this) 
+!                CALL grid_search(this)
 !                !---reset----------
 !                this%current_inp = 0
 !                this%num_input_rcvd = 0
@@ -451,7 +452,7 @@ SUBROUTINE do_grid_search(this,report,cmd,should_stop)
 !            var_trans(this%x(1,:),this%u_bound,this%l_bound))
 !            this%current_inp = this%current_inp + 1
 !          else
-!            CALL swarm_message_add(cmd, "command", "wait")     
+!            CALL swarm_message_add(cmd, "command", "wait")
 !          endif
 !    deallocate(func_array)
 END SUBROUTINE do_grid_search
@@ -473,14 +474,14 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
     REAL(kind=dp)                              :: myresult
     INTEGER                                    :: charge=0
     INTEGER                                    :: spinmult=1
-    INTEGER                                    :: i,j 
-    INTEGER                                    :: iounit 
-    INTEGER                                    :: id=1 
-    INTEGER                                    :: popsize,offspringsize 
+    INTEGER                                    :: i,j
+    INTEGER                                    :: iounit
+    INTEGER                                    :: id=1
+    INTEGER                                    :: popsize,offspringsize
     REAL(kind=dp),DIMENSION(:),POINTER         :: func => Null()
     REAL(kind=dp)                              :: penalty
     REAL(kind=dp),DIMENSION(:),ALLOCATABLE     :: func_array
-    INTEGER                                    :: k,l  
+    INTEGER                                    :: k,l
     INTEGER,DIMENSION(3)                       :: ind
     popsize = size(this%population)
     offspringsize = int(0.5*popsize)
@@ -535,7 +536,7 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
     !        this%current_inp = this%current_inp + 1
     !        print *,'send done'
     !    else
-    !         CALL swarm_message_add(cmd, "command", "wait") 
+    !         CALL swarm_message_add(cmd, "command", "wait")
     !    endif
     else
           CALL swarm_message_get(report, "worker_id", wid)
@@ -570,7 +571,7 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                     this%f(input,1) = sum(func_array)
                     !this%f(input,2) = sum(this%rmsd(input,:,:))
                     ! this also is only first dim...so dimer of s22 yannick
-                    if (this%database .eq. 1) then 
+                    if (this%database .eq. 1) then
                         ! s22 is database 1
                         this%f(input,2) = sum(this%rmsd(i,:,1))
                     else if (this%database .eq. 5) then
@@ -658,20 +659,20 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                 select case(ind(2))
                     case(1:15,30)
                         charge = 0
-                        spinmult = 1 
+                        spinmult = 1
                     case(16:21)
                         charge = 1
                         spinmult = 1
                     case(22:29)
                         charge = -1
-                        spinmult = 1 
+                        spinmult = 1
                 end select
             endif
             if (this%database .eq. 5) then
                 select case(ind(2))
                     case(1:15,30)
                         charge = 0
-                        spinmult = 1 
+                        spinmult = 1
                     case(16:21)
                         charge = 1
                         spinmult = 1
@@ -727,7 +728,7 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
             var_trans(this%x(inputx,:),this%u_bound,this%l_bound))
             this%current_inp = this%current_inp + 1
           else
-            CALL swarm_message_add(cmd, "command", "wait")     
+            CALL swarm_message_add(cmd, "command", "wait")
           endif
 
       endif
@@ -752,9 +753,9 @@ SUBROUTINE do_optim(this,report,cmd,method,should_stop)
     INTEGER                                    :: charge=0
     INTEGER                                    :: spinmult=1
     REAL(kind=dp)                              :: penalty
-    INTEGER                                    :: iounit 
-    INTEGER                                    :: method 
-    INTEGER                                    :: id=1 
+    INTEGER                                    :: iounit
+    INTEGER                                    :: method
+    INTEGER                                    :: id=1
     INTEGER,DIMENSION(3)                       :: ind
     if (this%benchmark) then
     !      CALL swarm_message_get(report, "worker_id", wid)
@@ -777,7 +778,7 @@ SUBROUTINE do_optim(this,report,cmd,method,should_stop)
     !                              this%powell_param)
     !                !CALL powell_optimize (this%n, this%x(1,:) ,this%l_bound,this%u_bound,&
     !                !              this%powell_param)
-    !                this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound) 
+    !                this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound)
     !                IF ( this%iw > 0 ) THEN
     !                     WRITE(this%iw,'(" POWELL| Number of function evaluations",T71,I10)') this%powell_param%nf
     !                     WRITE(this%iw,'(" POWELL| Final value of function",T61,G20.10)') this%powell_param%fopt
@@ -787,9 +788,8 @@ SUBROUTINE do_optim(this,report,cmd,method,should_stop)
     !                endif
     !            case(paramopt_do_cma)
     !                CALL cmaes_run(this%cmaes_inp,this%population)
-    !        end select 
-    !        this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound) 
-
+    !        end select
+    !        this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound)
     !        CALL send_all(cmd,this%x,this%bench_func)
     !        !----------------------------------------------
     !        !CALL open_file(file_name="output", file_status="UNKNOWN",&
@@ -816,7 +816,7 @@ SUBROUTINE do_optim(this,report,cmd,method,should_stop)
 !                CALL energy2function(this%energies(id,:,:),this%ref_matrix,this%database,myresult)
                 !penalty = 1e3*this%penalty**2
                 !this%f = myresult + penalty
-                this%f = myresult 
+                this%f = myresult
                 CALL open_file(file_name="output", file_status="UNKNOWN",&
                     file_action="WRITE", file_position="APPEND",unit_number=iounit)
                     write(iounit,*) this%x(1,:),this%f(1,1)
@@ -829,7 +829,7 @@ SUBROUTINE do_optim(this,report,cmd,method,should_stop)
                        !CALL powell_optimize (this%n, this%x(1,:) ,this%powell_param%xl,&
                        !           this%powell_param%xu,&
                        !           this%powell_param)
-                       this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound) 
+                       this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound)
                        if (this%powell_param%state .eq. -1) then
                         this%powell_param%state = 8
                         this%x(1,:) = var_back_trans(this%x(1,:),this%u_bound,this%l_bound)
@@ -838,7 +838,7 @@ SUBROUTINE do_optim(this,report,cmd,method,should_stop)
                        ! CALL powell_optimize (this%n, this%x(1,:) ,this%powell_param%xl,&
                        !           this%powell_param%xu,&
                        !           this%powell_param)
-                        this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound) 
+                        this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound)
                         IF ( this%iw > 0 ) THEN
                              WRITE(this%iw,'(" POWELL| Number of function evaluations",T71,I10)') this%powell_param%nf
                              WRITE(this%iw,'(" POWELL| Final value of function",T61,G20.10)') this%powell_param%fopt
@@ -849,8 +849,8 @@ SUBROUTINE do_optim(this,report,cmd,method,should_stop)
                     case(paramopt_do_cma)
                         this%x(1,:) = var_back_trans(this%x(1,:),this%u_bound,this%l_bound)
                         CALL cmaes_run(this%cmaes_inp,this%population)
-                        this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound) 
-                end select 
+                        this%x(1,:) = var_trans(this%x(1,:),this%u_bound,this%l_bound)
+                end select
                 CALL penalty_fct(this%x(1,:),this%l_bound,this%u_bound,this%penalty)
                 !---reset----------
                 this%current_inp = 0
@@ -885,12 +885,12 @@ SUBROUTINE do_optim(this,report,cmd,method,should_stop)
             CALL swarm_message_add(cmd, "x", this%x(1,:))
             this%current_inp = this%current_inp + 1
           else
-            CALL swarm_message_add(cmd, "command", "wait")     
+            CALL swarm_message_add(cmd, "command", "wait")
           endif
 
       endif
 END SUBROUTINE do_optim
- 
+
 ! *****************************************************************************
 !> \brief Finalized the master of the global optimizer
 !> \param this ...
@@ -898,11 +898,8 @@ END SUBROUTINE do_optim
 ! *****************************************************************************
  SUBROUTINE paramopt_master_finalize(this)
     TYPE(paramopt_master_type), INTENT(INOUT)  :: this
-
     TYPE(cp_logger_type), POINTER            :: logger
-
     NULLIFY(logger)
-
     SELECT CASE (this%method)
        CASE(paramopt_do_cma)
          !CALL minhop_finalize(this%minhop)
@@ -913,9 +910,7 @@ END SUBROUTINE do_optim
        CASE DEFAULT
         STOP "Unkown paramopt_method"
     END SELECT
-
     logger => cp_error_get_logger(this%error)
-
  END SUBROUTINE paramopt_master_finalize
 ! *****************************************************************************
 !> \brief Finalizes master for Minima Hopping
@@ -928,9 +923,9 @@ END SUBROUTINE do_optim
     INTEGER                                         :: database
     REAL(KIND=dp),DIMENSION(size(energies,dim=1))   :: func_array
     REAL(KIND=dp)                                   :: func
-    REAL(KIND=dp)                                   :: kcalmol=6.27509468713739E+02_dp 
+    REAL(KIND=dp)                                   :: kcalmol=6.27509468713739E+02_dp
     INTEGER                                         :: i,k,n
-    INTEGER                                         :: nref    
+    INTEGER                                         :: nref
     REAL(KIND=dp),DIMENSION(:),ALLOCATABLE          :: ref_ene
     select case(database)
       case(1)
@@ -964,7 +959,7 @@ END SUBROUTINE do_optim
         func = sum(abs(func_array))
      case(4)
      allocate(ref_ene(4))
-        ref_ene(1) = energies(2,1)  !O 
+        ref_ene(1) = energies(2,1)  !O
         ref_ene(2) = energies(4,1)  !H2
         ref_ene(3) = energies(5,1)  !O2
         ref_ene(4) = energies(6,1)  !H2O
@@ -1023,14 +1018,14 @@ END SUBROUTINE energy2function
            DO n=1,k
                 READ(ref_unit,*)  ref_matrix(n,:)
            ENDDO
-        CASE(3,4) 
+        CASE(3,4)
            allocate(ref_matrix(k,7))
            REWIND(ref_unit)
            READ(ref_unit,*) test
            DO n=1,k
                 READ(ref_unit,*)  ref_matrix(n,:)
            ENDDO
-        CASE(5) 
+        CASE(5)
            allocate(ref_matrix(k,10))
            REWIND(ref_unit)
            READ(ref_unit,*) test
@@ -1038,7 +1033,7 @@ END SUBROUTINE energy2function
                 READ(ref_unit,*)  ref_matrix(n,:)
            ENDDO
     END SELECT
-           
+
       CALL close_file(ref_unit)
 
  END SUBROUTINE read_ref_data
@@ -1049,7 +1044,6 @@ END SUBROUTINE energy2function
 !> \param error ...
 !> \author Florian Schiffmann
 ! *****************************************************************************
-
    SUBROUTINE init_powell_var(this,p_param,powell_section,error)
       TYPE(paramopt_master_type)  :: this
       TYPE(opt_state_type)  :: p_param
@@ -1059,7 +1053,7 @@ END SUBROUTINE energy2function
         routineP = moduleN//':'//routineN
 
       TYPE(section_vals_type), POINTER         :: powell_section
-      INTEGER                                  :: n 
+      INTEGER                                  :: n
       p_param%state=0
       p_param%nf=0
       p_param%nvar=this%n
@@ -1069,9 +1063,7 @@ END SUBROUTINE energy2function
       CALL section_vals_val_get(powell_section,"STEP_SIZE",r_val=p_param%rhobeg,error=error)
       CALL cp_assert( this%step_size .eq. p_param%rhobeg ,cp_failure_level,cp_assertion_failed,&
                        routineP, "global step size different to powell step size",error)
-
       CALL section_vals_val_get(powell_section,"MAX_FUN",i_val=p_param%maxfun,error=error)
-
    END SUBROUTINE init_powell_var
 ! *****************************************************************************
 !> \brief Finalizes master for Minima Hopping
@@ -1096,9 +1088,9 @@ END SUBROUTINE energy2function
       CASE(3)
           input_file = trim(input_file) // "_monom2.xyz"
     END SELECT
-   
+
   CASE(2)
-    i = i - 1 
+    i = i - 1
     input_file="water_clusters/"
     tmp_str = trim(str(i))
     if (len_trim(tmp_str) == 1 ) tmp_str = trim(str(0)) // trim(tmp_str)
@@ -1136,12 +1128,12 @@ SUBROUTINE grid_search(this)
     !n = int((this%u_bound-this%l_bound)/this%step_size)
     print *,'n',n
     if (this%i_iteration .gt. product(n)) STOP "grid sample is getting to big"
-    grid(1) = modulo(this%i_iteration,n(1))  
+    grid(1) = modulo(this%i_iteration,n(1))
     !this%x(1,1) = grid(1)*this%step_size+this%l_bound(1)
     this%x(1,1) = grid(1)*this%step_size
     do i=2,size(grid)
-        mask1 = .FALSE. 
-        mask2 = .FALSE. 
+        mask1 = .FALSE.
+        mask2 = .FALSE.
         mask1(1:i) = .TRUE.
         mask2(1:i-1) = .TRUE.
         !print *,'product',product(n,mask=mask1),product(n,mask=mask2)
@@ -1159,19 +1151,19 @@ END SUBROUTINE grid_search
 !> \author Ole Schuett
 ! *****************************************************************************
  SUBROUTINE index2grid(ind,ndim,grid_ind)
-    INTEGER,INTENT(IN)                    :: ind   
+    INTEGER,INTENT(IN)                    :: ind
     INTEGER,DIMENSION(:),INTENT(IN)       :: ndim !number of points in dimension
     INTEGER,DIMENSION(:),INTENT(OUT)      :: grid_ind !grid index
     LOGICAL,DIMENSION(size(ndim))         :: mask1,mask2
     INTEGER,DIMENSION(size(ndim))         :: mydim
-    INTEGER                               :: i  
+    INTEGER                               :: i
     INTEGER                               :: myind
     myind = ind - 1 ! so it starts from 0
-    mydim = ndim 
-    grid_ind(1) = modulo(myind,mydim(1))  
+    mydim = ndim
+    grid_ind(1) = modulo(myind,mydim(1))
     do i=2,size(grid_ind)
-        mask1 = .FALSE. 
-        mask2 = .FALSE. 
+        mask1 = .FALSE.
+        mask2 = .FALSE.
         mask1(1:i) = .TRUE.
         mask2(1:i-1) = .TRUE.
         !print *,'product',product(n,mask=mask1),product(n,mask=mask2)
@@ -1201,14 +1193,14 @@ end function str
     do i=1,size(x)
         if (x(i) .gt. u_bound(i)) then
            penalty = penalty + x(i) - u_bound(i)
-            x(i) = u_bound(i) 
+            x(i) = u_bound(i)
         endif
         if (x(i) .lt. l_bound(i)) then
-           penalty = penalty - x(i) + l_bound(i) 
+           penalty = penalty - x(i) + l_bound(i)
            x(i) = l_bound(i)
         endif
     enddo
-    
+
 end subroutine penalty_fct
 
 ! *****************************************************************************
@@ -1219,11 +1211,11 @@ end subroutine penalty_fct
 !> \author Ole Schuett
 ! *****************************************************************************
 
-    function var_trans(xtrans,u_bound,l_bound) result(x) 
+    function var_trans(xtrans,u_bound,l_bound) result(x)
         REAL(KIND=dp),DIMENSION(:),intent(in)              :: xtrans
-        REAL(KIND=dp),DIMENSION(size(xtrans))              :: x 
+        REAL(KIND=dp),DIMENSION(size(xtrans))              :: x
         REAL(KIND=dp),DIMENSION(:)                         :: l_bound
-        REAL(KIND=dp),DIMENSION(:)                         :: u_bound 
+        REAL(KIND=dp),DIMENSION(:)                         :: u_bound
         if (any(xtrans .lt. 0._dp)) then
             print *,"var trans wrong xtrans lt",xtrans
             STOP
@@ -1234,11 +1226,11 @@ end subroutine penalty_fct
         endif
         x = xtrans*(u_bound-l_bound) + l_bound
     end function var_trans
-    function var_back_trans(x,u_bound,l_bound) result(xtrans) 
+    function var_back_trans(x,u_bound,l_bound) result(xtrans)
         REAL(KIND=dp),DIMENSION(:),intent(in)              :: x
-        REAL(KIND=dp),DIMENSION(size(x))                   :: xtrans 
+        REAL(KIND=dp),DIMENSION(size(x))                   :: xtrans
         REAL(KIND=dp),DIMENSION(:)                         :: l_bound
-        REAL(KIND=dp),DIMENSION(:)                         :: u_bound 
+        REAL(KIND=dp),DIMENSION(:)                         :: u_bound
         if (any(x .lt. l_bound)) then
             print *,"var trans wrong lt",x
             STOP
@@ -1248,7 +1240,7 @@ end subroutine penalty_fct
             STOP
         endif
         xtrans = (x - l_bound)/(u_bound-l_bound)
-    end function var_back_trans  
+    end function var_back_trans
 
 ! *****************************************************************************
 !> \brief Central steering routine of Minima Hopping
@@ -1259,7 +1251,7 @@ end subroutine penalty_fct
 ! *****************************************************************************
 
  SUBROUTINE create_rng(rng,input_seed)
-    TYPE(rng_stream_type),POINTER            :: rng 
+    TYPE(rng_stream_type),POINTER            :: rng
     REAL(kind=dp),DIMENSION(3,2)             :: seed
     INTEGER                                  :: time(3)
     INTEGER                                  :: input_seed
@@ -1274,15 +1266,15 @@ end subroutine penalty_fct
                        input_seed*98.0_dp, &
                        input_seed*10.0_dp, &
                        input_seed*2.0_dp/),&
-                     (/ 3, 2 /) )        
+                     (/ 3, 2 /) )
     else
         !random seed from itime
         call itime(time)
         seed(:,1) = REAL(time)
         seed(:,2) = (/ 1._dp, 2._dp, 3._dp /)
-    endif 
-    
-    CALL create_rng_stream(rng,name='uniform',distribution_type=UNIFORM,seed=seed,error=error)    
+    endif
+
+    CALL create_rng_stream(rng,name='uniform',distribution_type=UNIFORM,seed=seed,error=error)
  END SUBROUTINE create_rng
 ! *****************************************************************************
 !> \brief Central steering routine of Minima Hopping
@@ -1302,13 +1294,12 @@ end subroutine penalty_fct
     CALL swarm_message_add(cmd, "command", "function")
     CALL swarm_message_add(cmd, "pop_id", id)
     CALL swarm_message_add(cmd, "x", x(id,:))
-    CALL swarm_message_add(cmd, "ref_func",bench_func) 
+    CALL swarm_message_add(cmd, "ref_func",bench_func)
     else
     CALL swarm_message_add(cmd, "command", "function")
     CALL swarm_message_add(cmd, "x", x(1,:))
-    CALL swarm_message_add(cmd, "ref_func",bench_func) 
-    endif 
+    CALL swarm_message_add(cmd, "ref_func",bench_func)
+    endif
  END SUBROUTINE send_all
 
 END MODULE paramopt_master
-
