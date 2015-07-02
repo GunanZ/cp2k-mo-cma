@@ -1512,7 +1512,8 @@ CONTAINS
        ! dirichlet type constraints
        CALL cp_print_key_section_create(print_key,"dirichlet_bc_cube",&
             description="Controls the printing of cube files with Dirichlet type (boundary) regions "//&
-            "defined in the implicit Poisson solver section.", &
+            "defined in the implicit Poisson solver section. Note that the generated cube files are "//&
+            "meant to be used only for visualization purposes and the values have no physical meaning.", &
             print_level=high_print_level,filename="",&
             error=error)
 
@@ -1523,6 +1524,29 @@ CONTAINS
             default_l_val=.FALSE., lone_keyword_l_val=.TRUE.,error=error)
        CALL section_add_keyword(print_key,keyword,error=error)
        CALL keyword_release(keyword,error=error)
+       CALL keyword_create(keyword, name="stride",&
+            description="The stride (X,Y,Z) used to write the cube file "//&
+            "(larger values result in smaller cube files). You can provide 3 numbers (for X,Y,Z) or"//&
+            " 1 number valid for all components.",&
+            usage="STRIDE 2 2 2",n_var=-1,default_i_vals=(/2,2,2/), type_of_var=integer_t,error=error)
+       CALL section_add_keyword(print_key,keyword,error=error)
+       CALL keyword_release(keyword,error=error)
+       CALL keyword_create(keyword, name="APPEND",&
+            description="append the cube files when they already exist",&
+            default_l_val=.FALSE., lone_keyword_l_val=.TRUE.,error=error)
+       CALL section_add_keyword(print_key,keyword,error=error)
+       CALL keyword_release(keyword,error=error)
+
+       CALL section_add_subsection(section,print_key,error=error)
+       CALL section_release(print_key,error=error)
+
+       ! charge introduced by Lagrange multipliers
+       CALL cp_print_key_section_create(print_key,"dirichlet_cstr_charge_cube",&
+            description="Controls the printing of cube files with penalty charges induced to "//&
+            "Dirichlet regions by Lagrange multipliers (implicit Poisson solver).", &
+            print_level=high_print_level,filename="",&
+            error=error)
+
        CALL keyword_create(keyword, name="stride",&
             description="The stride (X,Y,Z) used to write the cube file "//&
             "(larger values result in smaller cube files). You can provide 3 numbers (for X,Y,Z) or"//&
@@ -5273,6 +5297,14 @@ CONTAINS
        CALL keyword_create(keyword, name="DEBUG_LRI_INTEGRALS",&
             description="Debug the integrals needed for LRIGPW.",&
             usage="DEBUG_LRI_INTEGRALS TRUE",&
+            default_l_val=.FALSE.,lone_keyword_l_val=.TRUE.,error=error)
+       CALL section_add_keyword(section,keyword,error=error)
+       CALL keyword_release(keyword,error=error)
+
+       CALL keyword_create(keyword, name="SHG_LRI_INTEGRALS",&
+            description="Uses the SHG (solid harmonic Gaussian) integral "//&
+                        "scheme instead of Obara-Saika",&
+            usage="SHG_LRI_INTEGRALS TRUE",&
             default_l_val=.FALSE.,lone_keyword_l_val=.TRUE.,error=error)
        CALL section_add_keyword(section,keyword,error=error)
        CALL keyword_release(keyword,error=error)
