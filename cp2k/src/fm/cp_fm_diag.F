@@ -471,8 +471,8 @@ CONTAINS
     CALL pdsyevd('V','U',n,m(1,1),1,1,descm,eig(1),v(1,1),1,1,descv, &
                  work(1),lwork,iwork(1),liwork,info)
 
-    IF(info /= 0) CALL stop_program &
-       (routineN,moduleN,__LINE__, "Matrix diagonalization failed")
+!    IF(info /= 0) CALL stop_program &
+!       (routineN,moduleN,__LINE__, "Matrix diagonalization failed")
 
     DEALLOCATE (work,STAT=istat)
     CPPrecondition(istat==0,cp_failure_level,routineP,error,failure)

@@ -435,6 +435,7 @@ MODULE paramopt_worker
         STOP
     ENDIF
     CALL get_natom(this%f_env_id,natoms,ierr)
+    write(this%iw,*) "num atoms", natoms
     !------------------------------------------------------------
     CALL f_env_get_from_id(this%f_env_id,this%f_env,this%error)
     IF(failure) STOP "paramopt_drive_worker: f_env_add_defaults failed"
@@ -444,15 +445,16 @@ MODULE paramopt_worker
                        para_env=this%para_env, error=this%error)
     this%subsys_section => section_vals_get_subs_vals(this%force_env%force_env_section, &
                                                         "SUBSYS",error=this%error)
-    CALL calc_energy_force(this%f_env_id, .TRUE. ,ierr)
+    CALL calc_energy_force(this%f_env_id, .FALSE. ,ierr)
     CALL get_energy(this%f_env_id,energy,ierr)
     if (this%force_env%qs_env%converged) then
        this%converged = 1
     else
         this%converged = 0
     endif
+    write(this%iw,*) "initial energy calculation okay"
     !-----------------geo opt------------------------------------
-   if (natoms .gt. 1) then
+    if (natoms .gt. 1) then
     !
     if (this%method .eq. paramopt_do_mocma .or. &
         this%method .eq. paramopt_do_grid) then
@@ -461,7 +463,8 @@ MODULE paramopt_worker
           ALLOCATE(pos(3*natoms))
           ALLOCATE(g(2,3*natoms))
           CALL get_pos(this%f_env_id, pos, 3*natoms, ierr)
-          CALL cp_geo_opt(this%force_env, this%globenv, eval_opt_geo=.TRUE.,error=this%error)
+          CALL cp_geo_opt(this%force_env, this%globenv, eval_opt_geo=.TRUE., &
+                          rm_restart_info=.TRUE.,error=this%error)
           CALL get_energy(this%f_env_id,energy,ierr)
           CALL get_pos(this%f_env_id, pos2, 3*natoms, ierr)
           CALL get_rmsd(natoms,RESHAPE(pos,(/ 3, natoms /)), &
