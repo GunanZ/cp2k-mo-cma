@@ -229,6 +229,20 @@ MODULE paramopt_master
             allocate(this%rmsd(offspringsize,this%num_ref_mol,1))
             allocate(this%converged(offspringsize,this%num_ref_mol,1))
             allocate(this%mcharge(offspringsize))
+        else if (this%database == 6) then
+            this%num_ref_mol = 8
+            CALL read_ref_data(this%database,"qce_structures/reference_data",this%ref_matrix)
+            allocate(this%energies(offspringsize,this%num_ref_mol,1))
+            allocate(this%rmsd(offspringsize,this%num_ref_mol,1))
+            allocate(this%converged(offspringsize,this%num_ref_mol,1))
+            allocate(this%mcharge(offspringsize))
+       else if (this%database == 7) then
+            this%num_ref_mol = 7
+            CALL read_ref_data(this%database,"wc_select/reference_data",this%ref_matrix)
+            allocate(this%energies(offspringsize,this%num_ref_mol,1))
+            allocate(this%rmsd(offspringsize,this%num_ref_mol,1))
+            allocate(this%converged(offspringsize,this%num_ref_mol,1))
+            allocate(this%mcharge(offspringsize))
         endif
     else
         allocate(this%energies(offspringsize,this%num_ref_mol,1))
@@ -560,7 +574,8 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
             this%energies(id,ind(2),ind(3)) = func(1)
             this%rmsd(id,ind(2),ind(3))     = func(2)
 
-            if (this%m .eq. 5) this%mcharge(id)  = this%mcharge(id) + func(5)
+            !if (this%m .eq. 6) this%mcharge(id)  = this%mcharge(id) + func(6)
+            this%mcharge(id)  = this%mcharge(id) + func(this%m)
 
             if (this%num_input_rcvd .eq. offspringsize*this%num_ref_mol) then
                 do i = 1,offspringsize
@@ -569,44 +584,85 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                     CALL energy2function(this%num_ref_mol,this%energies(i,:,:), &
                                         this%ref_matrix,this%database,func_array)
                     this%f(input,1) = sum(func_array)
+                    this%f(input,2) = sum(this%rmsd(i,:,:))
+                    this%f(input,3) = this%rmsd(i,1,1)
+                    this%f(input,this%m) = this%mcharge(i)
+                    !---------------------------
+
+                    !if (this%database .eq. 2) then
+                    !  this%f(input,4) = this%rmsd(i,8,1)
+                    !  this%f(input,5) = this%rmsd(i,19,1)
+                    !endif
+                    if (this%database .eq. 6) then
+                      if (this%f(input,this%m) .gt. 0.1) this%f(input,this%m) = huge(1._dp)
+                      if (this%f(input,3) .gt. 0.11) this%f(input,3) = huge(1._dp)
+                      if (this%f(input,2) .gt. 6 ) this%f(input,2) = huge(1._dp)
+                      if (this%f(input,1) .gt. 1 ) this%f(input,1) = huge(1._dp)
+                    else if (this%database .eq. 7)  then
+                      if (this%f(input,this%m) .gt. 0.1) this%f(input,this%m) = huge(1._dp)
+                      if (this%f(input,3) .gt. 0.1) this%f(input,3) = huge(1._dp)
+                      if (this%f(input,2) .gt. 9 ) this%f(input,2) = huge(1._dp)
+                      if (this%f(input,1) .gt. 2 ) this%f(input,1) = huge(1._dp)
+                    else if (this%database .eq. 3)  then
+                    ! for the database 3
+                      if (this%f(input,this%m) .gt. 0.1) this%f(input,this%m) = huge(1._dp)
+                      if (this%f(input,3) .gt. 0.1) this%f(input,3) = huge(1._dp)
+                      if (this%f(input,2) .gt. 25 ) this%f(input,2) = huge(1._dp)
+                      if (this%f(input,1) .gt. 10 ) this%f(input,1) = huge(1._dp)
+                    else if (this%database .eq. 2) then
+                    ! for the database 2
+                      if (this%f(input,this%m) .gt. 0.2) this%f(input,this%m) = huge(1._dp)
+                      if (this%f(input,3) .gt. 0.1) this%f(input,3) = huge(1._dp)
+                      if (this%f(input,2) .gt. 40 ) this%f(input,2) = huge(1._dp)
+                      if (this%f(input,1) .gt. 10 ) this%f(input,1) = huge(1._dp)
+                    endif
+
                     !this%f(input,2) = sum(this%rmsd(input,:,:))
                     ! this also is only first dim...so dimer of s22 yannick
-                    if (this%database .eq. 1) then
-                        ! s22 is database 1
-                        this%f(input,2) = sum(this%rmsd(i,:,1))
-                    else if (this%database .eq. 5) then
-                        this%f(input,1) = sum(func_array(1:30))
-                        this%f(input,2) = sum(this%rmsd(i,:,:))
-                        if (this%m .ne. 5) STOP "not enough objectives"
-                        this%f(input,5) = sum(func_array(31:35))
-                    else
-                        this%f(input,2) = sum(this%rmsd(i,:,:))
-                    endif
-                    if (this%m .gt. 2) then
-                      if (this%database .eq. 4) then
-                        this%f(input,3) = func_array(7)
-                      else
-                        this%f(input,3) = func_array(2)
-                      endif
-                    endif
-                    if (this%m .gt. 3) then
-                      if (this%database .eq. 4) then
-                        this%f(input,4) = this%rmsd(i,6,1)
-                      else
-                        this%f(input,4) = this%rmsd(i,1,1)
-                      endif
-                    endif
-                    if (this%m .gt. 4) then
-                        this%f(input,5) = this%mcharge(i)
-                        print *,'end charge',this%mcharge(i)
-                    endif
+                    !if (this%database .eq. 1) then
+                    !    ! s22 is database 1
+                    !    this%f(input,2) = sum(this%rmsd(i,:,1))
+                    !else if (this%database .eq. 5) then
+                    !    this%f(input,1) = sum(func_array(1:30))
+                    !    this%f(input,2) = sum(this%rmsd(i,:,:))
+                    !    if (this%m .ne. 5) STOP "not enough objectives"
+                    !    this%f(input,5) = sum(func_array(31:35))
+                    !else
+                    !  this%f(input,2) = sum(this%rmsd(i,:,:))
+                    !endif
+
+                    !if (this%m .gt. 2) then
+                    !  if (this%database .eq. 4) then
+                    !    this%f(input,3) = func_array(7)
+                    !  else
+                    !    this%f(input,3) = func_array(2)
+                    !  endif
+                    !endif
+                    !if (this%m .gt. 3) then
+                    !
+
+                    !  if (this%database .eq. 4) then
+                    !    this%f(input,4) = this%rmsd(i,6,1)
+                    !  else
+                    !    this%f(input,4) = this%rmsd(i,1,1)
+                    !  endif
+                    !endif
+                    !if (this%m .gt. 4) then
+                    !    this%f(input,5) = this%rmsd(i,2,1)
+                    !endif
+                    !if (this%m .gt. 5) then
+                    !    this%f(input,6) = this%mcharge(i)
+                    !    !print *,'end charge',this%mcharge(i)
+                    !endif
                     !print *,'test',this%f(input,:)
                     !print *,'test',this%f(input,5)
                     !------------
                     if (any(this%f(input,:) .gt. 1e10)) this%f(input,:) = huge(1._dp)
                     CALL open_file(file_name="output", file_status="UNKNOWN",&
                         file_action="WRITE", file_position="APPEND",unit_number=iounit)
-                    write(iounit,*) var_trans(this%x(input,:), &
+
+
+                    write(iounit,'(*(F20.10,2X))') var_trans(this%x(input,:), &
                                     this%u_bound,this%l_bound),this%f(input,:),func_array,this%rmsd(i,:,1)
                     ! index 1 here is the first row...so the dimer of s22 ...
                     ! should be changed to be generic ?!
@@ -936,15 +992,17 @@ END SUBROUTINE do_optim
             print *,'dimer',energies(i,1),'monomer',energies(i,2),'monomer',energies(i,3),'f',func_array(i),'ref',ref_matrix(i,5)
         enddo
         func = sum(abs(func_array))
-      case(2)
+      case(2,6,7)
         print *,'nref',nref
           do i=1,nref
             func_array(i) = abs(ref_matrix(i,2)*energies(1,1)-energies(i,1))*kcalmol
             func_array(i) = abs(func_array(i) - ref_matrix(i,5))
             print *,'cluster',energies(i,1),'monomer',energies(1,1),'x',ref_matrix(i,2), &
             ' * monomer',ref_matrix(i,2)*energies(1,1),'f',func_array(i)
+            if (ref_matrix(i,5) .ne. 0) func_array(i) = func_array(i)/ref_matrix(i,5)
         enddo
         func = sum(abs(func_array))
+        !print *,'func',func
       case(3)
       allocate(ref_ene(4))
         ref_ene(1) = energies(1,1)  !H2O
@@ -1011,7 +1069,7 @@ END SUBROUTINE energy2function
        DO; READ(ref_unit,*, iostat = error); IF (error == -1) EXIT; n = n + 1; END DO
        k = n - 1
      SELECT CASE(database)
-        CASE(1,2)
+     CASE(1,2,6,7)
            allocate(ref_matrix(k,5))
            REWIND(ref_unit)
            READ(ref_unit,*) test
@@ -1092,6 +1150,20 @@ END SUBROUTINE energy2function
   CASE(2)
     i = i - 1
     input_file="water_clusters/"
+    tmp_str = trim(str(i))
+    if (len_trim(tmp_str) == 1 ) tmp_str = trim(str(0)) // trim(tmp_str)
+    input_file = trim(input_file) // tmp_str
+    input_file = trim(input_file) // "water.xyz"
+  CASE(6)
+    i = i - 1
+    input_file="qce_structures/"
+    tmp_str = trim(str(i))
+    if (len_trim(tmp_str) == 1 ) tmp_str = trim(str(0)) // trim(tmp_str)
+    input_file = trim(input_file) // tmp_str
+    input_file = trim(input_file) // "water.xyz"
+  CASE(7)
+    i = i - 1
+    input_file="wc_select/"
     tmp_str = trim(str(i))
     if (len_trim(tmp_str) == 1 ) tmp_str = trim(str(0)) // trim(tmp_str)
     input_file = trim(input_file) // tmp_str

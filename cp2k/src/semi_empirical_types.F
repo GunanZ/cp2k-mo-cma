@@ -94,6 +94,8 @@ MODULE semi_empirical_types
     ! 1/R^3 residual integral part
     TYPE(semi_empirical_expns3_p_type),&
          POINTER, DIMENSION(:)             :: expns3_int
+    !yannick
+    REAL(KIND=dp)                          :: charge
   END TYPE semi_empirical_type
 
   TYPE semi_empirical_p_type
@@ -166,6 +168,7 @@ MODULE semi_empirical_types
             rotmat_type,&
             rotmat_create,&
             rotmat_release,&
+            set_se_param,&
             get_se_param,&
             write_se_param,&
             se_int_control_type,&
@@ -349,6 +352,7 @@ CONTAINS
     sep%cs     = 0.0_dp
     sep%onec2el= 0.0_dp
 
+    sep%charge = 0.0_dp
   END SUBROUTINE zero_se_param
 
 ! *****************************************************************************
@@ -389,7 +393,7 @@ CONTAINS
 ! *****************************************************************************
   SUBROUTINE get_se_param(sep,name,typ,defined,z,zeff,natorb,eheat,&
        beta,sto_exponents,uss,upp,udd,uff,alp,eisol,gss,gsp,gpp,gp2,&
-       acoul,nr,de,ass,asp,app,hsp,gsd,gpd,gdd,ppddg,dpddg,ngauss)
+       acoul,nr,de,ass,asp,app,hsp,gsd,gpd,gdd,ppddg,dpddg,ngauss,charge)
 
     TYPE(semi_empirical_type), POINTER       :: sep
     CHARACTER(LEN=default_string_length), &
@@ -410,6 +414,8 @@ CONTAINS
                                                 gpd, gdd
     REAL(KIND=dp), DIMENSION(2), OPTIONAL    :: ppddg, dpddg
     INTEGER, INTENT(OUT), OPTIONAL           :: ngauss
+
+    REAL(KIND=dp), OPTIONAL                  :: charge
 
     CHARACTER(len=*), PARAMETER :: routineN = 'get_se_param', &
       routineP = moduleN//':'//routineN
@@ -447,6 +453,7 @@ CONTAINS
        IF (PRESENT(gdd)) gdd = sep%gdd
        IF (PRESENT(ppddg)) ppddg = sep%pre
        IF (PRESENT(dpddg)) dpddg = sep%d
+       IF (PRESENT(charge)) charge = sep%charge
     ELSE
        CALL stop_program(routineN,moduleN,__LINE__,&
             "The pointer sep is not associated")
@@ -492,7 +499,7 @@ CONTAINS
 ! *****************************************************************************
   SUBROUTINE set_se_param(sep,name,typ,defined,z,zeff,natorb,eheat,&
        beta,sto_exponents,uss,upp,udd,uff,alp,eisol,gss,gsp,gpp,gp2,&
-       acoul,nr,de,ass,asp,app,hsp,gsd,gpd,gdd,ppddg,dpddg,ngauss)
+       acoul,nr,de,ass,asp,app,hsp,gsd,gpd,gdd,ppddg,dpddg,ngauss,charge)
 
     TYPE(semi_empirical_type), POINTER       :: sep
     CHARACTER(LEN=default_string_length), &
@@ -513,6 +520,8 @@ CONTAINS
                                                 gpd, gdd
     REAL(dp), DIMENSION(2), OPTIONAL         :: ppddg, dpddg
     INTEGER, INTENT(IN), OPTIONAL            :: ngauss
+
+    REAL(dp),OPTIONAL                        :: charge
 
     CHARACTER(len=*), PARAMETER :: routineN = 'set_se_param', &
       routineP = moduleN//':'//routineN
@@ -550,6 +559,7 @@ CONTAINS
        IF (PRESENT(gdd)) sep%gdd = gdd
        IF (PRESENT(ppddg)) sep%pre = ppddg
        IF (PRESENT(dpddg)) sep%d = dpddg
+       IF (PRESENT(charge)) sep%charge = charge
     ELSE
        CALL stop_program(routineN,moduleN,__LINE__,&
             "The pointer sep is not associated")

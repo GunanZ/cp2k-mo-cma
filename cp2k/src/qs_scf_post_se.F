@@ -55,6 +55,7 @@ MODULE qs_scf_post_se
   USE qs_subsys_types,                 ONLY: qs_subsys_get,&
                                              qs_subsys_type
   USE semi_empirical_types,            ONLY: get_se_param,&
+                                             set_se_param,&
                                              semi_empirical_type
   USE timings,                         ONLY: timeset,&
                                              timestop
@@ -595,6 +596,7 @@ CONTAINS
                    WRITE (UNIT=unit_nr,&
                           FMT="(T2,I7,6X,A2,3X,I6,T39,F12.6,T69,F12.6)")&
                           iat,ana,ikind,charges(iat,1),mcharge(iat)
+                          CALL set_se_param(se_kind,charge=mcharge(iat))
                 END DO
              END DO
              WRITE (UNIT=unit_nr,&
@@ -613,6 +615,7 @@ CONTAINS
                    WRITE (UNIT=unit_nr,&
                           FMT="(T2,I6,5X,A2,2X,I6,T29,4(1X,F12.6))")&
                           iat,ana,ikind,charges(iat,1:2),mcharge(iat),charges(iat,1)-charges(iat,2)
+                          CALL set_se_param(se_kind,charge=mcharge(iat))
                 END DO
              END DO
              WRITE (UNIT=unit_nr,&

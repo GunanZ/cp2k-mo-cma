@@ -11,6 +11,8 @@ MODULE paramopt_worker
   USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                              get_atomic_kind,&
                                              get_atomic_kind_set
+  USE cp_output_handling,              ONLY: debug_print_level,&
+                                             silent_print_level
   USE cp_para_types,                   ONLY: cp_para_env_type
   USE cp_subsys_types,                 ONLY: cp_subsys_get,&
                                              cp_subsys_type,&
@@ -60,6 +62,8 @@ MODULE paramopt_worker
                                              swarm_message_type
   USE scptb_types,                     ONLY: get_scptb_parameter, &
                                              scptb_parameter_type
+  USE semi_empirical_types,            ONLY: get_se_param,&
+                                             semi_empirical_type
 #include "../common/cp_common_uses.f90"
 
  IMPLICIT NONE
@@ -321,10 +325,11 @@ MODULE paramopt_worker
     REAL(dp), ALLOCATABLE, DIMENSION(:, :)   :: g
     TYPE(atomic_kind_type), DIMENSION(:), &
       POINTER                                :: atomic_kind_set
-    INTEGER                                  :: nkind,ikind,natom_kind
+    INTEGER                                  :: nkind,ikind,natom_kind,fsize
     REAL(dp)                                 :: tcharge,mcharge=0._dp
     TYPE(scptb_parameter_type), POINTER      :: scptb_kind
-        TYPE(qs_kind_type), DIMENSION(:), &
+    TYPE(semi_empirical_type), POINTER       :: se_kind
+    TYPE(qs_kind_type), DIMENSION(:), &
       POINTER                                :: qs_kind_set
     CHARACTER(LEN=default_string_length)     :: aname
     this%func = 0._dp
@@ -412,6 +417,23 @@ MODULE paramopt_worker
     CALL section_vals_val_set(this%root_section, &
                                "FORCE_EVAL%DFT%MULTIPLICITY", &
                                i_val=this%spinmult, error = this%error)
+
+    fsize= len_trim(this%inp_file)
+    if(this%inp_file .eq. "WATER27structures/water01.xyz") then
+        CALL section_vals_val_set(this%root_section, &
+                               "FORCE_EVAL%DFT%PRINT%MULLIKEN%_SECTION_PARAMETERS_", &
+                               i_val=silent_print_level-1, error = this%error)
+
+    else if (this%inp_file(fsize-10:fsize) .eq. "00water.xyz") then
+         CALL section_vals_val_set(this%root_section, &
+                           "FORCE_EVAL%DFT%PRINT%MULLIKEN%_SECTION_PARAMETERS_", &
+                           i_val=silent_print_level-1, error = this%error)
+
+    else
+        CALL section_vals_val_set(this%root_section, &
+                            "FORCE_EVAL%DFT%PRINT%MULLIKEN%_SECTION_PARAMETERS_", &
+                            i_val=debug_print_level+1, error = this%error)
+    endif
     !here LSD should be enabled if charge is not 0
     !if(this%charge .ne. 0) then
     !     CALL section_vals_val_set(this%root_section, &
@@ -494,28 +516,31 @@ MODULE paramopt_worker
     !
    endif
    !if (this%inp_file .eq. 'atomic_structures/water06.xyz') then
- !  if (natoms .eq. 3 .and. associated(xopt_ptr)) then
- !  CALL get_qs_env(qs_env=this%qs_env,qs_kind_set=qs_kind_set,atomic_kind_set=atomic_kind_set,error=this%error)
- !  nkind = SIZE(atomic_kind_set)
- !        DO ikind=1,nkind
- !           !CALL get_atomic_kind(atomic_kind_set(ikind),natom=natom_kind)
- !           CALL get_qs_kind(qs_kind_set(ikind),scptb_parameter=scptb_kind)
- !           CALL get_scptb_parameter(scptb_kind,charge=tcharge,atomname=aname)
- !           !print *,'hallo',mcharge,this%inp_file
- !           if (aname .eq. 'O') then
- !               mcharge=tcharge
- !               this%func(5) = abs(-0.66_dp-mcharge)
- !                print *,'charge_err',this%func(5),mcharge
- !           endif
+   if (natoms .eq. 3 .and. associated(xopt_ptr)) then
+   CALL get_qs_env(qs_env=this%qs_env,qs_kind_set=qs_kind_set,atomic_kind_set=atomic_kind_set,error=this%error)
+   nkind = SIZE(atomic_kind_set)
+         DO ikind=1,nkind
+            !CALL get_atomic_kind(atomic_kind_set(ikind),natom=natom_kind)
+            !CALL get_qs_kind(qs_kind_set(ikind),scptb_parameter=scptb_kind)
+            !CALL get_scptb_parameter(scptb_kind,charge=tcharge,atomname=aname)
+            CALL get_qs_kind(qs_kind_set(ikind),se_parameter=se_kind)
+            CALL get_se_param(se_kind,charge=tcharge,name=aname)
+
+            !print *,'hallo',mcharge,this%inp_file,aname,tcharge
+            if (aname(1:1) .eq. 'O') then
+                mcharge=tcharge
+               this%func(size(this%func)) = abs(-0.66_dp-mcharge)
+               !print *,'charge_err',this%func(size(this%func)),mcharge
+            endif
  !        !   DO iatom=1,natom_kind
- !        !     atom_a = atomic_kind_set(ikind)%atom_list(iatom)
  !        !     mcharge(atom_a) = zeff - SUM(charges(atom_a,1:nspins))
+ !        !     atom_a = atomic_kind_set(ikind)%atom_list(iatom)
  !        !     ! yannick hack
  !        !       CALL get_qs_kind(qs_kind_set(ikind), scptb_parameter=scptb_kind)
  !        !       CALL set_scptb_parameter(scptb_kind,charge=mcharge(atom_a))
  !        !   END DO
- !        END DO
- !   endif
+         END DO
+    endif
     !print *,'mcharge',mcharge
     !print *,'charge_err',this%func(3),mcharge
     !------------------cleanup------------------------------------------------------
