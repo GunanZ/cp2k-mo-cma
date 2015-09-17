@@ -64,6 +64,9 @@ MODULE paramopt_worker
                                              scptb_parameter_type
   USE semi_empirical_types,            ONLY: get_se_param,&
                                              semi_empirical_type
+  USE qs_dftb_utils,                   ONLY: get_dftb_atom_param
+  USE qs_dftb_types,                   ONLY: qs_dftb_atom_type
+
 #include "../common/cp_common_uses.f90"
 
  IMPLICIT NONE
@@ -159,6 +162,7 @@ MODULE paramopt_worker
         IF (worker%iw>0) WRITE(worker%iw,*) "paramopt_worker_init called."
         IF (worker%iw>0) WRITE(worker%iw,*) "paramopt_worker_init done."
         allocate(worker%D3(3))
+        !allocate(worker%func(worker%m+1))
         allocate(worker%func(worker%m))
   END SUBROUTINE paramopt_worker_init
 
@@ -328,10 +332,12 @@ MODULE paramopt_worker
     INTEGER                                  :: nkind,ikind,natom_kind,fsize
     REAL(dp)                                 :: tcharge,mcharge=0._dp
     TYPE(scptb_parameter_type), POINTER      :: scptb_kind
+    TYPE(qs_dftb_atom_type), POINTER         :: dftb_kind
     TYPE(semi_empirical_type), POINTER       :: se_kind
     TYPE(qs_kind_type), DIMENSION(:), &
       POINTER                                :: qs_kind_set
     CHARACTER(LEN=default_string_length)     :: aname
+    CHARACTER(LEN=2)                         :: ana
     this%func = 0._dp
     energy => this%func(1)
     rmsd => this%func(2)
@@ -358,24 +364,25 @@ MODULE paramopt_worker
     !   if (this%database .eq. 1) then
     !           allocate(dftb3_param(4))
     !   else
-    !           allocate(dftb3_param(2))
     !   endif
     !   !dftb3_param = this%x(6:xsize)
-    !   dftb3_param = this%x(4:xsize)
+        allocate(dftb3_param(2))
+        dftb3_param = this%x(4:xsize)
     !   !dftb3_param = this%x(3:xsize)
     !   !dftb3_param = this%x(1:xsize)
     !   !allocate(dftb3_param(2))
     !   !dftb3_param = this%x(6:7)
     !endif
     !!!---for hb param optimization---------------------
-    !allocate(hb_para(3))
+    allocate(hb_para(3))
+    !allocate(hb_para(1))
     !hb_para = 0._dp
-    !hb_para(1) = this%x(1)
-    !hb_para(2) = this%x(2)
-    !hb_para(3) = this%x(3)
-    !--------for scptb--------------------------------
-    allocate(xopt_ptr(size(this%x)))
-    xopt_ptr = this%x
+    hb_para(1) = this%x(1)
+    hb_para(2) = this%x(2)
+    hb_para(3) = this%x(3)
+    !--------for scptb and pm6--------------------------------
+    !allocate(xopt_ptr(size(this%x)))
+    !xopt_ptr = this%x
    !-------------------------------------------------
     CALL section_vals_val_set(this%root_section, &
                               "FORCE_EVAL%SUBSYS%TOPOLOGY%COORD_FILE_NAME", &
@@ -428,7 +435,6 @@ MODULE paramopt_worker
          CALL section_vals_val_set(this%root_section, &
                            "FORCE_EVAL%DFT%PRINT%MULLIKEN%_SECTION_PARAMETERS_", &
                            i_val=silent_print_level-1, error = this%error)
-
     else
         CALL section_vals_val_set(this%root_section, &
                             "FORCE_EVAL%DFT%PRINT%MULLIKEN%_SECTION_PARAMETERS_", &
@@ -516,22 +522,31 @@ MODULE paramopt_worker
     !
    endif
    !if (this%inp_file .eq. 'atomic_structures/water06.xyz') then
-   if (natoms .eq. 3 .and. associated(xopt_ptr)) then
+   if (natoms .eq. 3 .and. (associated(xopt_ptr) .or. associated(hb_para))) then
    CALL get_qs_env(qs_env=this%qs_env,qs_kind_set=qs_kind_set,atomic_kind_set=atomic_kind_set,error=this%error)
    nkind = SIZE(atomic_kind_set)
          DO ikind=1,nkind
-            !CALL get_atomic_kind(atomic_kind_set(ikind),natom=natom_kind)
+           if (associated(hb_para)) then
+             if (ikind .eq. 1) then
+             CALL get_atomic_kind(atomic_kind_set(ikind),natom=natom_kind)
+             CALL get_qs_kind(qs_kind_set(ikind),dftb_parameter=dftb_kind)
+             !CALL get_dftb_atom_param(dftb_kind,name=aname)
+             CALL get_dftb_atom_param(dftb_kind,mcharge=tcharge)
+               mcharge=tcharge
+               this%func(size(this%func)) = abs(-0.66_dp-mcharge)
+             endif
             !CALL get_qs_kind(qs_kind_set(ikind),scptb_parameter=scptb_kind)
             !CALL get_scptb_parameter(scptb_kind,charge=tcharge,atomname=aname)
-            CALL get_qs_kind(qs_kind_set(ikind),se_parameter=se_kind)
-            CALL get_se_param(se_kind,charge=tcharge,name=aname)
-
-            !print *,'hallo',mcharge,this%inp_file,aname,tcharge
+           else
             if (aname(1:1) .eq. 'O') then
+                CALL get_qs_kind(qs_kind_set(ikind),se_parameter=se_kind)
+                CALL get_se_param(se_kind,charge=tcharge,name=aname)
                 mcharge=tcharge
                this%func(size(this%func)) = abs(-0.66_dp-mcharge)
                !print *,'charge_err',this%func(size(this%func)),mcharge
             endif
+           endif
+          !  print *,'hallo',mcharge,this%inp_file,aname,tcharge
  !        !   DO iatom=1,natom_kind
  !        !     mcharge(atom_a) = zeff - SUM(charges(atom_a,1:nspins))
  !        !     atom_a = atomic_kind_set(ikind)%atom_list(iatom)

@@ -48,7 +48,8 @@ MODULE qs_scf_post_dftb
   USE particle_types,                  ONLY: particle_type
   USE physcon,                         ONLY: debye
   USE qs_dftb_types,                   ONLY: qs_dftb_atom_type
-  USE qs_dftb_utils,                   ONLY: get_dftb_atom_param
+  USE qs_dftb_utils,                   ONLY: get_dftb_atom_param,&
+                                             set_dftb_atom_param
   USE qs_environment_types,            ONLY: get_qs_env,&
                                              qs_environment_type
   USE qs_kind_types,                   ONLY: get_qs_kind,&
@@ -169,6 +170,9 @@ CONTAINS
                       WRITE (UNIT=unit_nr,&
                              FMT="(T2,I7,6X,A2,3X,I6,T39,F12.6,T69,F12.6)")&
                              iat,ana,ikind,charges(iat,1),mcharge(iat)
+                      !yannick
+                      !! set dftb parameter
+                      CALL set_dftb_atom_param(dftb_kind,mcharge=mcharge(iat))
                    END DO
                 END DO
                 WRITE (UNIT=unit_nr,&
@@ -235,7 +239,7 @@ CONTAINS
             error=error, error_level=cp_warning_level)
        END IF
 
-       ! EFIELD CUBE FILE 
+       ! EFIELD CUBE FILE
        print_key => section_vals_get_subs_vals(print_section,"EFIELD_CUBE",error=error)
        IF (BTEST(cp_print_key_should_output(logger%iter_info,print_key,error=error),cp_p_file)) THEN
          CALL cp_unimplemented_error(fromWhere=routineP, &
@@ -243,7 +247,7 @@ CONTAINS
             error=error, error_level=cp_warning_level)
        END IF
 
-       ! DENSITY CUBE FILE 
+       ! DENSITY CUBE FILE
        print_key => section_vals_get_subs_vals(print_section,"E_DENSITY_CUBE",error=error)
        IF (BTEST(cp_print_key_should_output(logger%iter_info,print_key,error=error),cp_p_file)) THEN
          CALL cp_unimplemented_error(fromWhere=routineP, &
@@ -251,7 +255,7 @@ CONTAINS
             error=error, error_level=cp_warning_level)
        END IF
 
-       ! TOTAL DENSITY CUBE FILE 
+       ! TOTAL DENSITY CUBE FILE
        print_key => section_vals_get_subs_vals(print_section,"TOT_DENSITY_CUBE",error=error)
        IF (BTEST(cp_print_key_should_output(logger%iter_info,print_key,error=error),cp_p_file)) THEN
          CALL cp_unimplemented_error(fromWhere=routineP, &
@@ -259,7 +263,7 @@ CONTAINS
             error=error, error_level=cp_warning_level)
        END IF
 
-       ! V_Hartree CUBE FILE 
+       ! V_Hartree CUBE FILE
        print_key => section_vals_get_subs_vals(print_section,"V_HARTREE_CUBE",error=error)
        IF (BTEST(cp_print_key_should_output(logger%iter_info,print_key,error=error),cp_p_file)) THEN
          CALL cp_unimplemented_error(fromWhere=routineP, &
@@ -267,7 +271,7 @@ CONTAINS
             error=error, error_level=cp_warning_level)
        END IF
 
-       ! V_XC CUBE FILE 
+       ! V_XC CUBE FILE
        print_key => section_vals_get_subs_vals(print_section,"V_XC_CUBE",error=error)
        IF (BTEST(cp_print_key_should_output(logger%iter_info,print_key,error=error),cp_p_file)) THEN
          CALL cp_unimplemented_error(fromWhere=routineP, &
@@ -283,7 +287,7 @@ CONTAINS
             error=error, error_level=cp_warning_level)
        END IF
 
-       ! KINETIC ENERGY 
+       ! KINETIC ENERGY
        print_key => section_vals_get_subs_vals(print_section,"KINETIC_ENERGY",error=error)
        IF (BTEST(cp_print_key_should_output(logger%iter_info,print_key,error=error),cp_p_file)) THEN
          CALL cp_unimplemented_error(fromWhere=routineP, &
@@ -315,7 +319,7 @@ CONTAINS
             error=error, error_level=cp_warning_level)
        END IF
 
-       ! MO 
+       ! MO
        print_key => section_vals_get_subs_vals(print_section,"MO",error=error)
        IF (BTEST(cp_print_key_should_output(logger%iter_info,print_key,error=error),cp_p_file)) THEN
          CALL cp_unimplemented_error(fromWhere=routineP, &
@@ -330,7 +334,7 @@ CONTAINS
             message="Printing of MO cube files not implemented for DFTB method.", &
             error=error, error_level=cp_warning_level)
        END IF
- 
+
        ! Wavefunction mixing
        wfn_mix_section => section_vals_get_subs_vals(dft_section,"PRINT%WFN_MIX",error=error)
        CALL section_vals_get(wfn_mix_section,explicit=explicit,error=error)
@@ -455,7 +459,7 @@ CONTAINS
        dipole_type="[Non Periodic]"
        DO i = 1, SIZE(particle_set)
           ! no pbc(particle_set(i)%r(:),cell) so that the total dipole is the sum of the molecular dipoles
-          ria = particle_set(i)%r(:) 
+          ria = particle_set(i)%r(:)
           q=charges(i)
           dipole = dipole - q *(ria-rcc)
           dipole_deriv(:)= dipole_deriv(:)- q *(particle_set(i)%v(:)- drcc)
@@ -514,10 +518,10 @@ CONTAINS
                     particle_set=particle_set,atomic_kind_set=atomic_kind_set,&
                     qs_kind_set=qs_kind_set, mos=mos,error=error)
 
-    wfn_mix_section => section_vals_get_subs_vals(dft_section,"PRINT%WFN_MIX",error=error) 
+    wfn_mix_section => section_vals_get_subs_vals(dft_section,"PRINT%WFN_MIX",error=error)
 
     CALL get_mo_set(mos(1)%mo_set,mo_coeff=mo_coeff,nao=nao)
-    
+
     CALL cp_fm_struct_create(fmstruct=ao_ao_fmstruct, nrow_global=nao, ncol_global=nao,&
          template_fmstruct=mo_coeff%matrix_struct, error=error)
     CALL cp_fm_create(S_tmp,matrix_struct=ao_ao_fmstruct,error=error)
@@ -533,7 +537,7 @@ CONTAINS
        CALL get_mo_set(mos(ispin)%mo_set,mo_coeff=mo_coeff,eigenvalues=mo_eigenvalues,nmo=nmo)
        CALL cp_fm_struct_create(fmstruct=ao_lumo_struct, nrow_global=nao, ncol_global=nao-nmo,&
             template_fmstruct=mo_coeff%matrix_struct, error=error)
-       
+
        CALL cp_fm_create(lumos(ispin)%matrix,matrix_struct=ao_lumo_struct,error=error)
        CALL copy_dbcsr_to_fm(matrix_ks(ispin)%matrix,KS_tmp,error=error)
        CALL cp_fm_cholesky_reduce(KS_tmp,S_tmp,error=error)
@@ -541,7 +545,7 @@ CONTAINS
        CALL cp_fm_cholesky_restore(work,nao,S_tmp,MO_tmp,"SOLVE",error=error)
        CALL cp_fm_to_fm_submat(MO_tmp, mo_coeff, nao, nmo, 1, 1, 1, 1, error)
        CALL cp_fm_to_fm_submat(MO_tmp, lumos(ispin)%matrix, nao, nao-nmo, 1, nmo+1, 1, 1, error)
-       
+
        CALL cp_fm_struct_release(ao_lumo_struct,error)
     END DO
 
@@ -552,7 +556,7 @@ CONTAINS
     DO ispin=1,SIZE(mos)
        CALL cp_fm_release(lumos(ispin)%matrix,error)
     END DO
-    DEALLOCATE(lumos)   
+    DEALLOCATE(lumos)
     CALL cp_fm_release(S_tmp,error)
     CALL cp_fm_release(MO_tmp,error)
     CALL cp_fm_release(KS_tmp,error)

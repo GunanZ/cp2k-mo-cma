@@ -586,76 +586,35 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
                     this%f(input,1) = sum(func_array)
                     this%f(input,2) = sum(this%rmsd(i,:,:))
                     this%f(input,3) = this%rmsd(i,1,1)
+                    !this%f(input,4) = func_array(2)
+                    !this%f(input,5) = this%rmsd(i,2,1)
                     this%f(input,this%m) = this%mcharge(i)
                     !---------------------------
-
-                    !if (this%database .eq. 2) then
-                    !  this%f(input,4) = this%rmsd(i,8,1)
-                    !  this%f(input,5) = this%rmsd(i,19,1)
-                    !endif
                     if (this%database .eq. 6) then
-                      if (this%f(input,this%m) .gt. 0.1) this%f(input,this%m) = huge(1._dp)
-                      if (this%f(input,3) .gt. 0.11) this%f(input,3) = huge(1._dp)
-                      if (this%f(input,2) .gt. 6 ) this%f(input,2) = huge(1._dp)
-                      if (this%f(input,1) .gt. 1 ) this%f(input,1) = huge(1._dp)
+                      if (this%f(input,this%m) .gt. 0.15) this%f(input,this%m) = huge(1._dp)
+                      !if (this%f(input,5) .gt. 0.12) this%f(input,5) = huge(1._dp)
+                      !if (this%f(input,4) .gt. 0.2) this%f(input,4) = huge(1._dp)
+                      if (this%f(input,3) .gt. 0.1 ) this%f(input,3) = huge(1._dp)
+                      if (this%f(input,2) .gt. 2.0 ) this%f(input,2) = huge(1._dp)
+                      if (this%f(input,1) .gt. 1.5 ) this%f(input,1) = huge(1._dp)
                     else if (this%database .eq. 7)  then
-                      if (this%f(input,this%m) .gt. 0.1) this%f(input,this%m) = huge(1._dp)
+                    !  if (this%f(input,this%m) .gt. 0.1) this%f(input,this%m) = huge(1._dp)
                       if (this%f(input,3) .gt. 0.1) this%f(input,3) = huge(1._dp)
                       if (this%f(input,2) .gt. 9 ) this%f(input,2) = huge(1._dp)
                       if (this%f(input,1) .gt. 2 ) this%f(input,1) = huge(1._dp)
                     else if (this%database .eq. 3)  then
                     ! for the database 3
-                      if (this%f(input,this%m) .gt. 0.1) this%f(input,this%m) = huge(1._dp)
+                    !  if (this%f(input,this%m) .gt. 0.1) this%f(input,this%m) = huge(1._dp)
                       if (this%f(input,3) .gt. 0.1) this%f(input,3) = huge(1._dp)
                       if (this%f(input,2) .gt. 25 ) this%f(input,2) = huge(1._dp)
                       if (this%f(input,1) .gt. 10 ) this%f(input,1) = huge(1._dp)
                     else if (this%database .eq. 2) then
                     ! for the database 2
-                      if (this%f(input,this%m) .gt. 0.2) this%f(input,this%m) = huge(1._dp)
+                    !  if (this%f(input,this%m) .gt. 0.2) this%f(input,this%m) = huge(1._dp)
                       if (this%f(input,3) .gt. 0.1) this%f(input,3) = huge(1._dp)
                       if (this%f(input,2) .gt. 40 ) this%f(input,2) = huge(1._dp)
                       if (this%f(input,1) .gt. 10 ) this%f(input,1) = huge(1._dp)
                     endif
-
-                    !this%f(input,2) = sum(this%rmsd(input,:,:))
-                    ! this also is only first dim...so dimer of s22 yannick
-                    !if (this%database .eq. 1) then
-                    !    ! s22 is database 1
-                    !    this%f(input,2) = sum(this%rmsd(i,:,1))
-                    !else if (this%database .eq. 5) then
-                    !    this%f(input,1) = sum(func_array(1:30))
-                    !    this%f(input,2) = sum(this%rmsd(i,:,:))
-                    !    if (this%m .ne. 5) STOP "not enough objectives"
-                    !    this%f(input,5) = sum(func_array(31:35))
-                    !else
-                    !  this%f(input,2) = sum(this%rmsd(i,:,:))
-                    !endif
-
-                    !if (this%m .gt. 2) then
-                    !  if (this%database .eq. 4) then
-                    !    this%f(input,3) = func_array(7)
-                    !  else
-                    !    this%f(input,3) = func_array(2)
-                    !  endif
-                    !endif
-                    !if (this%m .gt. 3) then
-                    !
-
-                    !  if (this%database .eq. 4) then
-                    !    this%f(input,4) = this%rmsd(i,6,1)
-                    !  else
-                    !    this%f(input,4) = this%rmsd(i,1,1)
-                    !  endif
-                    !endif
-                    !if (this%m .gt. 4) then
-                    !    this%f(input,5) = this%rmsd(i,2,1)
-                    !endif
-                    !if (this%m .gt. 5) then
-                    !    this%f(input,6) = this%mcharge(i)
-                    !    !print *,'end charge',this%mcharge(i)
-                    !endif
-                    !print *,'test',this%f(input,:)
-                    !print *,'test',this%f(input,5)
                     !------------
                     if (any(this%f(input,:) .gt. 1e10)) this%f(input,:) = huge(1._dp)
                     CALL open_file(file_name="output", file_status="UNKNOWN",&
@@ -663,6 +622,7 @@ SUBROUTINE do_mocma(this,report,cmd,should_stop)
 
 
                     write(iounit,'(*(F20.10,2X))') var_trans(this%x(input,:), &
+                                  !  this%u_bound,this%l_bound),this%f(input,:),this%mcharge(i),func_array,this%rmsd(i,:,1)
                                     this%u_bound,this%l_bound),this%f(input,:),func_array,this%rmsd(i,:,1)
                     ! index 1 here is the first row...so the dimer of s22 ...
                     ! should be changed to be generic ?!
